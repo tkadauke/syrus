@@ -57,17 +57,14 @@ API):
   judge how long a migration on a table will take before deploying it.
 - `statement_digests` — top statements from
   `performance_schema.events_statements_summary_by_digest`, scoped to the
-  current database, ordered by total wait time.
-- `slow_log` — `mysql.slow_log` config (`slow_query_log`, `log_output`,
-  `long_query_time`); row data is loaded only when `include_slow_log` is
-  explicitly requested, since reading `mysql.slow_log` can be expensive on a
-  busy instance.
+  current database, ordered by total wait time, with average and maximum
+  latency, execution count, rows sent and examined, and normalized sample SQL.
+- `slow_sql_events` — recent `syrus.performance.slow_sql` observations with
+  duration, normalized SQL, fingerprint, and available calling-code context.
 
-Every diagnostic `SELECT` carries a `MAX_EXECUTION_TIME` hint (1000ms for
-process, digest, DDL-progress and storage queries, 250ms for slow-log rows) so a stuck query in the
+Every diagnostic `SELECT` carries a 1000ms `MAX_EXECUTION_TIME` hint so a stuck query in the
 inspected server can't hang the admin page itself. A missing GRANT (e.g. no
-`SELECT` on `performance_schema.events_statements_summary_by_digest` or
-`mysql.slow_log`) degrades that one section to
+`SELECT` on `performance_schema.events_statements_summary_by_digest`) degrades that one section to
 `{ available: false, error: { class, message, hint, setup_sql } }` with the
 exact `GRANT`/`SET GLOBAL` statement needed, rather than failing the whole
 snapshot.

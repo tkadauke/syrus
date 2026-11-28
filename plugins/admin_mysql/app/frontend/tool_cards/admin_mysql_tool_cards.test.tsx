@@ -76,14 +76,7 @@ const healthyPayload = {
       }
     ]
   },
-  slow_log: {
-    available: false,
-    rows: [],
-    error: {
-      message: "slow-log rows are loaded on demand",
-      hint: "Reading mysql.slow_log can be expensive on busy instances, so the live MySQL snapshot only loads row data when explicitly requested."
-    }
-  }
+  slow_sql_events: { available: true, rows: [] }
 }
 
 describe("Admin MySQL tool cards", () => {
@@ -107,7 +100,7 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.getAllByText("8h 0m")).toHaveLength(2)
     expect(screen.getByText("SELECT COUNT(*) FROM jobs")).toBeInTheDocument()
     expect(screen.getByText("Statement digests")).toBeInTheDocument()
-    expect(screen.getByText("slow-log rows are loaded on demand")).toBeInTheDocument()
+    expect(screen.getByText("No recent slow-SQL events.")).toBeInTheDocument()
     expect(screen.queryByText("sensitive_user")).not.toBeInTheDocument()
     expect(screen.queryByText("db.internal")).not.toBeInTheDocument()
     expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()
@@ -119,7 +112,7 @@ describe("Admin MySQL tool cards", () => {
       ...healthyPayload,
       process_list: [],
       statement_digests: { available: true, rows: [] },
-      slow_log: { available: true, rows: [] }
+      slow_sql_events: { available: true, rows: [] }
     }
 
     render(<>{statusToolCard.renderExpanded(context({ parsedResult }))}</>)
@@ -127,7 +120,7 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.getByText("Aktive Abfragen")).toBeInTheDocument()
     expect(screen.getByText("Keine aktiven MySQL-Prozesszeilen zurückgegeben.")).toBeInTheDocument()
     expect(screen.getByText("Keine Statement-Digest-Zeilen zurückgegeben.")).toBeInTheDocument()
-    expect(screen.getByText("Keine Slow-Log-Zeilen zurückgegeben.")).toBeInTheDocument()
+    expect(screen.getByText("Keine aktuellen langsamen SQL-Ereignisse.")).toBeInTheDocument()
     await i18n.changeLanguage("en")
   })
 
@@ -143,7 +136,7 @@ describe("Admin MySQL tool cards", () => {
           info: "ALTER TABLE jobs ADD INDEX index_jobs_on_state (state)"
         }
       ],
-      slow_log: { available: true, rows: [] }
+      slow_sql_events: { available: true, rows: [] }
     }
     const cardContext = context({ parsedResult })
 
@@ -167,12 +160,12 @@ describe("Admin MySQL tool cards", () => {
           hint: "Grant SELECT on performance_schema.events_statements_summary_by_digest."
         }
       },
-      slow_log: {
+      slow_sql_events: {
         available: false,
         rows: [],
         error: {
-          message: "slow-log rows are loaded on demand",
-          hint: "Reading mysql.slow_log can be expensive."
+          message: "Slow-SQL event store unavailable",
+          hint: "Recent application observations could not be loaded."
         }
       }
     }
@@ -182,7 +175,7 @@ describe("Admin MySQL tool cards", () => {
     render(<>{statusToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("The Syrus MySQL user cannot read Performance Schema statement digests.")).toBeInTheDocument()
-    expect(screen.getByText("slow-log rows are loaded on demand")).toBeInTheDocument()
+    expect(screen.getByText("Slow-SQL event store unavailable")).toBeInTheDocument()
   })
 
   it("renders tool-level error state when status returns plain text instead of JSON", () => {
@@ -211,7 +204,7 @@ describe("Admin MySQL tool cards", () => {
         process_list: [],
         status: {},
         statement_digests: { available: true, rows: [] },
-        slow_log: { available: true, rows: [] }
+        slow_sql_events: { available: true, rows: [] }
       }
     })
     expect(statusToolCard.collapsedSummary?.(unavailable)).toBe("MySQL unavailable · 0 active")
@@ -234,17 +227,14 @@ describe("Admin MySQL tool cards", () => {
           }
         ]
       },
-      slow_log: {
+      slow_sql_events: {
         available: true,
         rows: [
           {
-            start_time: "2026-09-10T11:59:00Z",
-            user_host: "sensitive_user[db.internal]",
-            query_time: "00:00:12.000000",
-            lock_time: "00:00:02.000000",
-            rows_examined: 45000,
-            database: "syrus_production",
-            sql_text: longSql
+            occurred_at: "2026-09-10T11:59:00Z",
+            duration_ms: 12000,
+            controller: "Api::JobsController",
+            sql: longSql
           }
         ]
       }
@@ -254,7 +244,7 @@ describe("Admin MySQL tool cards", () => {
     expect(statusToolCard.collapsedSummary?.(cardContext)).toBe("MySQL healthy · 1 active · 1 slow")
     render(<>{statusToolCard.renderExpanded(cardContext)}</>)
 
-    expect(screen.getByText("00:00:12.000000 query")).toBeInTheDocument()
+    expect(screen.getByText("12000ms")).toBeInTheDocument()
     expect(screen.getAllByText(/Show full payload/).length).toBeGreaterThan(0)
     expect(screen.queryByText("sensitive_user[db.internal]")).not.toBeInTheDocument()
     expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()

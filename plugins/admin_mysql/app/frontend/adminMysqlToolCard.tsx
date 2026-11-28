@@ -36,12 +36,11 @@ type StatementDigestRow = {
   rowsExamined: number | null
 }
 
-type SlowLogRow = {
-  startTime: string | null
-  queryTime: string | null
-  lockTime: string | null
-  rowsExamined: number | null
-  sqlText: string | null
+type SlowSqlEventRow = {
+  occurredAt: string | null
+  durationMs: number | null
+  source: string | null
+  sql: string | null
 }
 
 type SectionSummary<T> = { available: true; rows: T[]; error: null } | { available: false; rows: T[]; error: MysqlError | null }
@@ -55,7 +54,7 @@ type StatusPayload = {
   status: Record<string, unknown>
   processes: ProcessRow[]
   statementDigests: SectionSummary<StatementDigestRow>
-  slowLog: SectionSummary<SlowLogRow>
+  slowSqlEvents: SectionSummary<SlowSqlEventRow>
   error: MysqlError | null
 }
 
@@ -164,16 +163,13 @@ function parseDigest(value: unknown): StatementDigestRow | null {
   }
 }
 
-function parseSlowLogRow(value: unknown): SlowLogRow | null {
+function parseSlowSqlEvent(value: unknown): SlowSqlEventRow | null {
   if (!isPlainObject(value)) return null
-  const sqlText = displayValue(value.sql_text)
-
   return {
-    startTime: displayValue(value.start_time),
-    queryTime: displayValue(value.query_time),
-    lockTime: displayValue(value.lock_time),
-    rowsExamined: integer(value.rows_examined),
-    sqlText
+    occurredAt: displayValue(value.occurred_at),
+    durationMs: numberValue(value.duration_ms),
+    source: displayValue(value.controller) ?? displayValue(value.job_class) ?? displayValue(value.phase) ?? displayValue(value.name),
+    sql: displayValue(value.sql)
   }
 }
 
@@ -189,16 +185,12 @@ function parseSection<T>(value: unknown, parseRow: (row: unknown) => T | null): 
   return value.available === true ? { available: true, rows, error: null } : { available: false, rows, error: parseMysqlError(value.error) }
 }
 
-function slowLogDeferred(section: SectionSummary<SlowLogRow>) {
-  return section.available === false && section.error?.message === "slow-log rows are loaded on demand"
-}
-
 function statusHealth(payload: {
   available: boolean
   error: MysqlError | null
   processes: ProcessRow[]
   statementDigests: SectionSummary<StatementDigestRow>
-  slowLog: SectionSummary<SlowLogRow>
+  slowSqlEvents: SectionSummary<SlowSqlEventRow>
   status: Record<string, unknown>
 }): HealthState {
   if (payload.error) return "error"
@@ -207,7 +199,7 @@ function statusHealth(payload: {
   const rowLockWaits = integer(payload.status.Innodb_row_lock_current_waits)
   if (rowLockWaits != null && rowLockWaits > 0) return "degraded"
   if (payload.statementDigests.available === false) return "degraded"
-  if (payload.slowLog.available === false && !slowLogDeferred(payload.slowLog)) return "degraded"
+  if (payload.slowSqlEvents.available === false) return "degraded"
   return "healthy"
 }
 
@@ -230,7 +222,7 @@ export function parseStatusPayload(context: ToolCardContext): StatusPayload | nu
     status,
     processes,
     statementDigests: parseSection(parsed.statement_digests, parseDigest),
-    slowLog: parseSection(parsed.slow_log, parseSlowLogRow),
+    slowSqlEvents: parseSection(parsed.slow_sql_events, parseSlowSqlEvent),
     error: parseMysqlError(parsed.error)
   }
 
@@ -250,7 +242,7 @@ export function statusSummary(context: ToolCardContext): string | null {
   const payload = parseStatusPayload(context)
   if (!payload) return null
 
-  const slowCount = payload.slowLog.rows.length
+  const slowCount = payload.slowSqlEvents.rows.length
   const lockedCount = payload.processes.filter((process) => process.lockedOrWaiting).length
   const fragments = [`${payload.health}`, `${payload.connection.activeQueries} active`]
   if (slowCount > 0) fragments.push(`${slowCount} slow`)
@@ -352,6 +344,7 @@ function DigestSummary({ section }: { section: SectionSummary<StatementDigestRow
           <div className="mb-1 flex flex-wrap gap-2 text-2xs text-gray-500 dark:text-gray-400">
             <Badge>{t("tool_run_count", { count: row.count ?? 0 })}</Badge>
             <Badge>{t("tool_total_value", { value: decimal(row.totalSeconds) })}</Badge>
+            <Badge>{t("tool_avg_value", { value: decimal(row.avgSeconds) })}</Badge>
             <Badge>{t("tool_max_value", { value: decimal(row.maxSeconds) })}</Badge>
             {row.rowsExamined != null ? <Badge>{t("tool_rows_examined", { count: row.rowsExamined })}</Badge> : null}
           </div>
@@ -363,35 +356,26 @@ function DigestSummary({ section }: { section: SectionSummary<StatementDigestRow
   )
 }
 
-function SlowLogSummary({ section }: { section: SectionSummary<SlowLogRow> }) {
+function SlowSqlSummary({ section }: { section: SectionSummary<SlowSqlEventRow> }) {
   const { t } = useT("admin_mysql")
   if (!section.available) {
-    if (slowLogDeferred(section)) {
-      return (
-        <div className="rounded border border-gray-200 bg-white px-2 py-1 text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-          <div className="font-mono">{section.error?.message}</div>
-          {section.error?.hint ? <div className="mt-1 text-gray-500 dark:text-gray-400">{section.error.hint}</div> : null}
-        </div>
-      )
-    }
-    return section.error ? <MysqlErrorNotice error={section.error} /> : <div className="text-gray-500 dark:text-gray-400">{t("tool_slow_log_unavailable")}</div>
+    return section.error ? <MysqlErrorNotice error={section.error} /> : <div className="text-gray-500 dark:text-gray-400">{t("tool_slow_sql_unavailable")}</div>
   }
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_slow_log_rows")}</div>
+  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_slow_sql_events")}</div>
 
   return (
     <div className="space-y-1">
       {section.rows.slice(0, 3).map((row, index) => (
-        <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={`${row.startTime ?? "slow"}-${index}`}>
+        <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={`${row.occurredAt ?? "slow"}-${index}`}>
           <div className="mb-1 flex flex-wrap gap-2 text-2xs text-gray-500 dark:text-gray-400">
-            {row.queryTime ? <Badge>{t("tool_query_time_value", { value: row.queryTime })}</Badge> : null}
-            {row.lockTime ? <Badge>{t("tool_lock_time_value", { value: row.lockTime })}</Badge> : null}
-            {row.rowsExamined != null ? <Badge>{t("tool_rows_examined", { count: row.rowsExamined })}</Badge> : null}
-            {row.startTime ? <Badge>{row.startTime}</Badge> : null}
+            {row.durationMs != null ? <Badge>{decimal(row.durationMs, "ms")}</Badge> : null}
+            {row.source ? <Badge>{row.source}</Badge> : null}
+            {row.occurredAt ? <Badge>{row.occurredAt}</Badge> : null}
           </div>
-          {row.sqlText ? <QueryPreview text={row.sqlText} /> : <div className="text-gray-500 dark:text-gray-400">{t("tool_no_sql_text")}</div>}
+          {row.sql ? <QueryPreview text={row.sql} /> : <div className="text-gray-500 dark:text-gray-400">{t("tool_no_sql_text")}</div>}
         </div>
       ))}
-      {section.rows.length > 3 ? <TruncatedNotice label={t("tool_slow_log_preview")} /> : null}
+      {section.rows.length > 3 ? <TruncatedNotice label={t("tool_slow_sql_preview")} /> : null}
     </div>
   )
 }
@@ -437,8 +421,8 @@ export function StatusCard({ context }: { context: ToolCardContext }) {
         <ProcessTable rows={payload.processes.slice(0, 8)} />
       </div>
       <div>
-        <SectionLabel>{t("tool_slow_queries_and_log")}</SectionLabel>
-        <SlowLogSummary section={payload.slowLog} />
+        <SectionLabel>{t("slow_sql_events")}</SectionLabel>
+        <SlowSqlSummary section={payload.slowSqlEvents} />
       </div>
       <div>
         <SectionLabel>{t("statement_digests")}</SectionLabel>

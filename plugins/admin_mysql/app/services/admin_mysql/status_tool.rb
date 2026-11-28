@@ -4,8 +4,8 @@ module AdminMysql
   class StatusTool < MCP::Tool
     tool_name "admin_mysql_status"
 
-    description "Read live MySQL status, process list, connection information, slow-log availability, " \
-                "and statement digests for this Syrus instance."
+    description "Read live MySQL status, process list, connection information, statement digests, " \
+                "and recent Syrus slow-SQL events for this instance."
 
     input_schema(
       type: "object",

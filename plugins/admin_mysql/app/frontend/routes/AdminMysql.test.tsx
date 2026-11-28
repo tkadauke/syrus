@@ -15,7 +15,7 @@ function mockUseConfirm(confirmed: boolean) {
 }
 
 describe("AdminMysql", () => {
-  it("keeps the statement digests and slow log panels shrinkable so their tables scroll instead of overflowing the page", async () => {
+  it("keeps the statement digests and slow SQL panels shrinkable so their tables scroll instead of overflowing the page", async () => {
     vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(mysqlPayload())))
 
     renderRoute(<AdminMysql />)
@@ -23,7 +23,7 @@ describe("AdminMysql", () => {
     await waitFor(() => expect(screen.queryByText("Loading MySQL state...")).not.toBeInTheDocument())
 
     const digestsHeading = await screen.findByRole("heading", { name: "Statement digests" })
-    const slowLogHeading = await screen.findByRole("heading", { name: "Slow log" })
+    const slowSqlHeading = await screen.findByRole("heading", { name: "Recent slow SQL" })
 
     // These headings live inside the two grid panels placed side by side at
     // the `xl` breakpoint (`grid xl:grid-cols-2`). Grid items default to
@@ -32,7 +32,7 @@ describe("AdminMysql", () => {
     // table wrapper scroll internally. `min-w-0` on the panel is what makes
     // the internal scroll actually take effect.
     expect(digestsHeading.closest("section")).toHaveClass("min-w-0")
-    expect(slowLogHeading.closest("section")).toHaveClass("min-w-0")
+    expect(slowSqlHeading.closest("section")).toHaveClass("min-w-0")
   })
 
   it("hides idle (Sleep) threads by default and reveals them when the toggle is unchecked", async () => {
@@ -242,19 +242,16 @@ function baseMysqlPayload(): MysqlSnapshot {
         }
       ]
     },
-    slow_log: {
+    slow_sql_events: {
       available: true,
-      config: { slow_query_log: "ON", log_output: "TABLE", long_query_time: "1.000000" },
       rows: [
         {
-          start_time: "2026-08-27T11:59:00Z",
-          user_host: "app[app] @ 10.0.0.1",
-          query_time: "1.200000",
-          lock_time: "0.000000",
-          rows_sent: 1,
-          rows_examined: 1000,
-          database: "syrus_production",
-          sql_text: "SELECT * FROM jobs"
+          occurred_at: "2026-08-27T11:59:00Z",
+          duration_ms: 1200,
+          controller: "Api::JobsController",
+          action: "index",
+          sql: "SELECT * FROM jobs",
+          fingerprint: "select-from-jobs"
         }
       ]
     }

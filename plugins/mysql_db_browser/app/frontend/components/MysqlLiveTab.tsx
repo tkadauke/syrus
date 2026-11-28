@@ -5,7 +5,7 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { executeMysqlQuery } from "../api/mysqlQuery"
 import { MysqlQueryResultPanel } from "./MysqlQueryResultPanel"
 
-// Generalizes AdminMysql.tsx's process-list/global-status/slow-log views
+// Generalizes AdminMysql.tsx's process-list/global-status/statement-summary views
 // (built for Syrus's own database) to any registered connection. Each is
 // just a plain SELECT against a system table/schema the schema explorer
 // already treats as browsable - so this is the Query tab with a canned
@@ -21,7 +21,11 @@ const CANNED_QUERIES = [
     labelKey: "live_global_status",
     sql: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_status ORDER BY VARIABLE_NAME"
   },
-  { id: "slow_log", labelKey: "live_slow_log", sql: "SELECT * FROM mysql.slow_log ORDER BY start_time DESC LIMIT 50" }
+  {
+    id: "statement_digests",
+    labelKey: "live_statement_digests",
+    sql: "SELECT SCHEMA_NAME, DIGEST_TEXT, COUNT_STAR, ROUND(SUM_TIMER_WAIT / 1000000000000, 6) AS total_seconds, ROUND(AVG_TIMER_WAIT / 1000000000000, 6) AS avg_seconds, SUM_ROWS_EXAMINED FROM performance_schema.events_statements_summary_by_digest ORDER BY SUM_TIMER_WAIT DESC LIMIT 50"
+  }
 ] as const
 
 export function MysqlLiveTab({ connectionId }: { connectionId: number }) {

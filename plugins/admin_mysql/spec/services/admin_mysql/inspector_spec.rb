@@ -22,19 +22,6 @@ RSpec.describe AdminMysql::Inspector do
     expect(payload.fetch(:setup_sql)).to include(include("performance_schema.events_statements_summary_by_digest"))
   end
 
-  it "normalizes missing slow-log table permissions into actionable hints" do
-    payload = described_class.new.send(
-      :error_payload,
-      StandardError.new("Mysql2::Error: SELECT command denied to user 'syrus' for table 'slow_log'")
-    )
-
-    expect(payload).to include(
-      message: "The Syrus MySQL user cannot read mysql.slow_log.",
-      hint: include("Grant SELECT")
-    )
-    expect(payload.fetch(:setup_sql)).to include(include("mysql.slow_log"))
-  end
-
   describe "storage and DDL progress" do
     let(:inspector) { described_class.new }
     let(:connection) { double("connection", current_database: "syrus_production") }
@@ -218,9 +205,9 @@ RSpec.describe AdminMysql::Inspector do
   end
 
   it "adds a per-statement timeout hint to expensive diagnostic SELECTs" do
-    hinted = described_class.new.send(:mysql_timeout_hint, "SELECT * FROM mysql.slow_log", timeout_ms: 750)
+    hinted = described_class.new.send(:mysql_timeout_hint, "SELECT * FROM performance_schema.global_status", timeout_ms: 750)
 
-    expect(hinted).to eq("SELECT /*+ MAX_EXECUTION_TIME(750) */ * FROM mysql.slow_log")
+    expect(hinted).to eq("SELECT /*+ MAX_EXECUTION_TIME(750) */ * FROM performance_schema.global_status")
   end
 
   it "runs statement digest reads through the bounded diagnostic SELECT helper" do
@@ -229,67 +216,40 @@ RSpec.describe AdminMysql::Inspector do
       current_database: "syrus_production",
       quote: ->(value) { "'#{value}'" }
     ))
-    allow(inspector).to receive(:select_all_with_timeout).and_return([])
+    allow(inspector).to receive(:select_all_with_timeout).and_return([
+      { "SCHEMA_NAME" => "syrus_production", "DIGEST_TEXT" => "SELECT * FROM jobs WHERE id = ?", "COUNT_STAR" => 3,
+        "total_seconds" => "1.5", "avg_seconds" => "0.5", "max_seconds" => "0.8", "SUM_ROWS_SENT" => 3,
+        "SUM_ROWS_EXAMINED" => 30, "FIRST_SEEN" => nil, "LAST_SEEN" => nil }
+    ])
 
     payload = inspector.send(:statement_digests, limit: 5)
 
-    expect(payload).to include(available: true, rows: [])
+    expect(payload).to include(available: true)
+    expect(payload.fetch(:rows).first).to include(count: 3, total_seconds: 1.5, avg_seconds: 0.5, rows_examined: 30)
     expect(inspector).to have_received(:select_all_with_timeout).with(include("events_statements_summary_by_digest"))
   end
 
-  it "does not read slow-log rows unless explicitly requested" do
+  it "returns recent Syrus slow-SQL events with calling context" do
     inspector = described_class.new
-    allow(inspector).to receive(:variables).and_return({
-      "slow_query_log" => "ON",
-      "log_output" => "TABLE",
-      "long_query_time" => 1
-    })
-    allow(inspector).to receive(:slow_log_rows).and_return(available: true, rows: [ { sql_text: "SELECT 1" } ])
+    allow(Syrus::Host::PerformanceLogging).to receive(:recent_slow_sql).with(limit: 5).and_return([
+      { "occurred_at" => "2026-11-28T10:00:00Z", "duration_ms" => 420.5,
+        "sql" => "SELECT * FROM jobs WHERE id = 42", "controller" => "Api::JobsController", "action" => "show" }
+    ])
 
-    payload = inspector.send(:slow_log, limit: 5, include_rows: false)
+    payload = inspector.send(:slow_sql_events, limit: 5)
 
-    expect(payload).to include(available: false, rows: [])
-    expect(payload.dig(:error, :message)).to eq("slow-log rows are loaded on demand")
-    expect(inspector).not_to have_received(:slow_log_rows)
-  end
-
-  it "reads slow-log rows when explicitly requested" do
-    inspector = described_class.new
-    allow(inspector).to receive(:variables).and_return({
-      "slow_query_log" => "ON",
-      "log_output" => "TABLE",
-      "long_query_time" => 1
-    })
-    allow(inspector).to receive(:slow_log_rows).and_return(available: true, rows: [ { sql_text: "SELECT 1" } ])
-
-    payload = inspector.send(:slow_log, limit: 5, include_rows: true)
-
-    expect(payload).to include(available: true, rows: [ { sql_text: "SELECT 1" } ])
-    expect(inspector).to have_received(:slow_log_rows).with(limit: 5)
-  end
-
-  it "bounds explicit slow-log reads to recent rows with a short timeout" do
-    inspector = described_class.new
-    connection = double(quote: "'2026-08-27 10:00:00'")
-    allow(inspector).to receive(:variables).and_return({
-      "slow_query_log" => "ON",
-      "log_output" => "TABLE",
-      "long_query_time" => 1
-    })
-    allow(inspector).to receive(:connection).and_return(connection)
-    allow(inspector).to receive(:select_all_with_timeout).and_return([])
-
-    expected_lookback = Time.zone.parse("2026-08-27 10:00:00 UTC")
-
-    payload = freeze_time(Time.zone.parse("2026-08-27 12:00:00 UTC")) do
-      inspector.send(:slow_log_rows, limit: 5)
-    end
-
-    expect(payload).to include(available: true, rows: [])
-    expect(inspector).to have_received(:select_all_with_timeout).with(
-      include("FROM mysql.slow_log", "WHERE start_time >=", "ORDER BY start_time DESC"),
-      timeout_ms: 250
+    expect(payload).to include(available: true)
+    expect(payload.fetch(:rows).first).to include(
+      duration_ms: 420.5, sql: "SELECT * FROM jobs WHERE id = ?", controller: "Api::JobsController", action: "show"
     )
-    expect(connection).to have_received(:quote).with(expected_lookback)
+  end
+
+  it "degrades recent slow-SQL event failures to an unavailable section" do
+    inspector = described_class.new
+    allow(Syrus::Host::PerformanceLogging).to receive(:recent_slow_sql).and_raise("event store unavailable")
+
+    expect(inspector.send(:slow_sql_events, limit: 5)).to include(
+      available: false, rows: [], error: include(message: "event store unavailable")
+    )
   end
 end
