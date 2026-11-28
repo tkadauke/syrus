@@ -32,6 +32,7 @@
     <meta name="theme-color" content="#c9704b">
     <meta name="syrus-app-revision" content="<%= SyrusVersion.current %>">
     <meta name="syrus-asset-revision" content="<%= spa_asset_version %>">
+    <%= spa_startup_assets_meta_tag %>
     <% if custom_color_theme %>
       <script id="syrus-custom-color-theme-data" type="application/json"><%= raw json_escape(custom_color_theme.tokens.to_json) %></script>
     <% end %>
@@ -132,8 +133,11 @@
 
     <script nonce="<%= content_security_policy_nonce %>">
       // Registers the deploy-resilience worker (app/views/pwa/service_worker.js.erb).
-      // It caches one fallback document and intercepts only failed navigations,
-      // so there is no asset-staleness risk to weigh against registering it.
+      // It caches one fallback document, serves it only for failed
+      // navigations, and otherwise only counts the bytes of digested assets as
+      // they stream past for the startup progress bar -- it caches no asset
+      // and changes no response, so there is no asset-staleness risk to weigh
+      // against registering it.
       //
       // Deferred to `load` so it never competes with the SPA bundle for the
       // first paint, and wrapped because registration throws outright on

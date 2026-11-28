@@ -27,6 +27,23 @@ module SpaAssetsHelper
     nil
   end
 
+  # What startup has to download, for the shell's progress bar
+  # (app/assets/javascripts/startup_diagnostics.js). A progress bar is never
+  # worth a broken shell, so anything that keeps it from being computed just
+  # leaves it out and the shell falls back to its plain loading text.
+  def spa_startup_assets_meta_tag
+    startup = Syrus::StartupAssets.current
+    return if startup.assets.empty?
+
+    tag.meta(name: "syrus-startup-assets", content: startup.as_json.to_json)
+  rescue Syrus::ViteEntrypoint::Missing
+    # No build yet; spa_entry_javascript_tag already says so.
+    nil
+  rescue StandardError => error
+    Rails.logger.warn("Startup asset sizes unavailable: #{error.class}: #{error.message}")
+    nil
+  end
+
   def plugin_frontend_import_map_tag
     tag.script(
       raw(json_escape(Syrus::ViteEntrypoint.new(Rails.root.join(Syrus::ViteEntrypoint::MANIFEST_PATH)).plugin_import_map.to_json)),

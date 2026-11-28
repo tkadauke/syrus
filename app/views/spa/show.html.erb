@@ -4,11 +4,24 @@
 <div id="syrus-startup-status" class="syrus-startup-status" role="status" aria-live="polite" data-startup-state="loading"
      data-failure-title="<%= t("spa.startup.failure_title") %>"
      data-failure-message="<%= t("spa.startup.failure_message") %>"
-     data-reference-label="<%= t("spa.startup.reference") %>">
+     data-reference-label="<%= t("spa.startup.reference") %>"
+     data-locale="<%= I18n.locale %>"
+     data-progress-amount="<%= t("spa.startup.progress_amount") %>"
+     data-progress-speed="<%= t("spa.startup.progress_speed") %>"
+     data-progress-time-left="<%= t("spa.startup.progress_time_left") %>">
   <div class="syrus-startup-status__panel">
     <div class="syrus-startup-status__spinner" data-syrus-startup-spinner aria-hidden="true"></div>
     <p class="syrus-startup-status__title" data-syrus-startup-title><%= t("spa.startup.loading_title") %></p>
     <p class="syrus-startup-status__message" data-syrus-startup-message><%= t("spa.startup.loading_message") %></p>
+    <%# Filled in by startup_diagnostics.js once the startup watchdog fires.
+        aria-live="off" keeps the status region from announcing every tick;
+        the progressbar carries the current value for anyone who asks. %>
+    <div class="syrus-startup-status__progress" data-syrus-startup-progress aria-live="off" hidden>
+      <div class="syrus-startup-status__bar" role="progressbar" aria-label="<%= t("spa.startup.progress_label") %>" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-syrus-startup-progressbar>
+        <div class="syrus-startup-status__bar-fill" data-syrus-startup-progress-fill></div>
+      </div>
+      <p class="syrus-startup-status__progress-detail" data-syrus-startup-progress-detail></p>
+    </div>
     <p class="syrus-startup-status__correlation" data-syrus-startup-correlation hidden></p>
     <a class="syrus-startup-status__retry" href="<%= request.fullpath %>" data-syrus-startup-retry hidden><%= t("spa.startup.retry") %></a>
   </div>

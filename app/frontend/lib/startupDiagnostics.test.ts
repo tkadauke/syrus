@@ -26,18 +26,37 @@ function installStartupShell(
     path?: string
     visibility?: DocumentVisibilityState
     performanceEntries?: Record<string, PerformanceEntry[]>
+    startupAssets?: Record<string, number>
   } = {}
 ) {
+  const startupAssetsMeta = document.createElement("meta")
+  if (options.startupAssets) {
+    const total = Object.values(options.startupAssets).reduce((sum, bytes) => sum + bytes, 0)
+    startupAssetsMeta.name = "syrus-startup-assets"
+    startupAssetsMeta.content = JSON.stringify({ total, assets: options.startupAssets })
+  }
   document.head.innerHTML = `
     <meta name="csrf-token" content="csrf-token-123">
     <meta name="syrus-app-revision" content="app-sha">
     <meta name="syrus-asset-revision" content="asset-sha">
   `
+  if (options.startupAssets) document.head.appendChild(startupAssetsMeta)
+  // Mirrors app/views/spa/show.html.erb with its English strings.
   document.body.innerHTML = `
-    <div id="syrus-startup-status" role="status" data-startup-state="loading">
+    <div id="syrus-startup-status" role="status" data-startup-state="loading"
+         data-locale="en"
+         data-progress-amount="%{loaded} of %{total}"
+         data-progress-speed="about %{speed}"
+         data-progress-time-left="about %{time} left">
       <div data-syrus-startup-spinner></div>
       <p data-syrus-startup-title>Loading Syrus</p>
       <p data-syrus-startup-message>Loading the app.</p>
+      <div data-syrus-startup-progress aria-live="off" hidden>
+        <div role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-syrus-startup-progressbar>
+          <div data-syrus-startup-progress-fill></div>
+        </div>
+        <p data-syrus-startup-progress-detail></p>
+      </div>
       <p data-syrus-startup-correlation hidden></p>
       <a href="/jobs/42" data-syrus-startup-retry hidden>Retry</a>
     </div>
@@ -99,6 +118,52 @@ function startupStatus() {
   return status
 }
 
+function startupProgress() {
+  const progress = document.querySelector("[data-syrus-startup-progress]")
+  if (!(progress instanceof HTMLElement)) throw new Error("startup progress not found")
+  return progress
+}
+
+function startupProgressBar() {
+  const bar = document.querySelector("[role=progressbar]")
+  if (!(bar instanceof HTMLElement)) throw new Error("startup progressbar not found")
+  return bar
+}
+
+function startupMessage() {
+  const message = document.querySelector("[data-syrus-startup-message]")
+  if (!(message instanceof HTMLElement)) throw new Error("startup message not found")
+  return message
+}
+
+// A stand-in for navigator.serviceWorker that delivers the worker's progress
+// messages (app/views/pwa/service_worker.js.erb) to the shell's listener.
+function installServiceWorker() {
+  const listeners = new Set<(event: MessageEvent) => void>()
+  const container = {
+    controller: { state: "activated" },
+    addEventListener: vi.fn((type: string, listener: (event: MessageEvent) => void) => {
+      if (type === "message") listeners.add(listener)
+    }),
+    removeEventListener: vi.fn((type: string, listener: (event: MessageEvent) => void) => {
+      if (type === "message") listeners.delete(listener)
+    }),
+    startMessages: vi.fn()
+  }
+  Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: container })
+  return {
+    container,
+    listenerCount: () => listeners.size,
+    progress(path: string, loaded: number, done = false) {
+      listeners.forEach((listener) => listener({ data: { type: "syrus:startup-asset-progress", path, loaded, done } } as MessageEvent))
+    }
+  }
+}
+
+const ENTRY_PATH = "/assets/spa-entry-AbC_12-x.digested.js"
+const VENDOR_PATH = "/assets/spa-vendor-Zz9_ab-c.digested.js"
+const STARTUP_ASSETS = { [ENTRY_PATH]: 3_000_000, [VENDOR_PATH]: 1_000_000 }
+
 function startupRetry() {
   const retry = document.querySelector("[data-syrus-startup-retry]")
   if (!(retry instanceof HTMLAnchorElement)) throw new Error("startup retry not found")
@@ -115,6 +180,7 @@ describe("startupDiagnostics", () => {
     document.head.innerHTML = ""
     document.body.innerHTML = ""
     window.sessionStorage.clear()
+    Reflect.deleteProperty(navigator, "serviceWorker")
     vi.restoreAllMocks()
   })
 
@@ -547,5 +613,153 @@ describe("startupDiagnostics", () => {
     expect(startupStatus()).toHaveAttribute("hidden")
     expect(startupStatus()).toHaveAttribute("data-startup-state", "ready")
     expect(startupRetry()).toHaveAttribute("hidden")
+  })
+
+  describe("download progress", () => {
+    it("shows the service worker's byte progress, speed, and time left only once the watchdog fires", () => {
+      vi.useFakeTimers()
+      const worker = installServiceWorker()
+      installStartupShell({ startupAssets: STARTUP_ASSETS })
+      expect(worker.container.startMessages).toHaveBeenCalled()
+
+      // 45 KB a second, from the start.
+      let loaded = 0
+      const receiveForSeconds = (seconds: number) => {
+        for (let second = 0; second < seconds; second += 1) {
+          vi.advanceTimersByTime(500)
+          loaded += 45 * 1024
+          worker.progress(ENTRY_PATH, loaded)
+          vi.advanceTimersByTime(500)
+        }
+      }
+
+      receiveForSeconds(7)
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "loading")
+      expect(startupProgress()).toHaveAttribute("hidden")
+      expect(startupMessage()).toHaveTextContent("Loading the app.")
+
+      receiveForSeconds(1)
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+      expect(startupProgress()).not.toHaveAttribute("hidden")
+      expect(startupMessage()).toHaveAttribute("hidden")
+      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "9")
+      expect(startupProgressBar()).toHaveAttribute("aria-valuetext", "360 KB of 3.8 MB")
+      expect(startupProgress()).toHaveTextContent("360 KB of 3.8 MB · about 45 KB/s")
+
+      receiveForSeconds(4)
+      expect(startupProgress()).toHaveTextContent(/^540 KB of 3\.8 MB · about 4\d KB\/s · about [78]\d s left$/)
+      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "13")
+      expect((document.querySelector("[data-syrus-startup-progress-fill]") as HTMLElement).style.width).toBe("13%")
+      expect(startupRetry()).toHaveAttribute("hidden")
+    })
+
+    it("ignores progress for files startup is not waiting for", () => {
+      vi.useFakeTimers()
+      const worker = installServiceWorker()
+      installStartupShell({ startupAssets: STARTUP_ASSETS })
+
+      worker.progress("/assets/spa-WhiteboardTab-BuK7SBJt.digested.js", 500_000)
+      vi.advanceTimersByTime(8000)
+
+      expect(startupProgress()).toHaveAttribute("hidden")
+      expect(startupMessage()).toHaveTextContent("It keeps loading on its own.")
+    })
+
+    it("falls back to finished startup assets in resource timing without the service worker", () => {
+      vi.useFakeTimers()
+      installStartupShell({
+        startupAssets: STARTUP_ASSETS,
+        performanceEntries: {
+          resource: [
+            { name: `${window.location.origin}${VENDOR_PATH}`, startTime: 100, responseEnd: 4100, transferSize: 250_000, decodedBodySize: 1_000_000 },
+            // Cached: counts toward progress, not toward speed.
+            { name: `${window.location.origin}/assets/app-74e6a7ef.css`, startTime: 50, responseEnd: 60, transferSize: 0, decodedBodySize: 4000 },
+            { name: `${window.location.origin}/api/v1/app/bootstrap`, startTime: 50, responseEnd: 9000, transferSize: 900_000 }
+          ] as unknown as PerformanceEntry[]
+        }
+      })
+
+      vi.advanceTimersByTime(8000)
+
+      expect(startupProgress()).not.toHaveAttribute("hidden")
+      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "25")
+      expect(startupProgress()).toHaveTextContent("977 KB of 3.8 MB · about 244 KB/s")
+      expect(startupProgress()).not.toHaveTextContent("left")
+    })
+
+    it("keeps the plain loading text when neither source has anything to show", () => {
+      vi.useFakeTimers()
+      installServiceWorker()
+      installStartupShell({ startupAssets: STARTUP_ASSETS, performanceEntries: { resource: [] } })
+
+      vi.advanceTimersByTime(12000)
+
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+      expect(startupProgress()).toHaveAttribute("hidden")
+      expect(startupMessage()).not.toHaveAttribute("hidden")
+      expect(startupMessage()).toHaveTextContent("It keeps loading on its own.")
+    })
+
+    it("keeps the plain loading text when the shell has no startup size", () => {
+      vi.useFakeTimers()
+      const worker = installServiceWorker()
+      installStartupShell()
+
+      worker.progress(ENTRY_PATH, 500_000)
+      vi.advanceTimersByTime(8000)
+
+      expect(worker.container.addEventListener).not.toHaveBeenCalled()
+      expect(startupProgress()).toHaveAttribute("hidden")
+      expect(startupMessage()).toHaveTextContent("It keeps loading on its own.")
+    })
+
+    it("offers Retry only after bytes stop arriving for the stall window, and withdraws it when they resume", () => {
+      vi.useFakeTimers()
+      const worker = installServiceWorker()
+      // Resource timing never changes here: on its own, the old signature
+      // check would call this stalled 30 seconds after the watchdog.
+      installStartupShell({ startupAssets: STARTUP_ASSETS, performanceEntries: { resource: [] } })
+
+      let loaded = 0
+      vi.advanceTimersByTime(8000)
+      for (let second = 0; second < 60; second += 5) {
+        loaded += 5000
+        worker.progress(ENTRY_PATH, loaded)
+        vi.advanceTimersByTime(5000)
+        expect(startupRetry()).toHaveAttribute("hidden")
+      }
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+
+      // The connection goes quiet.
+      vi.advanceTimersByTime(24000)
+      expect(startupRetry()).toHaveAttribute("hidden")
+      vi.advanceTimersByTime(2000)
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "stalled")
+      expect(startupStatus()).toHaveTextContent("Loading has stalled")
+      expect(startupRetry()).not.toHaveAttribute("hidden")
+      // The bar stays, showing where it stopped.
+      expect(startupProgress()).not.toHaveAttribute("hidden")
+
+      worker.progress(ENTRY_PATH, loaded + 5000)
+      vi.advanceTimersByTime(1000)
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+      expect(startupRetry()).toHaveAttribute("hidden")
+    })
+
+    it("stops every timer and the worker listener when React commits", () => {
+      vi.useFakeTimers()
+      const worker = installServiceWorker()
+      installStartupShell({ startupAssets: STARTUP_ASSETS })
+      worker.progress(ENTRY_PATH, 100_000)
+      vi.advanceTimersByTime(10000)
+      expect(startupProgress()).not.toHaveAttribute("hidden")
+
+      window.SyrusStartupDiagnostics?.mark("react_commit")
+
+      expect(vi.getTimerCount()).toBe(0)
+      expect(worker.listenerCount()).toBe(0)
+      expect(worker.container.removeEventListener).toHaveBeenCalledWith("message", expect.any(Function))
+      expect(startupStatus()).toHaveAttribute("hidden")
+    })
   })
 })

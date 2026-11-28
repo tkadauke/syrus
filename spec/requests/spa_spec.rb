@@ -314,6 +314,51 @@ RSpec.describe "SPA shell", type: :request do
     end
   end
 
+  it "embeds what startup has to download, before the diagnostics script reads it" do
+    allow(Syrus::StartupAssets).to receive(:current).and_return(
+      Syrus::StartupAssets::Result.new(assets: { "/assets/spa-entry-SpEc_En-1.digested.js" => 1_500_000, "/assets/tailwind-74e6a7ef.css" => 400_000 })
+    )
+    sign_in_as(Factories.user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    meta = Nokogiri::HTML(response.body).at_css('meta[name="syrus-startup-assets"]')
+    expect(meta).to be_present
+    expect(JSON.parse(meta["content"])).to eq(
+      "total" => 1_900_000,
+      "assets" => { "/assets/spa-entry-SpEc_En-1.digested.js" => 1_500_000, "/assets/tailwind-74e6a7ef.css" => 400_000 }
+    )
+    expect(response.body.index('name="syrus-startup-assets"')).to be < response.body.index('id="syrus-startup-diagnostics"')
+  end
+
+  it "renders the shell without startup sizes when they cannot be computed" do
+    allow(Syrus::StartupAssets).to receive(:current).and_raise(Errno::EACCES, "manifest")
+    sign_in_as(Factories.user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).not_to include("syrus-startup-assets")
+    expect(response.body).to include('id="syrus-startup-status"')
+  end
+
+  it "localizes the startup progress strings for the shell" do
+    user = Factories.user
+    user.update!(locale: "de")
+    sign_in_as(user)
+
+    get app_shell_path
+
+    status = Nokogiri::HTML(response.body).at_css("#syrus-startup-status")
+    expect(status["data-locale"]).to eq("de")
+    expect(status["data-progress-amount"]).to eq("%{loaded} von %{total}")
+    expect(status["data-progress-speed"]).to eq("etwa %{speed}")
+    expect(status["data-progress-time-left"]).to eq("noch etwa %{time}")
+    expect(status.at_css('[role="progressbar"]')["aria-label"]).to eq("Download-Fortschritt")
+    expect(status.at_css("[data-syrus-startup-progress]")["hidden"]).not_to be_nil
+  end
+
   it "renders a visible shell loading state before the SPA bundle executes" do
     user = Factories.user
     sign_in_as(user)

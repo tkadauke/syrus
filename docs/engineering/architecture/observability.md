@@ -86,6 +86,21 @@ current path, app revision, asset revision, user-agent family,
 startup milestones, and resource paths for same-origin failed assets. They do
 not include arbitrary promise rejection payloads or cross-origin resource URLs.
 
+After the watchdog fires, the same script shows download progress. The layout
+embeds `meta[name="syrus-startup-assets"]` (`SpaAssetsHelper#
+spa_startup_assets_meta_tag`, computed once per revision by
+`Syrus::StartupAssets`: the Vite entry, its static imports, and the stylesheets
+the shell links, with their uncompressed sizes). The service worker counts the
+bytes of every same-origin digested JS/CSS GET through a `TransformStream` and
+posts `syrus:startup-asset-progress` messages to the requesting client; the
+page keeps only the paths in its startup list. Without worker messages (first
+visit, no worker), finished resource-timing entries give a coarse bar. Retry
+appears after thirty seconds without new bytes when the worker reports them,
+and otherwise after thirty seconds without a resource finishing or a milestone.
+The worker deliberately does not embed the startup list: right after a deploy
+it is often a revision behind the page, which is exactly when the whole bundle
+downloads afresh.
+
 The Vite production build emits JavaScript source maps so captured stack frames
 can be mapped back to frontend source while debugging. Source maps are generated
 with the normal SPA assets, so this is appropriate for Syrus' internal admin
