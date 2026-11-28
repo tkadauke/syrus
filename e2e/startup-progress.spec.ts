@@ -31,7 +31,7 @@ test.describe("without the service worker", () => {
 
     const bar = page.getByRole("progressbar", { name: "Download progress" })
     await expect(bar).toBeVisible({ timeout: 60_000 })
-    await expect(page.locator("[data-syrus-startup-progress-detail]")).toHaveText(/\d+(\.\d)? (KB|MB) of \d+(\.\d)? MB/)
+    await expect(page.locator("[data-syrus-startup-progress-detail]")).toHaveText(/\d+(\.\d)? (KB|MB) of (about )?\d+(\.\d)? (KB|MB)/)
     await expect(page.locator("#syrus-startup-status")).toHaveAttribute("data-startup-state", /watchdog|stalled/)
 
     await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
@@ -66,15 +66,16 @@ test.describe("with the service worker", () => {
 
     const assets = await page.evaluate(() => {
       const meta = document.querySelector('meta[name="syrus-startup-assets"]')
-      return JSON.parse(meta?.getAttribute("content") ?? "{}").assets as Record<string, number>
+      return JSON.parse(meta?.getAttribute("content") ?? "{}").assets as Record<string, { size: number; wire: number }>
     })
     const entry = Object.keys(assets).find((path) => path.includes("spa-entry-"))
     expect(entry).toBeTruthy()
-    // The entry streamed through the worker's counter, byte for byte.
+    // The entry streamed through the worker's counter, byte for byte (the
+    // worker counts decoded bytes, so this is the uncompressed size).
     await expect.poll(() => page.evaluate((path) => {
       const messages = (window as unknown as { __startupProgressMessages: Array<{ type: string; path: string; loaded: number; done: boolean }> }).__startupProgressMessages
       return messages.find((message) => message.type === "syrus:startup-asset-progress" && message.path === path && message.done)?.loaded ?? null
-    }, entry)).toBe(assets[entry as string])
+    }, entry)).toBe(assets[entry as string].size)
     await expect(page.locator("#syrus-startup-status")).toBeHidden()
   })
 })

@@ -344,6 +344,7 @@ de:
       reference: "Referenz"
       progress_label: "Download-Fortschritt"
       progress_amount: "%{loaded} von %{total}"
+      progress_amount_estimated: "%{loaded} von etwa %{total}"
       progress_speed: "etwa %{speed}"
       progress_time_left: "noch etwa %{time}"
       unavailable_title: "Syrus wird vorbereitet"

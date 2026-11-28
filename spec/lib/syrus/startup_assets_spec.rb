@@ -30,14 +30,82 @@ RSpec.describe Syrus::StartupAssets do
         stylesheets: { "/assets/tailwind-74e6a7ef.css" => 700, "/assets/spa-vendor.digested.css" => 50 }
       ).result
 
-      expect(result.assets).to eq(
+      expect(result.sizes).to eq(
         "/assets/spa-entry-main.digested.js" => 1200,
         "/assets/spa-vendor.digested.js" => 3400,
         "/assets/spa-vendor.digested.css" => 50,
         "/assets/tailwind-74e6a7ef.css" => 700
       )
-      expect(result.total_bytes).to eq(5350)
-      expect(result.as_json).to eq("total" => 5350, "assets" => result.assets)
+      # No published variants: everything travels as it is.
+      expect(result.for_request("gzip, deflate, br")).to eq(
+        "total" => 5350,
+        "estimated" => false,
+        "assets" => result.sizes.transform_values { |size| { "size" => size, "wire" => size } }
+      )
+    end
+  end
+
+  describe "wire sizes" do
+    def with_published(variants)
+      Dir.mktmpdir("startup-assets-public") do |dir|
+        published = Pathname.new(dir)
+        variants.each { |name, bytes| published.join(name).binwrite("z" * bytes) }
+        yield published
+      end
+    end
+
+    def result_for(published)
+      with_build(manifest, { "spa-entry-main.digested.js" => 4000, "spa-vendor.digested.js" => 2000, "spa-vendor.digested.css" => 100 }) do |root|
+        return described_class.new(
+          manifest_path: root.join(".vite/manifest.json"),
+          builds_root: root,
+          compressed_root: published
+        ).result
+      end
+    end
+
+    let(:variants) do
+      {
+        "spa-entry-main.digested.js.br" => 900, "spa-entry-main.digested.js.gz" => 1100,
+        "spa-vendor.digested.js.gz" => 600,
+        "spa-vendor.digested.css.br" => 30, "spa-vendor.digested.css.gz" => 40
+      }
+    end
+
+    it "uses the Brotli variant when the browser takes it, else gzip, else the plain file" do
+      with_published(variants) do |published|
+        result = result_for(published)
+        wire = ->(accept) { result.for_request(accept).fetch("assets").transform_values { |asset| asset.fetch("wire") } }
+
+        expect(wire.call("gzip, deflate, br, zstd")).to eq(
+          "/assets/spa-entry-main.digested.js" => 900,
+          "/assets/spa-vendor.digested.js" => 600,
+          "/assets/spa-vendor.digested.css" => 30
+        )
+        # Chrome sends no br over plain HTTP.
+        expect(wire.call("gzip, deflate")).to eq(
+          "/assets/spa-entry-main.digested.js" => 1100,
+          "/assets/spa-vendor.digested.js" => 600,
+          "/assets/spa-vendor.digested.css" => 40
+        )
+        expect(wire.call("identity")).to eq(
+          "/assets/spa-entry-main.digested.js" => 4000,
+          "/assets/spa-vendor.digested.js" => 2000,
+          "/assets/spa-vendor.digested.css" => 100
+        )
+        expect(result.for_request("br;q=0, gzip").fetch("total")).to eq(1100 + 600 + 40)
+        expect(result.for_request("gzip, br").fetch("estimated")).to be(false)
+        expect(result.for_request("gzip, br").fetch("assets").fetch("/assets/spa-entry-main.digested.js")).to eq("size" => 4000, "wire" => 900)
+      end
+    end
+
+    it "assumes the smallest variant and marks the total as an estimate without an Accept-Encoding" do
+      with_published(variants) do |published|
+        meta = result_for(published).for_request(nil)
+
+        expect(meta.fetch("estimated")).to be(true)
+        expect(meta.fetch("total")).to eq(900 + 600 + 30)
+      end
     end
   end
 
@@ -48,8 +116,8 @@ RSpec.describe Syrus::StartupAssets do
     allow(Rails.root).to receive(:join).and_call_original
     fake_manifest = instance_double(Pathname, file?: true, mtime: Time.at(100))
     allow(Rails.root).to receive(:join).with(Syrus::ViteEntrypoint::MANIFEST_PATH).and_return(fake_manifest)
-    first = described_class::Result.new(assets: { "/assets/a.js" => 1 })
-    second = described_class::Result.new(assets: { "/assets/b.js" => 2 })
+    first = described_class::Result.new(sizes: { "/assets/a.js" => 1 }, variants: {})
+    second = described_class::Result.new(sizes: { "/assets/b.js" => 2 }, variants: {})
     instances = [ instance_double(described_class, result: first), instance_double(described_class, result: second) ]
     allow(described_class).to receive(:new) { instances.shift }
 

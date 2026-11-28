@@ -344,6 +344,7 @@ la:
       reference: "Referentia"
       progress_label: "Progressus oneris"
       progress_amount: "%{loaded} ex %{total}"
+      progress_amount_estimated: "%{loaded} ex circiter %{total}"
       progress_speed: "circiter %{speed}"
       progress_time_left: "circiter %{time} restat"
       unavailable_title: "Syrus se parat"

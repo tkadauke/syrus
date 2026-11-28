@@ -90,11 +90,23 @@ After the watchdog fires, the same script shows download progress. The layout
 embeds `meta[name="syrus-startup-assets"]` (`SpaAssetsHelper#
 spa_startup_assets_meta_tag`, computed once per revision by
 `Syrus::StartupAssets`: the Vite entry, its static imports, and the stylesheets
-the shell links, with their uncompressed sizes). The service worker counts the
-bytes of every same-origin digested JS/CSS GET through a `TransformStream` and
-posts `syrus:startup-asset-progress` messages to the requesting client; the
-page keeps only the paths in its startup list. Without worker messages (first
-visit, no worker), finished resource-timing entries give a coarse bar. Retry
+the shell links). Each file carries its uncompressed `size` and its `wire`
+size: the precompressed variant `Syrus::PrecompressedAssetServer` will serve
+for the shell request's own `Accept-Encoding` (Brotli if accepted and built,
+else gzip, else the plain file), using the `.br`/`.gz` files
+`Syrus::PrecompressedAssetBuilder` wrote next to each asset in
+`public/assets`. The encoding is chosen per request; the sizes are computed
+once per revision. With no `Accept-Encoding` to go by, each file is assumed to
+arrive as its smallest variant and the meta says `estimated: true`, which the
+page shows as "of about". The service worker counts the decoded bytes of every
+same-origin digested JS/CSS GET through a `TransformStream` and posts
+`syrus:startup-asset-progress` messages to the requesting client; the page
+keeps only the paths in its startup list and scales each file's decoded count
+to wire bytes by its compression ratio. "X of Y", the speed and the time left
+are all in wire bytes, so the speed is the connection's real rate. Without
+worker messages (first visit, no worker), finished resource-timing entries give
+a coarse bar, with speed from each entry's `encodedBodySize`, else its
+`transferSize`, else the expected wire size. Retry
 appears after thirty seconds without new bytes when the worker reports them,
 and otherwise after thirty seconds without a resource finishing or a milestone.
 The worker deliberately does not embed the startup list: right after a deploy

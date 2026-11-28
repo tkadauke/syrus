@@ -26,14 +26,15 @@ function installStartupShell(
     path?: string
     visibility?: DocumentVisibilityState
     performanceEntries?: Record<string, PerformanceEntry[]>
-    startupAssets?: Record<string, number>
+    startupAssets?: Record<string, { size: number; wire: number }>
+    estimated?: boolean
   } = {}
 ) {
   const startupAssetsMeta = document.createElement("meta")
   if (options.startupAssets) {
-    const total = Object.values(options.startupAssets).reduce((sum, bytes) => sum + bytes, 0)
+    const total = Object.values(options.startupAssets).reduce((sum, asset) => sum + asset.wire, 0)
     startupAssetsMeta.name = "syrus-startup-assets"
-    startupAssetsMeta.content = JSON.stringify({ total, assets: options.startupAssets })
+    startupAssetsMeta.content = JSON.stringify({ total, estimated: options.estimated === true, assets: options.startupAssets })
   }
   document.head.innerHTML = `
     <meta name="csrf-token" content="csrf-token-123">
@@ -46,6 +47,7 @@ function installStartupShell(
     <div id="syrus-startup-status" role="status" data-startup-state="loading"
          data-locale="en"
          data-progress-amount="%{loaded} of %{total}"
+         data-progress-amount-estimated="%{loaded} of about %{total}"
          data-progress-speed="about %{speed}"
          data-progress-time-left="about %{time} left">
       <div data-syrus-startup-spinner></div>
@@ -162,7 +164,12 @@ function installServiceWorker() {
 
 const ENTRY_PATH = "/assets/spa-entry-AbC_12-x.digested.js"
 const VENDOR_PATH = "/assets/spa-vendor-Zz9_ab-c.digested.js"
-const STARTUP_ASSETS = { [ENTRY_PATH]: 3_000_000, [VENDOR_PATH]: 1_000_000 }
+// Uncompressed size and the size of the variant on the wire: the entry
+// compresses 4:1, so a megabyte of wire bytes in all.
+const STARTUP_ASSETS = {
+  [ENTRY_PATH]: { size: 3_000_000, wire: 750_000 },
+  [VENDOR_PATH]: { size: 1_000_000, wire: 250_000 }
+}
 
 function startupRetry() {
   const retry = document.querySelector("[data-syrus-startup-retry]")
@@ -616,18 +623,19 @@ describe("startupDiagnostics", () => {
   })
 
   describe("download progress", () => {
-    it("shows the service worker's byte progress, speed, and time left only once the watchdog fires", () => {
+    it("shows the service worker's progress, speed, and time left in wire bytes only once the watchdog fires", () => {
       vi.useFakeTimers()
       const worker = installServiceWorker()
       installStartupShell({ startupAssets: STARTUP_ASSETS })
       expect(worker.container.startMessages).toHaveBeenCalled()
 
-      // 45 KB a second, from the start.
+      // The worker counts decoded bytes: 180 KB of them a second is 45 KB a
+      // second on the wire for a file that compresses 4:1.
       let loaded = 0
       const receiveForSeconds = (seconds: number) => {
         for (let second = 0; second < seconds; second += 1) {
           vi.advanceTimersByTime(500)
-          loaded += 45 * 1024
+          loaded += 180 * 1024
           worker.progress(ENTRY_PATH, loaded)
           vi.advanceTimersByTime(500)
         }
@@ -642,14 +650,15 @@ describe("startupDiagnostics", () => {
       expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
       expect(startupProgress()).not.toHaveAttribute("hidden")
       expect(startupMessage()).toHaveAttribute("hidden")
-      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "9")
-      expect(startupProgressBar()).toHaveAttribute("aria-valuetext", "360 KB of 3.8 MB")
-      expect(startupProgress()).toHaveTextContent("360 KB of 3.8 MB · about 45 KB/s")
+      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "36")
+      expect(startupProgressBar()).toHaveAttribute("aria-valuetext", "360 KB of 977 KB")
+      expect(startupProgress()).toHaveTextContent("360 KB of 977 KB · about 45 KB/s")
 
       receiveForSeconds(4)
-      expect(startupProgress()).toHaveTextContent(/^540 KB of 3\.8 MB · about 4\d KB\/s · about [78]\d s left$/)
-      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "13")
-      expect((document.querySelector("[data-syrus-startup-progress-fill]") as HTMLElement).style.width).toBe("13%")
+      // 437 KB left at about 44 KB/s.
+      expect(startupProgress()).toHaveTextContent(/^540 KB of 977 KB · about 4\d KB\/s · about 1[05] s left$/)
+      expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "55")
+      expect((document.querySelector("[data-syrus-startup-progress-fill]") as HTMLElement).style.width).toBe("55%")
       expect(startupRetry()).toHaveAttribute("hidden")
     })
 
@@ -671,7 +680,9 @@ describe("startupDiagnostics", () => {
         startupAssets: STARTUP_ASSETS,
         performanceEntries: {
           resource: [
-            { name: `${window.location.origin}${VENDOR_PATH}`, startTime: 100, responseEnd: 4100, transferSize: 250_000, decodedBodySize: 1_000_000 },
+            // 200 KB of body crossed the network (a little better than the
+            // shell expected), in four seconds.
+            { name: `${window.location.origin}${VENDOR_PATH}`, startTime: 100, responseEnd: 4100, transferSize: 205_100, encodedBodySize: 204_800, decodedBodySize: 1_000_000 },
             // Cached: counts toward progress, not toward speed.
             { name: `${window.location.origin}/assets/app-74e6a7ef.css`, startTime: 50, responseEnd: 60, transferSize: 0, decodedBodySize: 4000 },
             { name: `${window.location.origin}/api/v1/app/bootstrap`, startTime: 50, responseEnd: 9000, transferSize: 900_000 }
@@ -683,8 +694,35 @@ describe("startupDiagnostics", () => {
 
       expect(startupProgress()).not.toHaveAttribute("hidden")
       expect(startupProgressBar()).toHaveAttribute("aria-valuenow", "25")
-      expect(startupProgress()).toHaveTextContent("977 KB of 3.8 MB · about 244 KB/s")
+      expect(startupProgress()).toHaveTextContent("244 KB of 977 KB · about 50 KB/s")
       expect(startupProgress()).not.toHaveTextContent("left")
+    })
+
+    it("measures fallback speed from the transfer size when the browser gives no encoded size", () => {
+      vi.useFakeTimers()
+      installStartupShell({
+        startupAssets: STARTUP_ASSETS,
+        performanceEntries: {
+          resource: [
+            { name: `${window.location.origin}${VENDOR_PATH}`, startTime: 0, responseEnd: 5000, transferSize: 256_000 }
+          ] as unknown as PerformanceEntry[]
+        }
+      })
+
+      vi.advanceTimersByTime(8000)
+
+      expect(startupProgress()).toHaveTextContent("244 KB of 977 KB · about 50 KB/s")
+    })
+
+    it("says the total is an estimate when the shell could not tell the browser's compression", () => {
+      vi.useFakeTimers()
+      const worker = installServiceWorker()
+      installStartupShell({ startupAssets: STARTUP_ASSETS, estimated: true })
+
+      worker.progress(ENTRY_PATH, 1_500_000)
+      vi.advanceTimersByTime(8000)
+
+      expect(startupProgress()).toHaveTextContent("366 KB of about 977 KB")
     })
 
     it("keeps the plain loading text when neither source has anything to show", () => {

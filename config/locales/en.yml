@@ -377,6 +377,7 @@ en:
       reference: "Reference"
       progress_label: "Download progress"
       progress_amount: "%{loaded} of %{total}"
+      progress_amount_estimated: "%{loaded} of about %{total}"
       progress_speed: "about %{speed}"
       progress_time_left: "about %{time} left"
       unavailable_title: "Syrus is getting ready"

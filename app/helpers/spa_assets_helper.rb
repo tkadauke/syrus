@@ -33,9 +33,11 @@ module SpaAssetsHelper
   # leaves it out and the shell falls back to its plain loading text.
   def spa_startup_assets_meta_tag
     startup = Syrus::StartupAssets.current
-    return if startup.assets.empty?
+    return if startup.sizes.empty?
 
-    tag.meta(name: "syrus-startup-assets", content: startup.as_json.to_json)
+    # The shell's own Accept-Encoding is what the browser sends for its assets
+    # too, so it says which precompressed variant each will arrive as.
+    tag.meta(name: "syrus-startup-assets", content: startup.for_request(request.headers["Accept-Encoding"]).to_json)
   rescue Syrus::ViteEntrypoint::Missing
     # No build yet; spa_entry_javascript_tag already says so.
     nil

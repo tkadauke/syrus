@@ -514,12 +514,17 @@
 
   // ---- Startup download progress ------------------------------------------
   //
-  // The shell embeds what startup has to download (syrus-startup-assets: the
-  // total uncompressed bytes and the size of each startup asset). Two sources
-  // say how much of it has arrived:
+  // The shell embeds what startup has to download (syrus-startup-assets: per
+  // startup asset, its uncompressed size and its size on the wire, i.e. the
+  // precompressed variant this browser is served, plus the wire total).
+  // Everything shown -- "X of Y", the speed, the time left -- is in wire
+  // bytes, so the speed is the connection's real rate. Two sources say how
+  // much has arrived:
   //
-  // - the service worker, which counts the bytes of each startup asset as they
-  //   stream past and posts them here (app/views/pwa/service_worker.js.erb);
+  // - the service worker, which counts the decoded bytes of each startup
+  //   asset as they stream past and posts them here (app/views/pwa/
+  //   service_worker.js.erb); they are scaled to wire bytes by that file's
+  //   compression ratio;
   // - resource timing, which lists each asset once it has finished. That is
   //   coarse -- two chunks are most of the download -- but it is all there is
   //   on a first visit, before the worker controls the page.
@@ -554,14 +559,19 @@
       var listed = parsed && parsed.assets;
       if (!listed || typeof listed !== "object") return null;
       var sizes = {};
+      var wire = {};
       var total = 0;
       Object.keys(listed).forEach(function (path) {
-        var bytes = Number(listed[path]);
-        if (path.indexOf("/assets/") !== 0 || !isFinite(bytes) || bytes < 0) return;
-        sizes[path] = bytes;
-        total += bytes;
+        var asset = listed[path] || {};
+        var size = Number(asset.size);
+        var wireSize = Number(asset.wire);
+        if (path.indexOf("/assets/") !== 0 || !isFinite(size) || size < 0) return;
+        if (!isFinite(wireSize) || wireSize < 0) wireSize = size;
+        sizes[path] = size;
+        wire[path] = wireSize;
+        total += wireSize;
       });
-      return total > 0 ? { total: total, sizes: sizes } : null;
+      return total > 0 ? { total: total, sizes: sizes, wire: wire, estimated: parsed.estimated === true } : null;
     } catch (e) {
       return null;
     }
@@ -571,12 +581,32 @@
     return !!startupAssets && Object.prototype.hasOwnProperty.call(startupAssets.sizes, path);
   }
 
+  // The worker counts decoded bytes; the wire carried the compressed ones.
+  // Compression is close enough to uniform within a file that the share of
+  // the file decoded so far is the share of its wire bytes received.
+  function wireBytes(path, decoded) {
+    var size = startupAssets.sizes[path];
+    if (!size) return 0;
+    return (Math.min(decoded, size) / size) * startupAssets.wire[path];
+  }
+
   function workerTotal() {
     var total = 0;
     Object.keys(workerBytes).forEach(function (path) {
-      total += Math.min(workerBytes[path], startupAssets.sizes[path]);
+      total += wireBytes(path, workerBytes[path]);
     });
     return total;
+  }
+
+  // Bytes resource timing saw cross the network for a finished asset: the
+  // encoded body when the browser reports it, else the transfer size, else
+  // the wire size the shell expected.
+  function measuredWireBytes(entry, path) {
+    var encoded = finiteNumber(entry.encodedBodySize);
+    if (encoded) return encoded;
+    var transferred = finiteNumber(entry.transferSize);
+    if (transferred) return transferred;
+    return startupAssets.wire[path];
   }
 
   function finishedStartupEntries() {
@@ -641,8 +671,8 @@
     serviceWorkerListener = null;
   }
 
-  // What has arrived, by the best source available: per asset, the larger of
-  // what the worker counted and (once it finished) its full size.
+  // What has arrived, in wire bytes, by the best source available: per
+  // asset, what the worker counted, or (once it finished) its full wire size.
   function progressSnapshot() {
     if (!startupAssets) return null;
     var entries = finishedStartupEntries();
@@ -650,11 +680,11 @@
 
     var perPath = {};
     Object.keys(workerBytes).forEach(function (path) {
-      perPath[path] = Math.min(workerBytes[path], startupAssets.sizes[path]);
+      perPath[path] = wireBytes(path, workerBytes[path]);
     });
     entries.forEach(function (entry) {
       var path = sameOriginAssetPath(entry.name);
-      perPath[path] = startupAssets.sizes[path];
+      perPath[path] = startupAssets.wire[path];
     });
     var loaded = 0;
     Object.keys(perPath).forEach(function (path) { loaded += perPath[path]; });
@@ -686,9 +716,10 @@
     return min > 0 && max / min <= STABLE_SPEED_RATIO;
   }
 
-  // Without the worker: the bytes of the startup assets that came over the
-  // network, over the time from the first request to the last finish. Assets
-  // served from the HTTP cache arrived instantly and would only flatter it.
+  // Without the worker: the wire bytes of the startup assets that came over
+  // the network, over the time from the first request to the last finish.
+  // Assets served from the HTTP cache arrived instantly and would only
+  // flatter it.
   function timingSpeed(entries) {
     var bytes = 0;
     var start = null;
@@ -698,7 +729,7 @@
       var finishedAt = finiteNumber(entry.responseEnd);
       var startedAt = finiteNumber(entry.startTime);
       if (cached || finishedAt === null || startedAt === null) return;
-      bytes += startupAssets.sizes[sameOriginAssetPath(entry.name)];
+      bytes += measuredWireBytes(entry, sameOriginAssetPath(entry.name));
       start = start === null ? startedAt : Math.min(start, startedAt);
       end = end === null ? finishedAt : Math.max(end, finishedAt);
     });
@@ -753,10 +784,12 @@
     if (!container || !bar || !snapshot) return;
 
     var percent = Math.min(100, Math.floor((snapshot.loaded / snapshot.total) * 100));
-    var amount = fillTemplate(el.dataset.progressAmount, "%{loaded} of %{total}", {
-      loaded: formatBytes(snapshot.loaded),
-      total: formatBytes(snapshot.total)
-    });
+    // An estimated total (the shell could not tell which compression the
+    // browser gets) says so.
+    var amountValues = { loaded: formatBytes(snapshot.loaded), total: formatBytes(snapshot.total) };
+    var amount = startupAssets.estimated
+      ? fillTemplate(el.dataset.progressAmountEstimated, "%{loaded} of about %{total}", amountValues)
+      : fillTemplate(el.dataset.progressAmount, "%{loaded} of %{total}", amountValues);
     var parts = [ amount ];
     if (snapshot.speed !== null) {
       parts.push(fillTemplate(el.dataset.progressSpeed, "about %{speed}", { speed: formatSpeed(snapshot.speed) }));
@@ -795,7 +828,8 @@
       lastSignature = signature;
       lastSignatureChangeAt = now;
     }
-    if (workerReported && workerTotal() < startupAssets.total) return Math.max(lastByteAt || 0, watchStartedAt);
+    // (Within a byte: scaled wire bytes are fractional.)
+    if (workerReported && workerTotal() < startupAssets.total - 1) return Math.max(lastByteAt || 0, watchStartedAt);
     return Math.max(lastSignatureChangeAt, lastByteAt || 0);
   }
 

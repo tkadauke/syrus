@@ -316,20 +316,38 @@ RSpec.describe "SPA shell", type: :request do
 
   it "embeds what startup has to download, before the diagnostics script reads it" do
     allow(Syrus::StartupAssets).to receive(:current).and_return(
-      Syrus::StartupAssets::Result.new(assets: { "/assets/spa-entry-SpEc_En-1.digested.js" => 1_500_000, "/assets/tailwind-74e6a7ef.css" => 400_000 })
+      Syrus::StartupAssets::Result.new(
+        sizes: { "/assets/spa-entry-SpEc_En-1.digested.js" => 1_500_000, "/assets/tailwind-74e6a7ef.css" => 400_000 },
+        variants: {
+          "/assets/spa-entry-SpEc_En-1.digested.js" => { "br" => 300_000, "gzip" => 380_000 },
+          "/assets/tailwind-74e6a7ef.css" => { "br" => 40_000, "gzip" => 55_000 }
+        }
+      )
     )
     sign_in_as(Factories.user)
 
-    get app_shell_path
+    # The shell itself is gzipped for a browser that takes it.
+    shell_body = -> { response.headers["Content-Encoding"] == "gzip" ? ActiveSupport::Gzip.decompress(response.body) : response.body }
+
+    get app_shell_path, headers: { "Accept-Encoding" => "gzip, deflate" }
 
     expect(response).to have_http_status(:ok)
-    meta = Nokogiri::HTML(response.body).at_css('meta[name="syrus-startup-assets"]')
+    meta = Nokogiri::HTML(shell_body.call).at_css('meta[name="syrus-startup-assets"]')
     expect(meta).to be_present
+    # Sized by the variant this browser will be served: gzip, as it took no br.
     expect(JSON.parse(meta["content"])).to eq(
-      "total" => 1_900_000,
-      "assets" => { "/assets/spa-entry-SpEc_En-1.digested.js" => 1_500_000, "/assets/tailwind-74e6a7ef.css" => 400_000 }
+      "total" => 435_000,
+      "estimated" => false,
+      "assets" => {
+        "/assets/spa-entry-SpEc_En-1.digested.js" => { "size" => 1_500_000, "wire" => 380_000 },
+        "/assets/tailwind-74e6a7ef.css" => { "size" => 400_000, "wire" => 55_000 }
+      }
     )
-    expect(response.body.index('name="syrus-startup-assets"')).to be < response.body.index('id="syrus-startup-diagnostics"')
+    expect(shell_body.call.index('name="syrus-startup-assets"')).to be < shell_body.call.index('id="syrus-startup-diagnostics"')
+
+    get app_shell_path, headers: { "Accept-Encoding" => "gzip, deflate, br" }
+
+    expect(JSON.parse(Nokogiri::HTML(shell_body.call).at_css('meta[name="syrus-startup-assets"]')["content"]).fetch("total")).to eq(340_000)
   end
 
   it "renders the shell without startup sizes when they cannot be computed" do
@@ -353,6 +371,7 @@ RSpec.describe "SPA shell", type: :request do
     status = Nokogiri::HTML(response.body).at_css("#syrus-startup-status")
     expect(status["data-locale"]).to eq("de")
     expect(status["data-progress-amount"]).to eq("%{loaded} von %{total}")
+    expect(status["data-progress-amount-estimated"]).to eq("%{loaded} von etwa %{total}")
     expect(status["data-progress-speed"]).to eq("etwa %{speed}")
     expect(status["data-progress-time-left"]).to eq("noch etwa %{time}")
     expect(status.at_css('[role="progressbar"]')["aria-label"]).to eq("Download-Fortschritt")
