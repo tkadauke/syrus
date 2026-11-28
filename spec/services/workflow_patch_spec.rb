@@ -100,6 +100,35 @@ RSpec.describe WorkflowPatch do
     )
   end
 
+  # The patch is computed from the Workflow it is handed, which another patch
+  # may have changed since it was loaded. Taking the lock does not refresh the
+  # in-memory graph, so the second writer must re-read under the lock.
+  describe "against a Workflow loaded before another patch committed" do
+    it "keeps the other patch's graph and history" do
+      stale = Workflow.find(workflow.id)
+      expect(described_class.apply!(workflow: Workflow.find(workflow.id), operation: "insert_after", author: "agent",
+                                    nodes: [ "adversarial_review" ], after_kind: "implement")).to be_applied
+
+      result = described_class.apply!(workflow: stale, operation: "insert_after", author: "agent", nodes: [ "security_review" ])
+
+      expect(result).to be_applied
+      kinds = WorkflowTemplates.step_kinds_in(workflow.reload.chain_template)
+      expect(kinds).to include("adversarial_review", "security_review")
+      expect(workflow.artifacts.fetch("workflow_patches").size).to eq(2)
+    end
+
+    it "refuses once the Workflow is no longer active" do
+      stale = Workflow.find(workflow.id)
+      Workflow.where(id: workflow.id).update_all(state: "cancelled")
+
+      result = described_class.apply!(workflow: stale, operation: "insert_after", author: "agent", nodes: [ "security_review" ])
+
+      expect(result).not_to be_applied
+      expect(result.reason).to eq("workflow is not active")
+      expect(workflow.steps.where(kind: "security_review")).not_to exist
+    end
+  end
+
   describe "guardrails" do
     # The checks a workflow exists to satisfy cannot be patched away by the
     # thing being checked.
