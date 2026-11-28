@@ -19,6 +19,17 @@ RSpec.describe Coworkers::EnvironmentInspection do
                          published_at: Time.current)
   end
 
+  def accepted_attestation(runtime_image)
+    attempt = runtime_image.runtime_image_verification_attempts.create!(
+      number: 1, image_digest: runtime_image.digest, state: "accepted", decision: "candidate",
+      policy_snapshot: {}, policy_digest: "sha256:#{'9' * 64}", started_at: Time.current, finished_at: Time.current
+    )
+    attempt.create_attestation!(
+      runtime_image:, image_digest: runtime_image.digest, policy_digest: attempt.policy_digest,
+      evidence_digest: runtime_image.digest, outcome: "accepted", issued_at: Time.current, expires_at: 1.day.from_now
+    )
+  end
+
   it "serializes source, build, candidate, active, rollback, and compatibility state without restricted evidence" do
     active_image = image("a")
     rollback_image = image("b", retention_state: "retained")
@@ -26,9 +37,9 @@ RSpec.describe Coworkers::EnvironmentInspection do
     active = Coworkers::EnvironmentRevision.create!(environment:, number: 1, state: "active",
                                                      source_digest: "sha256:#{'1' * 64}", runtime_image: active_image,
                                                      runtime_abi: 3, compat_min: 2, compat_max: 4)
-    Coworkers::EnvironmentRevision.create!(environment:, number: 2, state: "retired",
-                                            source_digest: "sha256:#{'2' * 64}", runtime_image: rollback_image,
-                                            runtime_abi: 3, compat_min: 2, compat_max: 4)
+    rollback = Coworkers::EnvironmentRevision.create!(environment:, number: 2, state: "retired",
+                                                       source_digest: "sha256:#{'2' * 64}", runtime_image: rollback_image,
+                                                       runtime_abi: 3, compat_min: 2, compat_max: 4)
     request = RuntimeImageBuildRequest.create!(runtime_image_namespace: namespace, state: "succeeded",
                                                platform: "linux/amd64", dedup_key: "inspection-dedup",
                                                source_kind: "coworker_environment", source_ref: "candidate",
@@ -42,7 +53,14 @@ RSpec.describe Coworkers::EnvironmentInspection do
     candidate = Coworkers::EnvironmentRevision.create!(environment:, number: 3, state: "candidate",
                                                         source_digest: "sha256:#{'5' * 64}", runtime_image: candidate_image,
                                                         build_request: request, runtime_abi: 3, compat_min: 2, compat_max: 4)
-    environment.update!(active_revision: active, active_runtime_image: active_image,
+    rollback_activation = environment.activations.create!(revision: rollback, runtime_image: rollback_image,
+      verification_attestation: accepted_attestation(rollback_image), source_digest: rollback.source_digest,
+      image_digest: rollback_image.digest, authority_kind: "permission", actor: "operator", activated_at: 1.day.ago)
+    active_activation = environment.activations.create!(revision: active, runtime_image: active_image,
+      previous_activation: rollback_activation, verification_attestation: accepted_attestation(active_image),
+      source_digest: active.source_digest, image_digest: active_image.digest,
+      authority_kind: "permission", actor: "operator", activated_at: Time.current)
+    environment.update!(active_revision: active, active_runtime_image: active_image, active_activation:,
                         candidate_revision: candidate, candidate_runtime_image: candidate_image)
     base = RuntimeImages::BuildRequests::Base.new(id: 9, digest: "sha256:#{'6' * 64}", runtime_abi: 3,
                                                    compat_min: 2, compat_max: 4)

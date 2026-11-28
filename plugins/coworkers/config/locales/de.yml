@@ -27,6 +27,17 @@ de:
       retry_exhausted: "Die automatischen Versuche sind ausgeschöpft; versuche es erneut, sobald der Remote-Dienst funktioniert."
       needs_attention: "Dieser Fehler benötigt deine Aufmerksamkeit; versuche das Speichern nach der Korrektur erneut."
       workspace_save_resolved: "Die erhaltenen Workspace-Änderungen wurden erfolgreich gespeichert."
+      environment_events:
+        build_requested: "Environment-Build angefordert."
+        candidate: "Die Environment-Prüfung war erfolgreich; die Revision kann veröffentlicht werden."
+        build_failed: "Der Environment-Build ist fehlgeschlagen. Prüfe vor einem neuen Versuch die sicheren Fehlerdetails."
+        rejected: "Die Environment-Prüfung hat die Revision abgelehnt."
+        approval_required: "Die Veröffentlichung der Environment benötigt die Zustimmung des Owners."
+        approval_denied: "Die Veröffentlichung der Environment wurde durch die Berechtigungsrichtlinie abgelehnt."
+        activated: "Die Environment wurde für zukünftige Turns veröffentlicht."
+        rolled_back: "Die Environment wurde für zukünftige Turns zurückgesetzt."
+        incompatible: "Die Environment ist mit der aktuellen Runtime nicht kompatibel."
+        revoked: "Die Environment-Revision wurde widerrufen."
       retry_save: "Workspace prüfen und erneut versuchen"
       metrics_dashboard:
         tab: "Mitarbeiter"

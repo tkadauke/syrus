@@ -27,6 +27,17 @@ la:
       retry_exhausted: "Conatus automatici consumpti sunt; iterum conare cum receptaculum sanum sit."
       needs_attention: "Hic error attentionem tuam requirit; post emendationem iterum serva."
       workspace_save_resolved: "Mutationes spatii servatae feliciter sunt."
+      environment_events:
+        build_requested: "Constructio ambitus postulata est."
+        candidate: "Probatio ambitus successit; revisio ad publicationem parata est."
+        build_failed: "Constructio ambitus defecit. Singula tuta erroris ante iterationem inspice."
+        rejected: "Probatio ambitus revisionem recusavit."
+        approval_required: "Publicatio ambitus approbationem domini requirit."
+        approval_denied: "Publicatio ambitus a regula permissionis negata est."
+        activated: "Ambitus ad futuros actus publicatus est."
+        rolled_back: "Ambitus ad revisionem priorem restitutus est."
+        incompatible: "Ambitus cum tempore executionis hodierno non congruit."
+        revoked: "Revisio ambitus revocata est."
       retry_save: "Spatium inspice et iterum conare"
       metrics_dashboard:
         tab: "Collegae"

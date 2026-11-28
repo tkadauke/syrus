@@ -26,7 +26,7 @@ module Coworkers
       end
     end
 
-    def rollback!(failed_activation:, actor:)
+    def rollback!(failed_activation:, actor:, target_revision: nil)
       environment.with_lock do
         failed_activation.reload
         unless environment.active_activation_id == failed_activation.id
@@ -37,9 +37,18 @@ module Coworkers
 
         target = rollback_target(failed_activation)
         raise EnvironmentRevision::InvalidTransition, "no compatible verified rollback image is available" unless target
+        if target_revision && target.environment_revision_id != target_revision.id
+          raise EnvironmentRevision::InvalidTransition, "requested revision is not the next eligible rollback target"
+        end
 
         activate!(target, failed_activation:, actor:)
       end
+    end
+
+    def eligible_rollback_revision(failed_activation: environment.active_activation)
+      return unless failed_activation
+
+      rollback_target(failed_activation)&.revision
     end
 
     def refresh_retention!(actor: "system")
@@ -107,6 +116,9 @@ module Coworkers
                           active_runtime_image: target.runtime_image, active_activation: activation,
                           last_error_code: nil, last_audit_event: event)
       refresh_retention!(actor:)
+      inspection = EnvironmentInspectionSerializer.new(EnvironmentInspection.new(environment).call).as_json
+      Syrus::Events.publish("coworker_environment.rolled_back", coworker_id: environment.coworker_id,
+        environment_id: environment.id, revision_id: target.environment_revision_id, inspection:)
       activation
     end
 

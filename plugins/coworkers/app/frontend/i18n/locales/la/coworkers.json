@@ -99,7 +99,12 @@
     "about_saved": "Textus de persona servatus",
     "open_coworker": "Collaboratorem aperi",
     "open_chat": "Colloquium principale aperi",
-    "no_schedules": "Nulla consilia."
+    "no_schedules": "Nulla consilia.",
+    "environment_state": "Status",
+    "environment_build": "Constructio",
+    "environment_compatibility": "Compatibilitas",
+    "environment_active_image": "Imago activa",
+    "environment_failure": "Defectus"
   },
   "fields": {
     "name": "Nomen",

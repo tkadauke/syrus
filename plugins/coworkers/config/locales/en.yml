@@ -27,6 +27,17 @@ en:
       retry_exhausted: "Automatic retries are exhausted; retry when the remote is healthy."
       needs_attention: "This failure needs your attention; use Retry save after correcting it."
       workspace_save_resolved: "The preserved workspace changes were saved successfully."
+      environment_events:
+        build_requested: "Environment build requested."
+        candidate: "Environment verification passed; the revision is a publication candidate."
+        build_failed: "Environment build failed. Inspect the safe failure details before retrying."
+        rejected: "Environment verification rejected the revision."
+        approval_required: "Environment publication requires owner approval."
+        approval_denied: "Environment publication was denied by permission policy."
+        activated: "Environment publication completed for future turns."
+        rolled_back: "Environment rollback completed for future turns."
+        incompatible: "The environment is incompatible with the current runtime."
+        revoked: "The environment revision was revoked."
       retry_save: "Review workspace and retry"
       metrics_dashboard:
         tab: "Coworkers"
