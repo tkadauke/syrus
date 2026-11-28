@@ -49,14 +49,17 @@ module Runs
       AutoRetryAttempt.outage_classification?(classification_of(run))
     end
 
-    # The ladder's bound for an outage: retry while the outage -- the first of
-    # this Job's identical failures of the step since its latest reopen -- is
-    # younger than OUTAGE_RETRY_HORIZON. Always open for anything else.
+    # The ladder's bound for an outage: retry while the outage has lasted less
+    # than OUTAGE_RETRY_HORIZON, measured by its failures -- from the first of
+    # this Job's identical failures of the step since its latest reopen to this
+    # one. Measured against the failures rather than the clock, so a failure the
+    # reconciler only finds late (masked by terminal cleanup, say) still gets
+    # its retry. Always open for anything else.
     def outage_retry_window_open?(run, now: Time.current)
       return true unless run&.failed? && run.step && outage?(run)
 
       started_at = outage_started_at(run)
-      started_at.nil? || started_at > now - AutoRetryAttempt::OUTAGE_RETRY_HORIZON
+      started_at.nil? || started_at > (run.finished_at || now) - AutoRetryAttempt::OUTAGE_RETRY_HORIZON
     end
 
     def outage_started_at(run)

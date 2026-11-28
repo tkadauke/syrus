@@ -127,6 +127,14 @@ RSpec.describe Runs::RepeatedFailure do
       expect(described_class.outage_retry_window_open?(latest)).to be(false)
     end
 
+    # Measured by the outage's failures, not the clock: a failure the
+    # reconciler only finds late (masked by terminal cleanup) still retries.
+    it "stays open for a lone outage failure found long after it happened" do
+      latest = outage_run(1.year.ago)
+
+      expect(described_class.outage_retry_window_open?(latest)).to be(true)
+    end
+
     it "is always open for a failure that is not an outage" do
       failed_run(step_in(workflow)).update_columns(finished_at: 3.hours.ago)
       latest = failed_run(step_in(workflow))

@@ -294,7 +294,7 @@ models:
   - path: app/services/runs/repeated_failure.rb
     owner: RepeatedFailure
     method: outage_retry_window_open?
-    sha: c3790e2b14cd4ac3
+    sha: 534f51eccd01eab7
   - path: app/models/auto_retry_attempt.rb
     owner: AutoRetryAttempt
     method: self.backoff_for
