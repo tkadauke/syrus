@@ -148,6 +148,10 @@ module RuntimeImages
         )
       end
 
+      public
+
+      # The effective policy is also consumed by publication and re-evaluation
+      # so they can prove an attestation covers every check required today.
       def verification_policy(request, base_policy: Verifications::Policy.current)
         policy = base_policy.deep_dup
         policy["checks"] << { "key" => "image_policy", "required" => true }
@@ -158,6 +162,8 @@ module RuntimeImages
         end
         policy
       end
+
+      private
 
       # A verified standard base becomes a promotion candidate. It is never
       # active until an operator promotes it.

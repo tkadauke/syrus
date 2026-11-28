@@ -13,8 +13,15 @@ RSpec.describe Coworkers::EnvironmentPublicationAuthority do
   end
   let(:revision) do
     Coworkers::EnvironmentRevision.create!(environment:, number: 1, state: "candidate",
-      source_digest: "sha256:#{"b" * 64}", runtime_image: image)
+      source_digest: "sha256:#{"b" * 64}", runtime_image: image, build_request: build_request)
   end
+  let(:build_request) do
+    RuntimeImageBuildRequest.create!(runtime_image_namespace: image.runtime_image_namespace, state: "succeeded",
+      platform: "linux/amd64", dedup_key: "publication-authority", source_kind: "coworker_environment",
+      source_ref: "1", source_digest: revision_source_digest, recipe_digest: "sha256:#{"d" * 64}",
+      requester_kind: "coworker", requester_ref: coworker.id.to_s, recipe: {})
+  end
+  let(:revision_source_digest) { "sha256:#{"b" * 64}" }
   let(:risk) do
     snapshot = Coworkers::EnvironmentPublicationRisk::Snapshot.new(
       source_digest: revision.source_digest, base_digest: "sha256:#{"c" * 64}", dependency_digest: "deps",
@@ -27,6 +34,29 @@ RSpec.describe Coworkers::EnvironmentPublicationAuthority do
   before do
     Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
     allow(AppSetting).to receive(:beta_mode_enabled?).and_return(true)
+  end
+
+  def attest(runtime_image, policy: nil)
+    policy ||= RuntimeImages::Builds::Runner.new.verification_policy(
+      build_request, base_policy: RuntimeImages::Verifications::Policy.current
+    )
+    attempt = runtime_image.runtime_image_verification_attempts.create!(
+      number: runtime_image.runtime_image_verification_attempts.maximum(:number).to_i + 1,
+      image_digest: runtime_image.digest, state: "accepted", decision: "candidate",
+      policy_snapshot: policy, policy_digest: RuntimeImages::Verifications::CanonicalJson.digest(policy),
+      started_at: Time.current, finished_at: Time.current
+    )
+    attempt.create_attestation!(runtime_image:, image_digest: runtime_image.digest,
+      policy_digest: attempt.policy_digest, evidence_digest: runtime_image.digest, outcome: "accepted",
+      issued_at: Time.current, expires_at: 1.day.from_now)
+  end
+
+  def prior_activation(source_digest: revision.source_digest)
+    prior = Coworkers::EnvironmentRevision.create!(environment:, number: 2, state: "retired",
+      source_digest:, runtime_image: image, build_request: build_request)
+    environment.activations.create!(revision: prior, runtime_image: image,
+      verification_attestation: attest(image), source_digest:, image_digest: image.digest,
+      authority_kind: "permission", actor: "operator", activated_at: 1.hour.ago)
   end
 
   it "returns a pending publication action for the default ask decision" do
@@ -70,5 +100,31 @@ RSpec.describe Coworkers::EnvironmentPublicationAuthority do
 
   it "does not infer publication authority from a successful build request" do
     expect(described_class.new(owner:, coworker:, environment:, revision:, risk:).call).to be_ask
+  end
+
+  it "inherits prior authority for unchanged source after the complete current policy passes" do
+    activation = prior_activation
+
+    result = described_class.new(owner:, coworker:, environment:, revision:, risk:).call
+
+    expect(result).to be_allow
+    expect(result.inherited_from).to eq(activation)
+  end
+
+  it "requires fresh authority when source changed" do
+    prior_activation(source_digest: "sha256:#{"9" * 64}")
+
+    expect(described_class.new(owner:, coworker:, environment:, revision:, risk:).call).to be_ask
+  end
+
+  it "requires fresh authority until the newest attempt passes the current policy" do
+    prior_activation
+    stale_policy = RuntimeImages::Verifications::Policy.current.deep_merge("image" => { "max_layers" => 1 })
+    attest(image, policy: stale_policy)
+
+    result = described_class.new(owner:, coworker:, environment:, revision:, risk:).call
+
+    expect(result).to be_ask
+    expect(result.inherited_from).to be_nil
   end
 end
