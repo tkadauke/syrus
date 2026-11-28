@@ -51,6 +51,13 @@ RSpec.describe "workflow outcome overrides", type: :request do
     expect(WorkflowOutcomeOverride.count).to eq(0)
   end
 
+  it "accepts the Job display reference the route allows" do
+    get "/api/v1/app/jobs/JOB-#{job.id}/workflow_outcome_overrides"
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body).fetch("candidates")).to contain_exactly(include("gate_kind" => "implementation_grader"))
+  end
+
   it "refuses stale evidence" do
     post "/api/v1/app/jobs/#{job.id}/workflow_outcome_overrides", params: {
       fingerprint_digest: "stale", reason: "No longer exact"

@@ -36,7 +36,7 @@ module Api
 
         private
 
-        def find_job = Job.visible_to(Current.user).find(params[:job_id])
+        def find_job = find_job_by_ref(Job.visible_to(Current.user), params[:job_id])
 
         def policy_for(job, candidate)
           WorkflowOutcomeOverrides::Authority.call(user: Current.user, repository: job.repository, arguments: {
