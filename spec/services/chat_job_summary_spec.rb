@@ -68,6 +68,33 @@ RSpec.describe ChatJobSummary do
     expect(selected.grep(/SELECT\s+.?workflows.?\.\*/i)).to be_empty
   end
 
+  # A long-lived chat links hundreds of Jobs with long workflow histories;
+  # loading all of it built ~36,000 Step objects per sidebar load in
+  # production. Only active workflows and steps can affect a row.
+  it "instantiates only active workflows and steps, and no retry attempt rows" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    proposal_for(job)
+    3.times do |index|
+      done = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", created_at: (10 - index).minutes.ago, finished_at: Time.current)
+      4.times { |position| Step.create!(workflow: done, kind: "implement", state: "succeeded", position: position + 1) }
+      AutoRetryAttempt.create!(job: job, workflow: done, agent_provider: "codex", failure_classification: "transient",
+        retry_kind: "retry_workflow", attempt_number: index + 1, scheduled_at: 1.hour.ago, performed_at: 1.hour.ago)
+    end
+    active = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+    Step.create!(workflow: active, kind: "implement", state: "succeeded", position: 1)
+    Step.create!(workflow: active, kind: "summarize", state: "running", position: 2)
+
+    instantiated = Hash.new(0)
+    counter = ->(_name, _start, _finish, _id, payload) { instantiated[payload[:class_name]] += payload[:record_count] }
+    row = nil
+    ActiveSupport::Notifications.subscribed(counter, "instantiation.active_record") { row = summary }
+
+    expect(row[:jobs].first).to include(group: "running", step: "summarize")
+    expect(instantiated["Workflow"]).to eq(1)
+    expect(instantiated["Step"]).to eq(1)
+    expect(instantiated["AutoRetryAttempt"]).to eq(0)
+  end
+
   it "counts implementation workflows but excludes landing and CI repair" do
     active = Factories.job_record(user: user, repository: repository, state: "running")
     landing = Factories.job_record(user: user, repository: repository, state: "landing")
