@@ -15,7 +15,9 @@ ownership:
   route_prefixes:
     - /api/v1/app/coworkers
   tables:
+    - coworker_environment_activations
     - coworker_chats
+    - coworker_base_releases
     - coworker_environment_revisions
     - coworker_environments
     - coworker_grants
@@ -26,6 +28,10 @@ ownership:
     - coworkers
     - coworkers_chat_agents
   inline_fields:
+    app_settings:
+      drop_columns:
+        - coworker_environment_launch_failure_threshold
+        - coworker_environment_rollback_retention_count
     scheduled_tasks:
       delete_rows_where_present: coworker_id
       drop_columns:

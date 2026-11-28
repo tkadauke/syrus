@@ -39,6 +39,10 @@ export type RetentionSettingsPayload = {
       observed_at: string
     }>
   }
+  coworker_environment_recovery: {
+    rollback_retention_count: number
+    launch_failure_threshold: number
+  }
   message?: string
 }
 

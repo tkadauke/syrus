@@ -2,6 +2,7 @@ de:
   api:
     coworkers:
       environment_foreign_revision: "muss zu dieser Umgebung gehören"
+      environment_inconsistent_activation: "Aktive Umgebungszeiger stimmen nicht mit ihrer unveränderlichen Aktivierung überein."
       environment_compat_bound_missing: "muss zusammen mit der anderen Grenze gesetzt werden"
       environment_compat_window_inverted: "darf nicht unter compat_min liegen"
       no_goal_summary: "Keine Zielzusammenfassung verfügbar"

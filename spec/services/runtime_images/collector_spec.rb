@@ -8,8 +8,8 @@ RSpec.describe RuntimeImages::Collector do
   let(:window) { 30.days }
 
   def publish(payload, age: 60.days)
-    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "rev-#{payload}", platform: "linux/amd64",
-                            payload: payload, verification_state: "candidate")
+    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "rev-#{payload}",
+                            platform: "linux/amd64", payload: payload, verification_state: "candidate")
     image.update_columns(published_at: age.ago)
     image
   end
@@ -112,7 +112,7 @@ RSpec.describe RuntimeImages::Collector do
   describe "retention policy wiring" do
     it "registers the policies and runs the executor through the shared registry" do
       keys = RetentionPolicyRegistry.definitions.map(&:key)
-      expect(keys).to include(:runtime_image, :runtime_image_pull_event, :runtime_image_audit_event)
+      expect(keys).to include(:runtime_image, :runtime_image_verification_evidence, :runtime_image_pull_event, :runtime_image_audit_event)
       expect { RetentionPolicyRegistry.validate! }.not_to raise_error
 
       old = publish("old", age: 90.days)
@@ -122,6 +122,7 @@ RSpec.describe RuntimeImages::Collector do
       expect(result.deleted_count).to eq(1)
       expect(old.reload).to be_deleted
     end
+
 
     it "prunes old pull and audit events through the generic executor" do
       old = RuntimeImagePullEvent.create!(hostname: "w1", digest: "sha256:#{'a' * 64}", outcome: "hit", created_at: 90.days.ago)

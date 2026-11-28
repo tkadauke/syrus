@@ -13,7 +13,36 @@ class Coworkers::ChatTurnLifecycle
   def admission
     result = Coworkers::PrivilegedGrantGate.turn_admission(coworker)
     result[:message] ||= I18n.t("coworkers.confinement_unavailable", locale: @chat_session.user.locale) if result[:outcome].present?
+    @environment_selection = resolve_environment_selection unless result[:outcome].present?
     result
+  end
+
+  def execution_workload_policy(policy)
+    return policy unless @environment_selection
+
+    Syrus::Host::AgentRuntime.chat_workload_policy(
+      runtime_image: @environment_selection.runtime_image,
+      runtime_image_digest: @environment_selection.image_digest
+    )
+  end
+
+  # Only failures before an agent process exists are image launch failures.
+  # Provider errors after a process started must not roll back valid images.
+  def after_execution(result: nil, exception: nil)
+    return unless @environment_selection
+    return if @execution_reported
+    return unless exception || result
+
+    @execution_reported = true
+    return if result&.success?
+    return if result&.spawned_process_id.present?
+
+    Coworkers::EnvironmentRecovery.new(coworker.environment).record_launch_failure!(
+      @environment_selection.activation_id,
+      reason: exception ? exception.class.name : "agent_process_not_started"
+    )
+  rescue StandardError => error
+    Rails.logger.error("[Coworkers::ChatTurnLifecycle] launch recovery failed: #{error.class}: #{error.message}")
   end
 
   def context = @chat_session
@@ -26,4 +55,11 @@ class Coworkers::ChatTurnLifecycle
   private
 
   def coworker = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: @chat_session.id).coworker
+
+  def resolve_environment_selection
+    return unless Feature.coworker_custom_environments_enabled?
+    return unless coworker.environment
+
+    Coworkers::EnvironmentActiveSelection.resolve(coworker.environment)
+  end
 end

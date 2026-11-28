@@ -124,6 +124,7 @@ class ChatTurnJob < ApplicationJob
 
     @chat.broadcast_controls if provider.provider == "codex"
 
+    result = nil
     result = with_chat_mcp_config(provider) do |mcp_config|
       with_git_askpass_env do |agent_env|
         provider_with_turn_context(provider, attachment_context, agent_env.merge(cli_invocation_env(provider))).invoke(
@@ -142,6 +143,8 @@ class ChatTurnJob < ApplicationJob
         )
       end
     end
+
+    @turn_lifecycle.after_execution(result:) if @turn_lifecycle.respond_to?(:after_execution)
 
     return if stop_requested?(force: true)
 
@@ -169,6 +172,7 @@ class ChatTurnJob < ApplicationJob
       create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     end
   rescue StandardError => e
+    @turn_lifecycle&.after_execution(result: result, exception: e) if @turn_lifecycle&.respond_to?(:after_execution)
     stop_requested?(force: true) || create_terminal_failure_message!(exception: e)
     touch_chat! if @chat
     raise
@@ -185,6 +189,9 @@ class ChatTurnJob < ApplicationJob
   # chat agent ran unconfined.
   def execution_workload_options
     policy = Execution::ChatWorkloadPolicy.for_current_setting
+    if @turn_lifecycle&.respond_to?(:execution_workload_policy)
+      policy = @turn_lifecycle.execution_workload_policy(policy)
+    end
     policy ? { workload_policy: policy } : {}
   end
 

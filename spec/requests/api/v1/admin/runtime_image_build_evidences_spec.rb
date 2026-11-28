@@ -46,13 +46,20 @@ RSpec.describe "API: /api/v1/admin/runtime_image_build_requests/:id/evidence", t
       report_digest: "sha256:" + ("b" * 64), scanned_at: Time.current)
     policy_evidence.report.attach(io: StringIO.new(JSON.generate("secret_scan" => { "location" => "Dockerfile:9" })),
                                   filename: "policy.json", content_type: "application/json")
+    scan_evidence = verification.create_scan_evidence!(image_digest: image.digest, scanner_name: "scanner", scanner_version: "1",
+      database_version: "2026-11-26", sbom_format: "cyclonedx-json", sbom_digest: "sha256:" + ("c" * 64),
+      report_digest: "sha256:" + ("d" * 64), finding_summary: { "high" => 1 }, scanned_at: Time.current)
+    scan_evidence.scan_report.attach(io: StringIO.new(JSON.generate("finding" => { "id" => "restricted-id" })),
+                                     filename: "scan.json", content_type: "application/json")
     build_request.update_columns(state: "succeeded", finished_at: Time.current)
     RuntimeImageBuildResult.create!(request: build_request, runtime_image: image, outcome: "succeeded", finished_at: Time.current)
 
     get "/api/v1/admin/runtime_image_build_requests/#{build_request.id}/evidence", headers: { "Authorization" => "Bearer #{admin_token}" }
 
     policy = JSON.parse(response.body).fetch("verification_policy")
-    expect(policy.fetch("safe_summary")).to eq("finding_count" => 1, "codes" => { "secret_detected" => 1 })
-    expect(policy.dig("report", "secret_scan", "location")).to eq("Dockerfile:9")
+    expect(policy.dig("safe_summary", "policy")).to eq("finding_count" => 1, "codes" => { "secret_detected" => 1 })
+    expect(policy.dig("policy_report", "secret_scan", "location")).to eq("Dockerfile:9")
+    expect(policy.dig("safe_summary", "supply_chain")).to eq("high" => 1)
+    expect(policy.dig("scan_report", "finding", "id")).to eq("restricted-id")
   end
 end

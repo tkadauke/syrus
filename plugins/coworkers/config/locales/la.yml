@@ -2,6 +2,7 @@ la:
   api:
     coworkers:
       environment_foreign_revision: "ad hanc environmentem pertinere debet"
+      environment_inconsistent_activation: "Indices environmenti activi activationi immutabili non congruunt."
       environment_compat_bound_missing: "cum altero termino simul poni debet"
       environment_compat_window_inverted: "infra compat_min esse non debet"
       no_goal_summary: "Summarium propositi non praesto est"

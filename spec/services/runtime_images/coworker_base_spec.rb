@@ -154,7 +154,8 @@ RSpec.describe RuntimeImages::CoworkerBase do
         platform: "linux/amd64", payload: "base",
         verification_state: "candidate",
         provenance: { "recipe_digest" => recipe_digest, RuntimeImages::RuntimeAbi::ATTESTATION_KEY =>
-          RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) }
+          RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) },
+        verification_state: "candidate"
       )
       releases = RuntimeImages::BaseReleases.new(service: service)
       expect(described_class.current_image(releases: releases)).to be_nil

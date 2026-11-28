@@ -275,7 +275,7 @@ Supported members:
 
 Since: `0.1.16`
 
-Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases. Only the listed members are supported.
+Reads shared agent runtime defaults and exposes narrow workload-policy and cross-worker termination operations; the invocation engine and the values themselves may change between releases. Only the listed members are supported.
 
 Supported members:
 
@@ -286,6 +286,7 @@ Supported members:
 - `max_event_bytes`
 - `oversized_event_handler`
 - `silent_timeout_seconds`
+- `terminate_chat_processes`
 
 ### `Syrus::Host::AgentSessionStore`
 
@@ -4244,7 +4245,7 @@ Supported members:
 
 Since: `0.1.16`
 
-Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.
+Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base and current verification evidence, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.
 
 Supported members:
 
@@ -4252,11 +4253,13 @@ Supported members:
 - `active_base`
 - `audit`
 - `available?`
+- `current_verification_attestation`
 - `delete`
 - `find`
 - `publish_local`
 - `request_build`
 - `retain`
+- `revocation_details`
 - `revoke`
 
 ### `Syrus::Host::RuntimeSessionProvider`

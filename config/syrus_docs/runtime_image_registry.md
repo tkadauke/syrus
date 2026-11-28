@@ -49,6 +49,7 @@ When the registry is configured, a devcontainer that builds from a Dockerfile is
 ## Retention and cleanup
 
 - `runtime_image_retention_days` on the retention settings page controls how long published images are kept (0 keeps them forever). A namespace can set its own `retention_days`.
+- `runtime_image_verification_evidence_retention_days` controls exact scanner and policy reports (0 keeps them forever). Safe summaries, digests, attestations, and revocation history remain after exact evidence is purged.
 - Images under a retention hold (for example a rollback image) are never collected; a lapsed hold is released first. The newest pullable image of each namespace and platform is always kept.
 - Collection revokes an image, waits while any worker holds it in use, deletes it from the registry, and only then records it as deleted. Failed cleanup is retried each pass and is reported by `bin/rails runtime_images:status` and `GET /api/v1/admin/runtime_images`.
 - An hourly reconciliation compares records with the registry and repairs drift. Unrecorded registry digests are reported and removed only with `bin/rails runtime_images:reconcile DELETE_ORPHANS=1`.
@@ -79,9 +80,11 @@ Before an extension image becomes a candidate, Syrus verifies that its recorded 
 
 Every candidate also receives a CycloneDX SBOM and a package-and-layer vulnerability scan. The default policy blocks every Critical or High vulnerability and every package named by the instance's prohibited-package policy. Time-bounded exemptions must identify one vulnerability or package, include a reason and expiry, and are copied into the immutable decision evidence. Syrus retains the exact SBOM and scan report with their hashes, scanner version, vulnerability-database version, finding summary, and effective exemptions. An unavailable scanner, missing database identity, or missing evidence blocks candidate status; a later policy change is evaluated by a new attempt so earlier evidence remains reproducible.
 
+An accepted attempt produces an expiring attestation digest bound to the immutable image digest, policy digest, and complete evidence-reference digest. Syrus periodically re-evaluates stored available images when that attestation expires or the effective policy changes; a vulnerability-database refresh can trigger the same path immediately. Any newly blocking result makes the image ineligible for pulls. A newly blocking High or Critical vulnerability also creates a revocation candidate containing only its safe severity summary; other policy findings do not receive a fabricated vulnerability severity. Exact vulnerability identifiers, secret locations, and remediation output remain available only from the administrator evidence endpoint.
+
 Isolated build candidates also pass a policy replay over the captured source, image layers, untruncated image history, OCI metadata, and the sanitized bounded build log. Any detected secret blocks the candidate. The recorded destinations are checked again against the exact administrator allowlist snapshot used by the build, and the image must remain within configured byte and layer ceilings, use the required non-root identity and startup contract, and request no forbidden capabilities. Normal views contain only finding counts and policy codes. Exact secret locations and scanner output are retained as hash-bound restricted evidence and returned only from the administrator evidence endpoint.
 
-Set `SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` to a JSON object to configure `vulnerabilities.blocked_severities`, `prohibited_packages`, `exemptions`, or the `image` byte, layer, identity, startup, and forbidden-capability policy instance-wide. Other keys are ignored so configuration cannot remove required checks. Each exemption has `kind` (`vulnerability` or `package`), exact `id`, non-empty `reason`, and ISO 8601 `expires_at`; expired or malformed entries have no effect.
+Set `SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` to a JSON object to configure `vulnerabilities.blocked_severities`, `prohibited_packages`, `exemptions`, `evidence_ttl_seconds`, or the `image` byte, layer, identity, startup, and forbidden-capability policy instance-wide. Other keys are ignored so configuration cannot remove required checks. Each exemption has `kind` (`vulnerability` or `package`), exact `id`, non-empty `reason`, and ISO 8601 `expires_at`; expired or malformed entries have no effect.
 
 ## Build recovery and diagnostics
 
@@ -106,3 +109,9 @@ The standard coworker base moves candidate → active → retired (kept pullable
 - `POST /:id/revoke` (`reason`, `severity` = `standard` or `severe`) withdraws the base. New launches are blocked with `base_revoked`/`no_active_base` until another base is promoted or rolled back to; a severe revocation is also the termination signal for running executions.
 
 Rebuild discovery lists environments built on a revoked, support-ended, or ABI-incompatible base. A base that is itself out of support is never offered as the replacement; such environments are reported as blocked until a supported base is active. All changes are audited.
+
+## Coworker environment recovery
+
+Publishing a verified coworker environment retains the active image and, by default, the two newest compatible verified rollback images. Administrators configure both that count and the repeated startup-failure threshold on **Admin → Retention Settings**. A failure before the agent process starts counts against the exact activation; ordinary provider failures after startup do not.
+
+Once the threshold is reached, the publication authority recorded for the immediately previous compatible activation authorizes an atomic automatic rollback. Revoked, unavailable, expired-evidence, and ABI-incompatible images are never selected. A revoked digest is rejected at new-turn admission. Severe revocation additionally requests immediate termination of every live agent process whose recorded runtime-image digest matches the affected image; both rollback and termination are audited.

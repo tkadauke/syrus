@@ -75,9 +75,12 @@ module RuntimeImages
 
     # Revocation is recorded before the provider is told, so a provider outage
     # can never leave a revoked image pullable.
-    def revoke(image, reason:, actor: "system")
-      audited("revoke", image: image, actor: actor, details: { reason: reason }) do
-        image.mark_revoked!(reason: reason)
+    def revoke(image, reason:, actor: "system", severity: "standard")
+      severity = severity.to_s
+      raise ArgumentError, "severity must be standard or severe" unless severity.in?(%w[standard severe])
+
+      audited("revoke", image: image, actor: actor, details: { reason: reason, severity: severity }) do
+        image.with_lock { image.mark_revoked!(reason: reason) }
         provider_for(image.runtime_image_namespace).revoke(
           RevokeRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform, reason: reason)
         )
@@ -100,11 +103,13 @@ module RuntimeImages
     # that still describes what the registry holds.
     def delete(image, actor: "system")
       audited("delete", image: image, actor: actor) do
-        raise Error, "runtime image #{image.digest} is still retained" if image.retained?
-        provider_for(image.runtime_image_namespace).delete(
-          DeleteRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform)
-        )
-        image.mark_deleted!
+        image.with_lock do
+          raise Error, "runtime image #{image.digest} is still retained" if image.retained?
+          provider_for(image.runtime_image_namespace).delete(
+            DeleteRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform)
+          )
+          image.mark_deleted!
+        end
         image
       end
     end

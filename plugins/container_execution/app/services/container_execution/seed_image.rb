@@ -54,6 +54,8 @@ module ContainerExecution
     # on this worker until the block returns, so cache eviction cannot remove
     # it mid-run.
     def with_image(&block)
+      return with_requested_runtime_image(&block) if requested_runtime_image
+
       spec = devcontainer_spec
       return yield Configuration.image unless spec
       return yield pull(spec.image, spec) if spec.image
@@ -64,6 +66,20 @@ module ContainerExecution
     private
 
     attr_reader :request, :runner, :semaphore, :sleeper, :image_namespace
+
+    def requested_runtime_image
+      request.workload_policy&.runtime_image if request.workload_policy&.respond_to?(:runtime_image)
+    end
+
+    def with_requested_runtime_image
+      image = requested_runtime_image
+      expected = request.workload_policy.runtime_image_digest
+      unless image&.pullable? && image.digest == expected
+        raise BuildError, "requested immutable runtime image is unavailable or changed"
+      end
+
+      @images.acquire(image) { |reference| yield reference }
+    end
 
     def devcontainer_spec
       return unless Configuration.devcontainer_enabled? && request.job&.repository

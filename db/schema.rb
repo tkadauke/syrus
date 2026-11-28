@@ -278,6 +278,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
     t.boolean "permissions_enforced", default: true, null: false
     t.text "plugin_manifest_signing_key"
     t.integer "wakeup_chain_limit", default: 100, null: false
+    t.integer "coworker_environment_rollback_retention_count", default: 2, null: false
+    t.integer "coworker_environment_launch_failure_threshold", default: 3, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1267,6 +1269,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
+  create_table "coworker_environment_activations", force: :cascade do |t|
+    t.bigint "coworker_environment_id", null: false
+    t.bigint "environment_revision_id", null: false
+    t.bigint "runtime_image_id", null: false
+    t.bigint "previous_activation_id"
+    t.bigint "verification_attestation_id", null: false
+    t.bigint "authority_lease_id"
+    t.bigint "inherited_from_activation_id"
+    t.string "source_digest", limit: 191, null: false
+    t.string "image_digest", limit: 191, null: false
+    t.string "authority_kind", null: false
+    t.string "actor", null: false
+    t.datetime "activated_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "launch_failure_count", default: 0, null: false
+    t.datetime "last_launch_failed_at"
+    t.index ["coworker_environment_id", "activated_at"], name: "idx_coworker_env_activations_history"
+    t.index ["coworker_environment_id", "source_digest"], name: "idx_coworker_env_activations_source"
+    t.index ["environment_revision_id"], name: "idx_coworker_env_activations_revision"
+  end
+
   create_table "coworker_environment_revisions", force: :cascade do |t|
     t.integer "coworker_environment_id", null: false
     t.integer "number", null: false
@@ -1301,6 +1325,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
     t.string "last_error_code"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "active_activation_id"
+    t.index ["active_activation_id"], name: "index_coworker_environments_on_active_activation_id"
     t.index ["coworker_id"], name: "index_coworker_environments_on_coworker_id", unique: true
     t.index ["state"], name: "index_coworker_environments_on_state"
   end

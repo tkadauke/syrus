@@ -472,7 +472,7 @@ module Syrus
         MemoryStore: "Syrus::Plugin::MemoryStore",
         ExecutionLocal: "Execution::Local",
         BackendExceptionLogging: "BackendExceptionLogging",
-        SkipIfPending: "SkipIfPending",
+        SkipIfPending: "SkipIfPending"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -792,7 +792,7 @@ module Syrus
         RebaseAttemptGuard: [ "Counts consecutive failed rebase attempts for a job (consecutive_failures) and names the MEMORY_WRITE_RETRY_STORM_THRESHOLD at which memory writes are held back; the rest of the rebase retry policy is not promised.", %w[consecutive_failures MEMORY_WRITE_RETRY_STORM_THRESHOLD] ],
         PlatformIdentityRecord: [ "Finds or creates the identity a chat-platform user maps to; columns and linking policy beyond find_or_initialize_by are not promised.", %w[find_or_initialize_by] ],
         PlatformConfigBase: [ "Bases the per-platform configuration class a chat-platform plugin defines; only subclassing is promised.", %w[new] ],
-        AgentRuntime: [ "Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler chat_workload_policy] ],
+        AgentRuntime: [ "Reads shared agent runtime defaults and exposes narrow workload-policy and cross-worker termination operations; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler chat_workload_policy terminate_chat_processes] ],
         AgentPrompts: [ "Renders shared prompt fragments for plugin agent prompts: memory_context, chat_system, git_safety_text and submit_summary_instructions_text; the fragment wording may change between releases.", %w[memory_context chat_system git_safety_text submit_summary_instructions_text] ],
         SkillCatalog: [ "Resolves, validates and renders named skills (resolve, validate_arguments!, render) and exposes the name_pattern and the resolution_errors and argument_errors they raise; skill discovery and markdown parsing are not promised.", %w[name_pattern resolve validate_arguments! render resolution_errors argument_errors] ],
         Events: [ "Publishes a named domain event for subscribers (publish); delivery, ordering and retries are not promised.", %w[publish] ],
@@ -841,7 +841,7 @@ module Syrus
         ExecutionLocal: [ "Runs an execution request on the local worker; process implementation details are not promised.", %w[new run] ],
         BackendExceptionLogging: [ "Records a background-job exception through the host error pipeline; storage and reporting are not promised.", %w[ingest_job] ],
         SkipIfPending: [ "Prevents duplicate queued instances of a plugin job; queue-lock implementation details are not promised.", %w[] ],
-        MemoryStore: [ "Marks a class as the plugin-provided agent memory store; store orchestration is not promised.", %w[] ],
+        MemoryStore: [ "Marks a class as the plugin-provided agent memory store; store orchestration is not promised.", %w[] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {
@@ -856,7 +856,7 @@ module Syrus
       SERVICE_CONTRACTS = {
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
-        RuntimeImages: [ "Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.", %w[available? find publish_local acquire active_base request_build retain revoke delete audit] ],
+        RuntimeImages: [ "Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base and current verification evidence, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.", %w[available? find publish_local acquire active_base request_build current_verification_attestation retain revoke revocation_details delete audit] ],
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ],
         Invariants: [ "Builds the system alert summarizing open invariant violations recorded by the invariant monitor, or nil when none are open; detection, persistence, and thresholds are not promised.", %w[open_violations_alert] ],
         Epic: [ "Reads and queries epics through find and scoped lookups, plus the closure-reason and archived-state vocabularies; transitions and unlisted associations are not promised.", %w[find find_by where order count exists? maximum accessible_to find_or_create_by! ARCHIVED_STATE MERGED_JOB_CLOSURE_REASONS SUCCESSFUL_JOB_CLOSURE_REASONS] ],
