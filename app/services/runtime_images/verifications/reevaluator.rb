@@ -24,9 +24,12 @@ module RuntimeImages
       def claim(attestation, now)
         image = attestation.runtime_image
         image.with_lock do
-          attestation.reload
+          # Locking reads: a plain read answers from the snapshot taken before
+          # the image lock was granted, missing a revocation, supersession or
+          # newer attempt committed while this one waited (F153).
+          attestation.reload(lock: true)
           return false if attestation.invalidated_at?
-          latest = image.runtime_image_verification_attempts.order(number: :desc).first
+          latest = image.runtime_image_verification_attempts.lock.order(number: :desc).first
           if latest.number != attestation.attempt.number
             if latest.attestation
               attestation.update!(invalidated_at: now, invalidation_reason: "superseded")

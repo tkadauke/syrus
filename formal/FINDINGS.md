@@ -5055,6 +5055,23 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F153. Runtime image re-evaluation re-verified an invalidated attestation — fixed
+
+**Invariant.** A revoked or superseded attestation is never re-verified into
+a fresh candidate.
+
+**Counterexample.** `Verifications::Reevaluator#claim` (main's runtime image
+verification Epic) locked the image row, then re-read the attestation and the
+latest attempt with plain reads. Under REPEATABLE READ those answer from the
+snapshot taken before the lock was granted: a revocation, supersession or newer
+attempt committed while the claim waited was invisible, so the claim reset the
+image to unverified and re-verified it. Main's own architecture spec
+(`locked_plain_reread_spec.rb`) flagged the site; the Epic merged with it red.
+
+**Fix.** Locking reads for the attestation and the latest attempt. Spec first:
+"does not re-verify an attestation invalidated while it waited, even when
+plain reads are stale" failed with `verify` called.
+
 ## F152. A Run cancel committed during RunJob's success was read from the old snapshot — fixed
 
 **Invariant.** A committed cancel wins over a success recorded after it: a

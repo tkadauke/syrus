@@ -24,6 +24,20 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
     2.times { expect { service.call(attestation, policy: policy, build_result: result) }.to raise_error(RuntimeImages::ProviderError) }
     expect(attestation.reload.invalidated_at).to be_nil
   end
+  # A revocation or supersession that committed while the claim waited on the
+  # image lock is invisible to a plain re-read under MySQL's REPEATABLE READ:
+  # the claim re-verified an attestation that was already invalidated (F153).
+  it "does not re-verify an attestation invalidated while it waited, even when plain reads are stale" do
+    attestation
+    RuntimeImageVerificationAttestation.where(id: attestation.id).update_all(invalidated_at: Time.current, invalidation_reason: "revoked")
+    stage_repeatable_read_snapshot!(RuntimeImageVerificationAttestation)
+    allow(orchestrator).to receive(:verify)
+
+    expect(service.call(attestation, policy: policy)).to eq(attestation)
+
+    expect(orchestrator).not_to have_received(:verify)
+  end
+
   it "recovers an abandoned newer verification attempt" do
     now = Time.current
     attestation
