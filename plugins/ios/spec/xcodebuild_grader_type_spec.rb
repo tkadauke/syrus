@@ -174,7 +174,7 @@ RSpec.describe Ios::XcodebuildGraderType do
       output, status = run_generated_grader(dir, env)
 
       expect(status).to be_success
-      cache_path = output.match(%r{enabled; path=(#{Regexp.escape(cache_root.to_s)}/[0-9a-f]{16}/\d{4}-\d{2})}).fetch(1)
+      cache_path = output.match(%r{enabled; path=(#{Regexp.escape(cache_root.to_s)}/[0-9a-f]{16}/\d{4}-\d{2})}).captures.fetch(0)
       invocation = File.read(calls)
       expect(invocation).to include("COMPILATION_CACHE_ENABLE_CACHING=YES")
       expect(invocation).to include("COMPILATION_CACHE_CAS_PATH=#{cache_path}")
