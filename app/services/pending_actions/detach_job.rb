@@ -10,6 +10,12 @@ module PendingActions
       raise ArgumentError, "Terminal Jobs cannot be detached." if job.closed? || job.no_change_needed?
       raise ArgumentError, "A rebase is already in progress — wait for it to finish." if RebaseWorkflowSelector.active_for_stack?(job)
       raise ArgumentError, "A merge train is already active for this stack — wait for it to finish." if RebaseWorkflowSelector.active_merge_train_for_stack?(job)
+      # Detach force-pushes the branch and moves the PR base; work holding the
+      # Job (a feedback or auto-merge Workflow) would then fail on its push or
+      # merge and lose its work (F146).
+      if (active = job.active_runtime_workflows.first)
+        raise ArgumentError, "#{job.slug} has active work (Workflow ##{active.id}, #{active.trigger_kind}); wait for it to finish or cancel it before detaching."
+      end
 
       result = JobDetachRepair.call(
         job: job,

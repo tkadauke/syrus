@@ -5055,6 +5055,26 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F146. A Job detach rewrote the branch under the Job's running work — fixed
+
+**Invariant.** Nothing rewrites a Job's branch while work holding the Job's
+WorkUnit lock runs on it.
+
+**Counterexample.** The new detach repair (`PendingActions::DetachJob`, then
+`JobDetachRepair`) force-pushes the Job's branch through `AutoRebase` and moves
+its PR base without a WorkUnit, and refused only an active rebase or merge
+train for the stack. With a feedback or auto-merge Workflow running on the Job,
+detach rewrote the branch under it; that Workflow then failed on its push lease
+or merge SHA and its work was lost instead of the detach being refused up
+front.
+
+**Fix.** Detach refuses while the Job has an active runtime Workflow. Spec
+first: "refuses while the Job has active work" failed with the repair called.
+The check is not taken under the Job lock, so work launched between it and the
+push still fails closed on the lease; running detach itself under a
+workflowless WorkUnit (as emergency land does, F133) would close that.
+
+
 ## F145. A runtime session's provider could be started twice — fixed
 
 **Invariant.** A runtime session has at most one provider operation in flight
@@ -8436,7 +8456,54 @@ Later commits, checked through main `cb5b006575` (two merge trains):
 - Main through `7399234a66`: smart-folder count invalidation, cache-only
   `after_commit` hooks. No engine invariant.
 
-Checked through main `7399234a66`. Each loop iteration continues from there:
+- Main through `4b70b2c635` (313 commits; the 45 touching the engine read
+  with three read-only sweeps, every candidate re-checked by hand). Fixed:
+  F140 (starved grader), F141 (question resumes a replaced attempt), F142
+  (Epic splice fork), F143 (break-glass REST branch writes), F144 (override on
+  a blocked Workflow), F145 (runtime provider started twice), F146 (detach
+  under running work). Holds, with the reason checked:
+  - outcome overrides are bound to the exact HEAD, tree, base and evidence
+    digest, single use under a row lock, and cannot satisfy the review barrier
+    for another HEAD (`terminal_evidence` and `approved_evidence?` both key on
+    the current HEAD); MCP requests only create pending actions that re-resolve
+    the evidence server side;
+  - scheduled-task occurrences are claimed under the task row lock with a
+    unique `(task, due_at)` key; failed ones roll back and stay retryable;
+  - handing back a Run a worker cannot satisfy only re-enqueues it; the claim
+    is still the single locked transition;
+  - disabling recovery behind active work locks is a read-only preflight; the
+    real check still runs under the Job lock;
+  - stacked-child replay only uses a base the HEAD descends from;
+  - landing lanes keep one WorkUnit lock per lane and serialize the merge
+    itself through `MergeLock`; dependents wait on `unmerged_dependency`;
+  - retrying a lock wait while failing a Run is bounded and rolls back its
+    transition record.
+  Leads (not fixed): L17 (F141), L18 (F144), and L19:
+  - an emergency-land direct capture is force-failed on any `StandardError`
+    after GitHub merged (an audit write failing, a timeout after the merge was
+    accepted), leaving a merged PR's Job failed instead of emergency-landed;
+  - a lock wait raised from the after-commit `propagate_failed_run!` leaves the
+    Step running until the reconciler sees it (the Run already committed);
+  - admission on measured load does not book bounded graders in flight, so a
+    burst of claims can all see zero load: a soft target, not a cap, as the
+    code's own comment says;
+  - two Jobs created at once with a fresh base slug both pick it and one fails
+    on the unique index;
+  - resumed paused rebases are not re-counted against
+    `CONCURRENT_REBASES_PER_REPO`;
+  - inline successors skip the worker capability check that queued Runs get;
+  - reused frozen review evidence leaves `run.review_evidence` nil, so review
+    context recording is skipped;
+  - the landing-lanes flag gates only the UI and API; lane behaviour follows
+    `Repository#landing_concurrency` whatever the flag says.
+  NY44 (operator): approving an implemented Job during active work is now
+  allowed (by design). An approval given while a PR-comment Workflow is
+  queued (for example behind a rebase) survives the HEAD that Workflow then
+  pushes, and the Job lands a response the approver never saw; graders still
+  gate that exact SHA. Should an approval be cleared when a feedback Workflow
+  advances HEAD after it?
+
+Checked through main `4b70b2c635`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
