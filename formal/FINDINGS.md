@@ -8700,6 +8700,8 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   pushes, and the Job lands a response the approver never saw; graders still
   gate that exact SHA. Should an approval be cleared when a feedback Workflow
   advances HEAD after it?
+  Decided (2026-11-28): no. The approval stands; graders and required reviews
+  gate the new HEAD.
 
 - Main through `9d514f82d0`: main added three Lean models (slot capacity,
   approved-work progress, retry termination) with its own F140 and F141, so
@@ -8718,6 +8720,8 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   "READ-COMMITTED" }` in `config/database.yml`) makes every statement read the
   latest committed rows, needs row-based binlogs (MySQL 8's default), and
   takes fewer gap locks. Recommended: yes.
+  Decided (2026-11-28): yes. `config/database.yml` pins the primary (and the
+  cache, which inherits it) to READ COMMITTED, as queue and cable already were.
 
 - Main through `fb30ed3e65` (60 commits, about twenty of them engine
   commits read by a sweep and re-checked by hand). Main independently closed

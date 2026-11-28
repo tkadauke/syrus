@@ -3964,7 +3964,7 @@
         "C. Keep it: an approval given with feedback pending means 'land whatever the agent does with it', and graders plus required reviews are the gate for the new HEAD."
       ],
       "recommendation": "A. It keeps approval-during-work (the point of 103787e46f) and restores the rule that an approval covers the HEAD the approver saw, using the path feedback creation already has (ApprovalUnapprover under the Job lock).",
-      "decision": null
+      "decision": "No (2026-11-28, operator): an approval given while a feedback Workflow is queued stands when that Workflow advances HEAD; graders and required reviews gate the new HEAD."
     },
     {
       "id": "NY45",
@@ -3977,7 +3977,7 @@
         "C. Have Lineage.lock! collect the ancestry outside the transaction (or with locking reads only) so the snapshot is taken after the locks. Narrower than A, but any plain read before Lineage.lock! in the same transaction still fixes the snapshot early."
       ],
       "recommendation": "A, keeping F149's locking reads as belt and braces. READ COMMITTED is the usual setting for Rails on MySQL, and it removes the whole class instead of one site at a time.",
-      "decision": null
+      "decision": "Yes (2026-11-28, operator): the primary and cache MySQL connections run at READ COMMITTED, as queue and cable already did; F149's locking reads stay as belt and braces."
     }
   ]
 }

@@ -142,9 +142,19 @@ production:
     # UTC_TIMESTAMP() while runs/solid_queue_jobs were correct, and Syrus's own
     # ChatMessage.insert_all! and Observability::EventStream writes take the
     # same path. Pin every session to UTC so both paths agree.
+    #
+    # READ COMMITTED (NY45): under MySQL's default REPEATABLE READ every plain
+    # read in a transaction answers from the snapshot fixed by its first read.
+    # Lineage.lock! makes plain reads to find a record's ancestry before it
+    # waits on the row locks, so a check made after the lock could miss a
+    # transaction that committed while this one waited: one grader fan-out
+    # Run executed twice that way. READ COMMITTED gives every statement the
+    # latest committed rows, and takes fewer gap locks. Needs row-based binary
+    # logging, MySQL 8's default.
     variables:
       innodb_lock_wait_timeout: 10
       time_zone: "+00:00"
+      transaction_isolation: "READ-COMMITTED"
     # Socket timeouts, off unless set. A worker that reaches MySQL through a
     # tunnel (the macOS worker's `kubectl port-forward`) can be left holding a
     # connection whose far end is gone without the local socket ever being
