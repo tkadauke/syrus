@@ -70,6 +70,24 @@ RSpec.describe "Syrus::Host agent-runtime facades" do
 
       expect(described_class.chat_workload_policy).to equal(policy)
     end
+
+    it "terminates only live chat agents pinned to the revoked digest" do
+      user = Factories.user
+      chat = ChatSession.create!(user:)
+      affected = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker", pid: 101,
+        started_at: Time.current, chat_session: chat,
+        resource_attribution: { "runtime_image_digest" => "sha256:affected" })
+      unaffected = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker", pid: 102,
+        started_at: Time.current, chat_session: chat,
+        resource_attribution: { "runtime_image_digest" => "sha256:other" })
+      allow(OperationalLogging).to receive(:ingest)
+
+      expect(described_class.terminate_chat_processes(chat_session_ids: [ chat.id ],
+        reason: "severe revocation", runtime_image_digest: "sha256:affected")).to eq(1)
+
+      expect(affected.reload.kill_requested_at).to be_present
+      expect(unaffected.reload.kill_requested_at).to be_nil
+    end
   end
 
   describe Syrus::Host::AgentPrompts do

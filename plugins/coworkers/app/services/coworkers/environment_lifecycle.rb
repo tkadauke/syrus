@@ -58,6 +58,7 @@ class Coworkers::EnvironmentLifecycle
                                   candidate_revision: nil, candidate_runtime_image: nil,
                                   last_error_code: nil, last_audit_event: event)
       Syrus::Host::RuntimeImages.retain(image, reason: "active coworker environment", actor: actor)
+      Coworkers::EnvironmentRecovery.new(@environment).refresh_retention!(actor: actor)
       publish_event("activated", revision)
       revision
     end
@@ -70,10 +71,17 @@ class Coworkers::EnvironmentLifecycle
     publish_event("rejected", revision)
   end
 
-  def revoke!(revision, reason:, actor: "system")
-    @environment.with_lock do
+  def revoke!(revision, reason:, actor: "system", severity: :normal)
+    result = @environment.with_lock do
       revoke_locked!(revision, reason: reason, actor: actor)
     end
+    terminate_affected_turns!(revision, reason:) if severity.to_sym == :severe
+    result
+  end
+
+  def rollback!(failed_activation: @environment.active_activation, actor: "system")
+    Coworkers::EnvironmentRecovery.new(@environment, now: @now)
+      .rollback!(failed_activation:, actor:)
   end
 
   # Pausing a coworker blocks its work at the coworker state boundary. Keep
@@ -115,6 +123,14 @@ class Coworkers::EnvironmentLifecycle
   end
 
   private
+
+  def terminate_affected_turns!(revision, reason:)
+    chat_ids = Coworkers::Chat.where(coworker_id: @environment.coworker_id).pluck(:chat_session_id)
+    count = Syrus::Host::AgentRuntime.terminate_chat_processes(chat_session_ids: chat_ids,
+                                                               reason: "severe environment revocation: #{reason}",
+                                                               runtime_image_digest: revision.runtime_image&.digest)
+    audit("turns_terminated", revision, code: "#{reason}:#{count}")
+  end
 
   def current_attestation!(revision)
     attestation = Coworkers::EnvironmentVerificationEvidence.current(revision, now: @now)

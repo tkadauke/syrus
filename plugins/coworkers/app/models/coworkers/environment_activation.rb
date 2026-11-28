@@ -24,6 +24,7 @@ class Coworkers::EnvironmentActivation < ApplicationRecord
   validates :source_digest, :image_digest, format: { with: DIGEST_FORMAT }
   validates :authority_kind, inclusion: { in: AUTHORITY_KINDS }
   validates :actor, :activated_at, presence: true
+  validates :launch_failure_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :immutable_bindings_match
 
   private
