@@ -664,6 +664,32 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :coworker_environment_rollback_retention_count,
+      type: :integer,
+      default: 2,
+      min: 0,
+      max: nil,
+      category: "Data retention",
+      operational_meaning: "Number of prior verified Coworker environment images retained as rollback targets.",
+      zero_means: "Retain only the active Coworker environment image.",
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
+      key: :coworker_environment_launch_failure_threshold,
+      type: :integer,
+      default: 3,
+      min: 1,
+      max: nil,
+      category: "Data retention",
+      operational_meaning: "Consecutive Coworker environment launch failures required before automatic rollback.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :main_concern_report_threshold,
       type: :integer,
       default: 2,

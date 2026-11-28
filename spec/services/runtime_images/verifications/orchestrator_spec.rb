@@ -33,9 +33,8 @@ RSpec.describe RuntimeImages::Verifications::Orchestrator do
     expect(attempt.checks.pluck(:verifier_key, :state)).to eq([ [ "sbom", "passed" ], [ "vulnerability", "passed" ] ])
     expect(calls).to eq(%w[sbom vulnerability])
     expect(image.reload).to be_candidate
-    expect(attempt).to have_attributes(expires_at: be_within(1.second).of(24.hours.from_now))
-    expect(attempt.evidence_digest).to match(RuntimeImage::DIGEST_FORMAT)
-    expect(attempt.attestation_digest).to match(RuntimeImage::DIGEST_FORMAT)
+    expect(attempt.attestation).to have_attributes(expires_at: be_within(1.second).of(24.hours.from_now))
+    expect(attempt.attestation.evidence_digest).to match(RuntimeImage::DIGEST_FORMAT)
   end
 
   # A required check whose row could not be written (a deadlock or lost
