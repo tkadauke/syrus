@@ -46,7 +46,7 @@ RSpec.describe EpicChainSplice do
 
     # A queued downstream Job with a queued Run is about to start on top of
     # the anchor (its Run may only be waiting for a worker); re-pointing it
-    # lets it run without the inserted Jobs and beside them (F142).
+    # lets it run without the inserted Jobs and beside them (F144).
     it "rejects when the downstream Job has a queued Run" do
       workflow = b.workflows.create!(state: "queued", trigger_kind: "initial")
       step = workflow.steps.create!(kind: "implement", position: 0, state: "queued")
@@ -59,7 +59,7 @@ RSpec.describe EpicChainSplice do
 
   describe ".apply!" do
     # Two splices after the same anchor each re-read the chain from a stale
-    # snapshot and both succeeded, forking it (F142). The Epic row is locked
+    # snapshot and both succeeded, forking it (F144). The Epic row is locked
     # first, so a second splice waits and re-reads the chain the first left.
     it "locks the Epic before it re-reads the chain" do
       head = epic_job(3)

@@ -31,7 +31,7 @@ class EpicChainSplice
   # Resolves and validates the anchor at proposal or confirmation time.
   # `locking: true` (apply!) re-reads the chain, the downstream Job and its
   # Runs with locking reads, which see the latest committed rows rather than
-  # the transaction's snapshot (F142).
+  # the transaction's snapshot (F144).
   def self.plan!(epic:, anchor_job_id:, locking: false)
     raise Rejected, "insert_after_job_id requires a target Epic" if epic.nil?
 
@@ -61,7 +61,7 @@ class EpicChainSplice
   end
 
   # A queued Run counts as started: it may only be waiting for a worker, and
-  # it would start on top of the anchor without the inserted Jobs (F142).
+  # it would start on top of the anchor without the inserted Jobs (F144).
   def self.not_started?(job, locking: false)
     runs = job.runs.where(state: Run::ACTIVE_STATES)
     runs = runs.lock if locking
@@ -121,7 +121,7 @@ class EpicChainSplice
   # and chained them among themselves. Re-validates against the live Epic so a
   # change between proposal and confirmation is caught.
   #
-  # The Epic row is locked first (F142): two splices after the same anchor
+  # The Epic row is locked first (F144): two splices after the same anchor
   # each planned from their own snapshot and both re-pointed the anchor's
   # downstream edge, leaving the anchor with two dependents that run in
   # parallel. Holding the Epic serializes them, and Run claims, which lock a

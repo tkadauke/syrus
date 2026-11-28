@@ -5055,7 +5055,7 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
-## F146. A Job detach rewrote the branch under the Job's running work — fixed
+## F148. A Job detach rewrote the branch under the Job's running work — fixed
 
 **Invariant.** Nothing rewrites a Job's branch while work holding the Job's
 WorkUnit lock runs on it.
@@ -5075,7 +5075,7 @@ push still fails closed on the lease; running detach itself under a
 workflowless WorkUnit (as emergency land does, F133) would close that.
 
 
-## F145. A runtime session's provider could be started twice — fixed
+## F147. A runtime session's provider could be started twice — fixed
 
 **Invariant.** A runtime session has at most one provider operation in flight
 and one provider process per started session.
@@ -5096,7 +5096,7 @@ running session instead of starting its provider again" and "does not begin a
 second startup while one is active" failed with the provider started again.
 
 
-## F144. A review override could rewrite a blocked Workflow's loop — fixed
+## F146. A review override could rewrite a blocked Workflow's loop — fixed
 
 **Invariant.** Only a live Workflow's Steps change state, and only through
 their state machines; a blocked attempt stays resumable by its answer.
@@ -5124,7 +5124,7 @@ and the write is consumed but lost, and the collector never writes
 original vote.
 
 
-## F143. Break-glass GitHub access could move a branch without destructive authority — fixed
+## F145. Break-glass GitHub access could move a branch without destructive authority — fixed
 
 **Invariant.** In scoped break-glass mode, any write to a branch needs the
 separately confirmed destructive authority: the Git wrapper refuses every
@@ -5145,11 +5145,12 @@ POST when fields are given) before checking the same routes. Spec first: the
 proxy and wrapper examples for force PATCH, ref creation and merges failed
 before the change; reads and issue comments stay allowed.
 
-`github_access_spec.rb:24` fails on this machine independently of the change:
-the wrapper cannot find the real `gh` (Homebrew) on its PATH and exits 127.
+The same spec file stubbed the real commands as `/bin/true`, which macOS does
+not have (it is `/usr/bin/true`), so one example failed off Linux; the stub now
+uses whichever exists.
 
 
-## F142. Two Epic splices after the same Job could fork the chain — fixed
+## F144. Two Epic splices after the same Job could fork the chain — fixed
 
 **Invariant.** An Epic's children form one chain and never run in parallel.
 
@@ -5175,7 +5176,7 @@ it re-reads the chain" failed before the change. The interleaving itself
 needs MySQL; SQLite serializes the writers.
 
 
-## F141. An answered question could resume an attempt a retry had replaced — fixed
+## F143. An answered question could resume an attempt a retry had replaced — fixed
 
 **Invariant.** A Job has at most one live implementation attempt: a Workflow
 whose WorkUnit was retired, or whose Workflow ended, never runs again.
@@ -5210,7 +5211,7 @@ inbox; answering it is now refused. Whether cancellation should withdraw the
 question and close the parked Run is a design choice of the questions feature.
 
 
-## F140. The starved-grader repair could cancel a grader a worker had just claimed — fixed
+## F142. The starved-grader repair could cancel a grader a worker had just claimed — fixed
 
 **Invariant.** `CancelStarvedGrader` cancels only a grader Run that never
 started (queued, no `started_at`), so no grader process ever runs under a
@@ -8446,7 +8447,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   all) holds no row or landing lock. Holds.
 
 - Main through `b012a2308c`: the starved-grader repair now cancels without
-  the cascade, so `grader_collect` judges the failure (F140 fixes the unlocked
+  the cascade, so `grader_collect` judges the failure (F142 fixes the unlocked
   check it relies on); a cancelled grader is terminal, so collector gating
   holds, and advancing from it is a legal cursor because the fan-out before it
   is finished. The base-revision retry refuses to call a failure inherited
@@ -8458,9 +8459,9 @@ Later commits, checked through main `cb5b006575` (two merge trains):
 
 - Main through `4b70b2c635` (313 commits; the 45 touching the engine read
   with three read-only sweeps, every candidate re-checked by hand). Fixed:
-  F140 (starved grader), F141 (question resumes a replaced attempt), F142
-  (Epic splice fork), F143 (break-glass REST branch writes), F144 (override on
-  a blocked Workflow), F145 (runtime provider started twice), F146 (detach
+  F142 (starved grader), F143 (question resumes a replaced attempt), F144
+  (Epic splice fork), F145 (break-glass REST branch writes), F146 (override on
+  a blocked Workflow), F147 (runtime provider started twice), F148 (detach
   under running work). Holds, with the reason checked:
   - outcome overrides are bound to the exact HEAD, tree, base and evidence
     digest, single use under a row lock, and cannot satisfy the review barrier
@@ -8478,7 +8479,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
     itself through `MergeLock`; dependents wait on `unmerged_dependency`;
   - retrying a lock wait while failing a Run is bounded and rolls back its
     transition record.
-  Leads (not fixed): L17 (F141), L18 (F144), and L19:
+  Leads (not fixed): L17 (F143), L18 (F146), and L19:
   - an emergency-land direct capture is force-failed on any `StandardError`
     after GitHub merged (an audit write failing, a timeout after the merge was
     accepted), leaving a merged PR's Job failed instead of emergency-landed;

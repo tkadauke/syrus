@@ -82,7 +82,7 @@ module Mcp::Tools
           return Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
         end
         # A running session is already started; starting it again would run a
-        # second provider process for it (F145).
+        # second provider process for it (F147).
         return Mcp::Tools.success(runtime_session_payload(runtime_session.reload)) if runtime_session.reload.state == "running"
 
         runtime_session.update!(state: "starting", last_error: nil)

@@ -75,7 +75,7 @@ module RuntimeSessions
       @lease = lease
     end
 
-    # Another operation on the session is still within its deadline (F145).
+    # Another operation on the session is still within its deadline (F147).
     class AlreadyActive < StandardError; end
 
     def call(&provider_call)
@@ -120,7 +120,7 @@ module RuntimeSessions
       # Checked under the session lock, not only by the caller beforehand:
       # two callers that both saw no active operation would otherwise both
       # begin one, the second overwriting the first, and run the provider
-      # twice (F145).
+      # twice (F147).
       began = persist(operation, "#{@kind} provider operation started", require_idle: true)
       raise AlreadyActive, "a #{@kind} provider operation is already running for this session" unless began
 

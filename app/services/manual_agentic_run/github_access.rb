@@ -18,7 +18,7 @@ module ManualAgenticRun
 
     def self.for(run) = new(run)
 
-    # REST routes that create, move or merge into a branch (F143).
+    # REST routes that create, move or merge into a branch (F145).
     def self.branch_write_path?(path, repository)
       path.match?(%r{\A/repos/#{Regexp.escape(repository)}/(?:git/refs(?:/|\z)|merges\z|merge-upstream\z)})
     end
@@ -410,7 +410,7 @@ module ManualAgenticRun
         return true if %w[DELETE PUT].include?(method)
         return true if path.include?("/git-receive-pack")
         # A push needs destructive authority, so creating, moving or merging
-        # into a branch through REST does too (F143).
+        # into a branch through REST does too (F145).
         return true if method != "GET" && GithubAccess.branch_write_path?(path, @repository)
         return true if method == "POST" && path.match?(%r{/repos/#{Regexp.escape(@repository)}/issues/\d+/lock\z})
         if method == "PATCH" && path.match?(%r{\A/repos/#{Regexp.escape(@repository)}/git/refs/.+\z})

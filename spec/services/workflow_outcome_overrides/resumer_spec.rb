@@ -83,7 +83,7 @@ RSpec.describe WorkflowOutcomeOverrides::Resumer do
   # Only the failed-collector path checked the Workflow's state. On a blocked
   # Workflow the active-loop path rewrote its blocked repair to skipped past
   # AASM (so an answer could no longer resume it) and queued a Run under the
-  # terminal Workflow (F144).
+  # terminal Workflow (F146).
   it "refuses an override on a Workflow that is no longer active" do
     reviewed_sha = "f" * 40
     vote = panel_vote.except("panel_id").merge("step_id" => 48)

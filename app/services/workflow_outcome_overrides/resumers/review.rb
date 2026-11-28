@@ -38,7 +38,7 @@ module WorkflowOutcomeOverrides
           # loop Steps and Runs are re-read prevents a queued repair from
           # starting between validation and supersession.
           Lineage.lock!(step)
-          # Only a live Workflow's loop is rewired (F144): on a blocked or
+          # Only a live Workflow's loop is rewired (F146): on a blocked or
           # cancelled one, rewriting its repair to skipped past AASM left a
           # blocked attempt that an answer could no longer resume, and the
           # continuation's Run was queued under a terminal Workflow.

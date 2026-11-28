@@ -128,7 +128,7 @@ class RetryWorkflowEnqueuer
   # lock and is refused as "already queued or running", which left an
   # agent-blocked Job unretryable by hand or by the reconciler.
   #
-  # Its open operator questions are withdrawn with it (F141): a cannot-proceed
+  # Its open operator questions are withdrawn with it (F143): a cannot-proceed
   # block files one, and answering it would resume the replaced Workflow.
   def release_blocked_workflow_units!
     job.active_runtime_workflows.select(&:blocked?).each do |blocked_workflow|

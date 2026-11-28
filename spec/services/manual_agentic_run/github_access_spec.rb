@@ -114,7 +114,7 @@ RSpec.describe ManualAgenticRun::GithubAccess do
   end
 
   # A push needs destructive authority, so the REST routes that move or
-  # create a branch must too: a force PATCH of a ref rewinds it (F143).
+  # create a branch must too: a force PATCH of a ref rewinds it (F145).
   it "treats REST writes to branches as destructive at the credential proxy" do
     Dir.mktmpdir do |dir|
       proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start

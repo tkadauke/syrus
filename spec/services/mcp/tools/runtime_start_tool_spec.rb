@@ -264,7 +264,7 @@ RSpec.describe Mcp::Tools::RuntimeStartTool, full_chat_access: :all do
   end
 
   # Starting reused any session that was not stopped, a running one included,
-  # and started its provider again (F145).
+  # and started its provider again (F147).
   it "reports a running session instead of starting its provider again" do
     with_workspace do |workspace|
       session = RuntimeSession.create!(
@@ -283,7 +283,7 @@ RSpec.describe Mcp::Tools::RuntimeStartTool, full_chat_access: :all do
 
   # Two starts both saw no active operation before either began one; the
   # second overwrote the first's operation and started the provider twice
-  # (F145). Beginning an operation is checked under the session lock.
+  # (F147). Beginning an operation is checked under the session lock.
   it "does not begin a second startup while one is active" do
     with_workspace do |workspace|
       session = RuntimeSession.create!(

@@ -24,7 +24,7 @@ RSpec.describe PendingActions::DetachJob do
   # Detach force-pushes the Job's branch and moves its PR base. Work holding
   # the Job's WorkUnit lock (a feedback or auto-merge Workflow) would push
   # onto, or merge, the branch it rewrote and fail on the lease, losing the
-  # work instead of the detach being refused up front (F146).
+  # work instead of the detach being refused up front (F148).
   it "refuses while the Job has active work" do
     job = Factories.job(user: admin, repository: repository, agent_provider: "claude")
     job.update_columns(pr_number: 4242, branch_name: "syrus/child")
