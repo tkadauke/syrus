@@ -183,6 +183,9 @@ la:
       wait_cycles:
         title: "Opus impeditum se ipsum non exspectat"
         violation: "%{units} in circulo inter se exspectant (%{reasons}); nullum incipere potest."
+      paused_rebase_holds:
+        title: "Rebase suspensum opus approbatum tacite non retinet"
+        violation: "%{workflow} (%{job}) per %{hours} h suspensum est et appulsum %{count} operum approbatorum retinet: %{held}. Operator id resumere aut abrogare debet."
       alert:
         title: "Invariantia Syrus violata sunt."
         message: "%{count} violationes invariantium apertae: %{summary}."

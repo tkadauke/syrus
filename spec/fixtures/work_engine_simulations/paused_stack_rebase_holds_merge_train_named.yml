@@ -1,0 +1,89 @@
+# An Epic's stacked children are approved, but the stack rebase covering them
+# is paused (its WorkUnit blocked on manual_pause, as a pause on a since-closed
+# member of the stack leaves it). The merge train must not race it -- resumed,
+# it would force-push the member branches under the integration build -- so
+# the train stays held. It used to say "active rebase workflow must finish
+# before the merge train starts", which a paused rebase never does on its own.
+# The dispatcher now names it as paused and needing an operator, the
+# invariant monitor reports it (paused_rebase_holds), and once an operator
+# resumes it the rebase finishes and the train lands.
+name: paused stack rebase holds the merge train, named
+max_ticks: 60
+runner:
+  global_reconcile: true
+repository:
+  owner: simulation
+  name: paused-stack-rebase-holds-merge-train-named
+  auto_merge_enabled: true
+epics:
+  stack:
+    title: Stacked Epic held by a paused rebase
+    state: in_progress
+jobs:
+  root:
+    title: Root of the stack
+    epic: stack
+    state: approved
+    branch_name: syrus/direct-root
+    pr_number: 7201
+    pr_checks_state: passing
+    approved_at: "2026-11-01 10:00:00"
+    approved_via: operator
+    workflow:
+      template: true
+      kind: stack_rebase
+      work_unit:
+        state: blocked
+        blocked_reason: manual_pause
+        pause_requested: true
+  child:
+    title: Child stacked on the root
+    epic: stack
+    state: approved
+    parent_job: root
+    branch_name: syrus/direct-child
+    pr_number: 7202
+    pr_checks_state: passing
+    approved_at: "2026-11-01 10:01:00"
+    approved_via: operator
+events:
+  # JobManualPause is the operator's resume path: unpausing the Job clears the
+  # pause on its active work and resumes the rebase.
+  - name: operator takes over the paused rebase
+    once: true
+    when: { tick: { at_least: 6 } }
+    do:
+      pause_work: root
+  - name: operator resumes the paused rebase
+    once: true
+    when: { tick: { at_least: 7 } }
+    do:
+      unpause_work: root
+outcomes:
+  default: success
+  steps:
+    stack_auto_rebase:
+      status: success
+      stack_results:
+        root: rebased
+        child: rebased
+invariants:
+  expected:
+    - invariant: paused_rebase_holds
+      job: root
+      required: true
+      reason: the scenario models a paused stack rebase holding approved Epic children until an operator resumes it
+expect:
+  jobs:
+    root:
+      - closed
+    child:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - "operator unpaused"
+    - stack_auto_rebase ->
+    - merge_train_land

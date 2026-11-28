@@ -4965,13 +4965,94 @@ landing blocked for a reason that is not externally cleared keeps its lane
 (`LaneHoldingReasonsClear`, assumed). A new lane-holding block reason without
 a wake-up would repeat the rebase-slot bug.
 
-**Gap (open, low).** An approved Job whose PR needs a rebase while every rebase
-slot is held by runnable work has no `blocked_reason` in the landing queue:
-`mergeability_admits_landing?` refuses, `land` rolls back, and the merge-state
-poll declines at the cap with only a log line. It progresses (the holders are
-runnable) but cannot say why it waits. Rebase slots are not allocated in FIFO
-order either, so the progress theorem assumes no competing work is admitted
-ahead of the Job.
+**Gap (closed by F142).** An approved Job whose PR needs a rebase while every
+rebase slot is held by runnable work had no `blocked_reason` in the landing
+queue: `mergeability_admits_landing?` refuses, `land` rolls back, and the
+merge-state poll declined at the cap with only a log line. It progresses (the
+holders are runnable) but could not say why it waits. Rebase slots are not
+allocated in FIFO order either, so the progress theorem assumes no competing
+work is admitted ahead of the Job.
+
+---
+
+## F142. An approved Job waiting for a rebase slot had no reason — fixed
+
+**Property.** An approved Job lands or carries a named reason
+(`ApprovedProgress`). `before_slot_wait_unnamed`: a Job whose PR is behind,
+with every rebase slot held by running rebases of other Jobs, was named by
+nothing although none of its own steps was enabled.
+
+**Fix.** `LandingQueueProcessor#rebase_slot_wait_reason` names the wait
+(`waiting_rebase_slot`, with the held count and the cap) as the last landing
+blocker; the dashboard shows it as a neutral queue status and
+`PollMergeStateJob#repo_rebase_concurrency_reached?` logs the decline to the
+Job. `slot_wait_named` proves every such state named. The slot wait is a
+name, not a gate: the poller still dispatches the rebase once a slot frees.
+
+**Spec.** `spec/services/landing_queue_processor_spec.rb` ("waiting for a
+rebase slot"), `spec/services/invariants/landing_progress_spec.rb`, and the
+simulator scenario `approved_job_waits_named_for_rebase_slot.yml`, whose named
+wait never appears without the fix.
+
+---
+
+## F143. Merge-train dispatch bypassed runaway protection — fixed
+
+**Property.** Under a fixed failure, automatic landing retries of a
+runaway-protected Job stop (`RetryTermination`). F140 closed the single-Job
+loop; the train loop stayed open.
+
+**Counterexample.** `RetryTermination.before_train_loops`:
+`MergeTrainDispatcher.try_dispatch!` and `JobBundleDispatcher` launch through
+`WorkUnits::Launcher.instantiate`, which never consults the
+`RunawayProtection` intent gate, and a failed train defers its members back to
+`approved` on paths `LandingFailureHandler#runaway_retry_refused?` never sees
+(a rebuild-required base move, a teardown, an agent withdrawing a member). The
+reconciler's `rebuild_merge_train` repair relaunched the train at once and the
+landing queue after the cooldown; the simulator showed six trains in ten ticks
+and a retry storm.
+
+**Decision.** Hold the train, do not exclude the member: an Epic lands
+all-or-nothing, and an epicless bundle would only relaunch the protected Job
+in its next bundle. The rule is single-Job landing's: one automatic attempt
+per operator consent (`MergeTrains::RunawayHold`). Consent is an approval by a
+named operator, else the moment runaway protection was set; an approval nobody
+made (auto-approval, review ingestion, the rebuild repair's own re-approval)
+buys nothing. The hold applies to rebuilds too (`bypass_cooldown` is passed by
+the reconciler as well as by operators). The intent gate itself is not used:
+it refuses while the flag is set at all, which would make an operator's
+approval of a runaway-protected Epic child worthless while the same approval
+lands a single Job. `after_train_stops` and `consent_buys_one_attempt`.
+
+**Spec.** `spec/services/merge_train_dispatcher_spec.rb` and
+`spec/services/job_bundle_dispatcher_spec.rb` ("runaway protection"), and the
+simulator scenario `runaway_protected_member_merge_train_not_relaunched.yml`.
+
+---
+
+## F144. A paused rebase blocked merge trains as "must finish" — fixed
+
+**Property.** A held approved Job carries a reason that says what clears it.
+A paused rebase gives its slot back (F141) but still blocks a merge train or
+job bundle for its stack, reported as "active rebase workflow must finish",
+which it never does without an operator (`SlotCapacity.before_paused_must_finish`).
+
+**Decision.** Keep blocking: resumed, the rebase would force-push member
+branches under the integration build, so the train must not race it. Name it
+instead: `RebaseWorkflowSelector.paused_for_jobs` comes first, and the
+dispatchers report "paused rebase workflow ... is paused and needs an
+operator" (`paused_named`); "must finish" is left for rebases that are
+runnable or blocked on a reason that clears by itself (`must_finish_clears`).
+The invariant monitor reports a paused rebase holding approved or landing
+Jobs of its stack as `paused_rebase_holds`.
+
+**Spec.** `spec/services/merge_train_dispatcher_spec.rb`,
+`spec/services/invariants/paused_rebase_holds_spec.rb`, and the simulator
+scenario `paused_stack_rebase_holds_merge_train_named.yml`. That scenario also
+found `Workflows::StackRebase.after_success` launching the stack's landing
+inside the rebase's success transition, out of the row-lock order -- the bug
+`Workflows::Rebase.after_success` already had fixed; it now runs after commit
+too.
 
 ---
 

@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Invariants do
   it "registers every invariant under a unique key with a translated title and message" do
-    expect(described_class.keys).to eq(%w[landing_progress slot_holders retry_storms failed_blockers abandoned_blockers zombie_workflows wait_cycles])
+    expect(described_class.keys).to eq(%w[landing_progress slot_holders retry_storms failed_blockers abandoned_blockers zombie_workflows wait_cycles paused_rebase_holds])
 
     %i[en de la].each do |locale|
       I18n.with_locale(locale) do

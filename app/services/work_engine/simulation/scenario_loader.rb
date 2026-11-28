@@ -737,6 +737,7 @@ module WorkEngine
           blocked_reason: config.dig("work_unit", "blocked_reason"),
           blocked_details: config.dig("work_unit", "blocked_details") || {},
           blocked_until: parse_optional_time(config.dig("work_unit", "blocked_until")),
+          pause_requested: config.dig("work_unit", "pause_requested") == true,
           repository: job.repository,
           scope_type: intent.scope_type,
           scope_id: intent.scope_id
@@ -758,7 +759,14 @@ module WorkEngine
         unit = workflow.work_unit
         return unless unit
 
-        unit.update_columns(state: config.dig("work_unit", "state") || workflow.state)
+        updates = { state: config.dig("work_unit", "state") || workflow.state }
+        # A template's unit can be seeded blocked, e.g. an operator-paused
+        # rebase (`blocked_reason: manual_pause`, `pause_requested: true`).
+        if (reason = config.dig("work_unit", "blocked_reason")).present?
+          updates.merge!(blocked_reason: reason, blocked_at: Time.current)
+        end
+        updates[:pause_requested] = true if config.dig("work_unit", "pause_requested") == true
+        unit.update_columns(updates)
       end
 
       def create_standalone_work!(repository, user, jobs, intent_definitions, unit_definitions)

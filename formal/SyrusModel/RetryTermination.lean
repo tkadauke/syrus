@@ -55,6 +55,21 @@ Proved here:
   `after_stops_named`: from an approved Job it stops with runaway protection
   set and the Job `failed` or `implemented` -- a named blocker, never a silent
   wait.
+* **Counterexample, merge trains** (`before_train_loops`): the same promise
+  leaked through train dispatch. `MergeTrainDispatcher.try_dispatch!` (and
+  `JobBundleDispatcher`) launch through `WorkUnits::Launcher.instantiate`,
+  which never consults the `RunawayProtection` intent gate, and a failed train
+  defers its members back to `approved` on paths that never reach
+  `LandingFailureHandler#runaway_retry_refused?` (a rebuild-required base move,
+  a teardown, an agent withdrawing another member). The reconciler's
+  `rebuild_merge_train` repair and the landing queue then relaunched the train
+  forever.
+* After the fix (`MergeTrains::RunawayHold`, consulted by both dispatchers'
+  `runaway_hold_reason`): one automatic train attempt per operator consent.
+  `after_train_stops`: from an approved runaway-protected member the automatic
+  train loop stops within two steps, held with the named reason
+  (`TrainHeld`), and `consent_buys_one_attempt`: an operator's approval
+  enables exactly one more dispatch.
 -/
 
 namespace SyrusModel
@@ -290,6 +305,85 @@ theorem after_stops_named (s : L) (ha : s.job = .approved) :
   have hnamed := run_named (rank s) s (by intro h; rw [ha] at h; cases h <;> rename_i h <;> cases h)
   have hjob := stopped_job _ hstop
   exact ⟨hstop, hjob, hnamed hjob⟩
+
+/-! ## The merge-train loop of a runaway-protected member -/
+
+/-- One runaway-protected member of an Epic merge train (or job bundle). -/
+structure T where
+  /-- `true` while the member is approved and waiting for its train. -/
+  approved : Bool
+  /-- `true` while a train containing it is landing. -/
+  landing : Bool
+  /-- `MergeTrains::RunawayHold.failed_train_since_consent`: a train
+      containing the member failed since an operator last approved it. -/
+  spent : Bool
+  /-- How many trains were dispatched. -/
+  trains : Nat
+  deriving DecidableEq, Repr
+
+/-- `runaway_hold_reason` is present: the member is runaway-protected (the
+    whole section is about such a member) and its consent is spent. -/
+def held (fixed : Bool) (s : T) : Bool := fixed && s.spent
+
+/-- One automatic step: the dispatcher launches the train, or the train fails
+    with a reason that defers its members back to `approved`. -/
+def trainAuto (fixed : Bool) (s : T) : Option T :=
+  if s.landing then some { s with landing := false, approved := true, spent := true }
+  else if s.approved && !held fixed s then some { s with approved := false, landing := true, trains := s.trains + 1 }
+  else none
+
+/-- An operator approves the member again (`approved_by_user`). -/
+def operatorApprove (s : T) : T := { s with approved := true, spent := false }
+
+def trainIter (fixed : Bool) : Nat → T → T
+  | 0, s => s
+  | n + 1, s => match trainAuto fixed s with
+    | none => s
+    | some t => trainIter fixed n t
+
+/-- Without the hold, two automatic steps dispatch a train and defer the
+    member back to `approved`. -/
+theorem before_two_steps (s : T) (ha : s.approved = true) (hl : s.landing = false) (k : Nat) :
+    trainIter false (k + 2) s =
+      trainIter false k { s with approved := true, landing := false, spent := true, trains := s.trains + 1 } := by
+  obtain ⟨a, l, sp, n⟩ := s
+  simp only at ha hl
+  subst ha; subst hl
+  simp [trainIter, trainAuto, held]
+
+/-- The counterexample: without the hold every two automatic steps dispatch
+    another train, so the number of trains grows without bound. -/
+theorem before_train_loops : ∀ (n : Nat) (s : T), s.approved = true → s.landing = false →
+    (trainIter false (2 * n) s).trains = s.trains + n ∧ (trainIter false (2 * n) s).approved = true
+  | 0, _, ha, _ => ⟨by simp [trainIter], by simpa [trainIter] using ha⟩
+  | n + 1, s, ha, hl => by
+    rw [show 2 * (n + 1) = 2 * n + 2 by omega, before_two_steps s ha hl]
+    have ih := before_train_loops n { s with approved := true, landing := false, spent := true, trains := s.trains + 1 } rfl rfl
+    refine ⟨?_, ih.2⟩
+    rw [ih.1]; dsimp only; omega
+
+/-- The member is held with the named reason. -/
+def TrainHeld (s : T) : Prop := s.approved = true ∧ s.landing = false ∧ held true s = true
+
+/-- After the fix: from an approved member (consent unspent or spent), the
+    automatic loop stops within two steps, held with a named reason, having
+    dispatched at most one train. -/
+theorem after_train_stops (s : T) (ha : s.approved = true) (hl : s.landing = false) :
+    trainAuto true (trainIter true 2 s) = none ∧ TrainHeld (trainIter true 2 s) ∧
+      (trainIter true 2 s).trains ≤ s.trains + 1 := by
+  obtain ⟨a, l, sp, n⟩ := s
+  simp only at ha hl
+  subst ha; subst hl
+  cases sp <;> simp [trainIter, trainAuto, held, TrainHeld]
+
+/-- An operator's approval buys exactly one more automatic train. -/
+theorem consent_buys_one_attempt (s : T) (hl : s.landing = false) :
+    (trainIter true 2 (operatorApprove s)).trains = s.trains + 1 ∧
+      trainAuto true (trainIter true 2 (operatorApprove s)) = none := by
+  obtain ⟨a, l, sp, n⟩ := s
+  simp only at hl
+  subst hl
+  simp [operatorApprove, trainIter, trainAuto, held]
 
 end RetryTermination
 end SyrusModel

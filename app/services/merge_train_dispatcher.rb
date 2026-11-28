@@ -51,6 +51,7 @@ class MergeTrainDispatcher
       raise ActiveRecord::Rollback unless members.all?(&:eligible_for_landing_dispatch?)
       raise ActiveRecord::Rollback unless members.all? { |job| LandingApprovalGate.satisfied?(job, policy: delivery_policy) }
       raise ActiveRecord::Rollback if blocked_member_entry(members)
+      raise ActiveRecord::Rollback if runaway_hold_reason(members)
       base_branch = landing_branch_result_for(members).base_branch
       raise ActiveRecord::Rollback if base_branch.blank?
       landing_lane = WorkDefinitions.free_landing_lane_for(members.last, policy: delivery_policy)
@@ -115,9 +116,18 @@ class MergeTrainDispatcher
     if (entry = blocked_member_entry(readiness.members))
       return "#{entry.job.slug} is blocked: #{entry.blocked_reason.fetch(:key)}"
     end
+    if (runaway = runaway_hold_reason(readiness.members))
+      return runaway
+    end
     landing_branch_result = landing_branch_result_for(readiness.members)
     return landing_branch_result.reason unless landing_branch_result.ok?
 
+    # A paused rebase still blocks the train -- resumed, it would force-push
+    # member branches under the integration build -- but it never finishes on
+    # its own, so say it needs an operator rather than that it "must finish".
+    if (paused = RebaseWorkflowSelector.paused_for_jobs(readiness.members).order(:id).first)
+      return RebaseWorkflowSelector.paused_rebase_reason(paused, "merge train")
+    end
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)
       return "active rebase workflow #{workflow.slug} must finish before the merge train starts"
     end
@@ -136,6 +146,13 @@ class MergeTrainDispatcher
   end
 
   private
+
+  # One automatic train attempt per operator consent for a runaway-protected
+  # member (MergeTrains::RunawayHold). Not skipped by `bypass_cooldown`: the
+  # reconciler's rebuild repair passes it too, and was the fastest relaunch.
+  def runaway_hold_reason(members)
+    MergeTrains::RunawayHold.reason_for(members)
+  end
 
   def blocked_member_entry(members)
     LandingQueueProcessor

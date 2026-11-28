@@ -423,6 +423,113 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  # Regression: a paused rebase for the stack blocked the train as an
+  # "active rebase workflow must finish", which it never does on its own. It
+  # still blocks (resumed, it would force-push under the integration build),
+  # but the reason says it is paused and needs an operator.
+  it "names a paused rebase as needing an operator and still does not dispatch" do
+    child = approved_child(1)
+    workflow = Workflow.create!(job: child, trigger_kind: "stack_rebase", state: "running")
+    Step.create!(workflow: workflow, kind: "stack_agent_rebase", position: 0)
+    attach_work_unit(workflow, state: "blocked", blocked_reason: WorkUnits::Gates::ManualPause::REASON)
+
+    reason = described_class.blocker_reason(epic)
+    expect(reason).to start_with("paused rebase workflow #{workflow.slug} (#{child.slug}) is paused and needs an operator")
+    expect(reason).to include("before the merge train starts")
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "keeps the must-finish reason for a rebase blocked on something that clears by itself" do
+    child = approved_child(1)
+    workflow = Workflow.create!(job: child, trigger_kind: "stack_rebase", state: "running")
+    Step.create!(workflow: workflow, kind: "stack_agent_rebase", position: 0)
+    attach_work_unit(workflow, state: "blocked", blocked_reason: "provider_availability")
+
+    expect(described_class.blocker_reason(epic)).to eq("active rebase workflow #{workflow.slug} must finish before the merge train starts")
+  end
+
+  describe "runaway protection" do
+    def fail_train_for!(members, created_at:)
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: repository.default_branch,
+                                 state: "failed", failure_reason: "merge_train: base moved; rebuild required",
+                                 finished_at: created_at + 1.minute, created_at: created_at)
+      members.each_with_index { |job, index| MergeTrainMember.create!(merge_train: train, job: job, position: index, state: "failed") }
+      train
+    end
+
+    # Regression: train dispatch launched through WorkUnits::Launcher.instantiate
+    # without consulting runaway protection, and a failed train defers its
+    # members back to :approved on paths LandingFailureHandler's runaway check
+    # never sees, so a runaway-protected member was relaunched indefinitely.
+    it "holds the train once a runaway-protected member's approval was spent on a failed train" do
+      a = approved_child(1)
+      b = approved_child(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 2.hours.ago,
+                       approved_at: 1.hour.ago, approved_by_user_id: user.id)
+      train = fail_train_for!([ a, b ], created_at: 50.minutes.ago)
+
+      reason = described_class.blocker_reason(epic, bypass_cooldown: false)
+      expect(reason).to start_with("runaway protection holds #{b.slug} (too_many_failed_workflows): merge train ##{train.id} already failed")
+      expect(described_class.try_dispatch!(epic)).to be_nil
+      expect(MergeTrain.count).to eq(1)
+      expect(StepDispatcher).not_to have_received(:start_workflow)
+    end
+
+    it "spends the approval on the first train, even past the failure cooldown" do
+      a = approved_child(1)
+      b = approved_child(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 5.hours.ago,
+                       approved_at: 4.hours.ago, approved_by_user_id: user.id)
+      fail_train_for!([ a, b ], created_at: 3.hours.ago)
+
+      expect(described_class.blocker_reason(epic)).to start_with("runaway protection holds #{b.slug}")
+    end
+
+    it "lets an operator's approval of a runaway-protected member buy one train attempt" do
+      a = approved_child(1)
+      b = approved_child(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 5.hours.ago,
+                       approved_at: 1.hour.ago, approved_by_user_id: user.id)
+      fail_train_for!([ a, b ], created_at: 3.hours.ago)
+
+      expect(described_class.blocker_reason(epic)).to be_nil
+      expect(described_class.try_dispatch!(epic)).to be_present
+    end
+
+    it "does not let an approval nobody made buy another attempt" do
+      a = approved_child(1)
+      b = approved_child(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 5.hours.ago,
+                       approved_at: 1.hour.ago, approved_by_user_id: nil)
+      fail_train_for!([ a, b ], created_at: 3.hours.ago)
+
+      expect(described_class.blocker_reason(epic)).to start_with("runaway protection holds #{b.slug}")
+    end
+
+    it "holds the reconciler's rebuild too" do
+      a = approved_child(1)
+      b = approved_child(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 2.hours.ago,
+                       approved_at: 1.hour.ago, approved_by_user_id: user.id)
+      fail_train_for!([ a, b ], created_at: 50.minutes.ago)
+
+      expect(described_class.blocker_reason(epic, bypass_cooldown: true)).to start_with("runaway protection holds #{b.slug}")
+      expect(described_class.try_dispatch!(epic, bypass_cooldown: true)).to be_nil
+      expect(StepDispatcher).not_to have_received(:start_workflow)
+    end
+
+    it "does not hold a member without runaway protection" do
+      a = approved_child(1)
+      b = approved_child(2)
+      b.update_columns(approved_at: 1.hour.ago)
+      fail_train_for!([ a, b ], created_at: 50.minutes.ago)
+
+      expect(described_class.blocker_reason(epic).to_s).not_to include("runaway protection")
+    end
+  end
+
   it "does not dispatch while a rebase WorkUnit owns a train member before a workflow is linked" do
     child = approved_child(1)
     intent = WorkIntent.create!(

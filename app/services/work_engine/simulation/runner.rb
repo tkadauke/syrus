@@ -393,6 +393,7 @@ module WorkEngine
           when "landing" then matches_queue_state?(landing_queue.empty?, value)
           when "landing_front"
             landing_queue.first&.id == value.to_i
+          when "landing_blocked_reasons" then expected_landing_blocked_reasons_match?(value)
           else raise ArgumentError, "unknown simulation queue condition #{key.inspect}"
           end
         end
@@ -1767,6 +1768,7 @@ module WorkEngine
       def expectations_complete?
         expected_jobs_match? &&
           expected_epics_match? &&
+          expected_merge_train_counts_match? &&
           expected_queues_match? &&
           expected_workspace_evidence_match? &&
           expected_workflow_artifacts_match? &&
@@ -1821,6 +1823,14 @@ module WorkEngine
       def expected_jobs_match?
         expectations.fetch("jobs", {}).all? do |id, expected|
           Array(expected).map(&:to_s).include?(Job.find(id).state)
+        end
+      end
+
+      # `merge_train_counts: { epic_key: n }`: how many MergeTrains the Epic
+      # ever had -- pins that a failed train was not relaunched.
+      def expected_merge_train_counts_match?
+        expectations.fetch("merge_train_counts", {}).all? do |id, expected|
+          MergeTrain.where(epic_id: id).count == expected.to_i
         end
       end
 

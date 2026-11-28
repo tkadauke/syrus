@@ -1833,7 +1833,10 @@ checks, provider availability, landing gates, and admission control still apply.
 Syrus also stops runaway Jobs automatically: 10 consecutive failed Workflows
 close the Job as `too_many_failed_workflows`, and 50 total Workflows close it
 as `too_many_workflows`. This prevents repeated queue wakeups or retries from
-creating hundreds of attempts for one Job.
+creating hundreds of attempts for one Job. Approving a runaway-protected Job
+buys it one automatic landing attempt: a transient landing failure sends it
+back for re-approval, and a failed merge train or job bundle containing it is
+not rebuilt or relaunched until an operator approves it again.
 State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do

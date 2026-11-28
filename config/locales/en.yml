@@ -213,6 +213,9 @@ en:
       wait_cycles:
         title: "Blocked work does not wait on itself"
         violation: "%{units} wait on each other in a cycle (%{reasons}); none of them can start."
+      paused_rebase_holds:
+        title: "A paused rebase does not silently hold approved work"
+        violation: "%{workflow} (%{job}) has been paused for %{hours}h and holds the landing of %{count} approved Job(s): %{held}. An operator must resume or cancel it."
       alert:
         title: "Syrus invariants are violated."
         message: "%{count} invariant violation(s) are open: %{summary}."

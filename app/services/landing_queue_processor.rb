@@ -2,6 +2,7 @@ class LandingQueueProcessor
   MERGEABILITY_RECHECK_DELAY = 1.minute
   MERGEABILITY_WAIT_REASON = { key: "waiting_github_mergeability" }.freeze
   REBASE_REQUIRED_MERGEABLE_STATES = %w[ behind dirty ].freeze
+  REBASE_SLOT_WAIT_KEY = "waiting_rebase_slot".freeze
   ATTENTION_BLOCKER_KEYS = {
     Job::REQUESTED_CHANGES_ATTENTION_REASON => "review_requested_changes",
     Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON => "unapplied_chat_feedback"
@@ -1025,6 +1026,13 @@ class LandingQueueProcessor
     # and so MergeTrainDispatcher can reject a train containing them.
     check_blocker.call({ key: "waiting_epic_merge_train" }) if merge_train_for_epic_child?(job)
 
+    # Last, so any actionable reason above wins. Not overridable: an override
+    # cannot make GitHub call the PR mergeable, and `land` would still roll
+    # back on mergeability_admits_landing?.
+    if (slot_wait = rebase_slot_wait_reason(job))
+      return blocked(slot_wait)
+    end
+
     { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }
     end
 
@@ -1108,6 +1116,24 @@ class LandingQueueProcessor
     )
     BaseBranchHealth.poll_later(job.repository_id)
     PollRebaseJob.enqueue_manual_check(job.id)
+  end
+
+  # An approved Job whose PR GitHub reports behind or dirty cannot land
+  # (mergeability_admits_landing? refuses, so `land` rolls back) until
+  # PollMergeStateJob rebases it, and the poller declines while every rebase
+  # slot of the repository is held by runnable work. Without a name for that
+  # wait the Job sat in the queue with no reason at all
+  # (formal/SyrusModel/ApprovedProgress.lean). Stale mergeability evidence is
+  # still evidence the PR needs a rebase; the merge-state poll refreshes it.
+  def rebase_slot_wait_reason(job)
+    return nil if job.external_pr?
+    return nil unless REBASE_REQUIRED_MERGEABLE_STATES.include?(job.github_mergeable_state.to_s)
+
+    held = RebaseWorkflowSelector.active_in_repository(job.repository).count
+    cap = PollRebaseJob::CONCURRENT_REBASES_PER_REPO
+    return nil if held < cap
+
+    { key: REBASE_SLOT_WAIT_KEY, params: { held: held, cap: cap } }
   end
 
   def waiting_for_github_mergeability?(job)

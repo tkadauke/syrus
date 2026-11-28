@@ -229,6 +229,10 @@ models:
   mirrors:
   - path: app/services/rebase_workflow_selector.rb
     owner: RebaseWorkflowSelector
+    method: self.paused_for_jobs
+    sha: 17b70ae58a6b15d7
+  - path: app/services/rebase_workflow_selector.rb
+    owner: RebaseWorkflowSelector
     method: self.active_in_repository
     sha: 123dc9558761a0a0
   - path: app/jobs/poll_rebase_job.rb
@@ -238,7 +242,7 @@ models:
   - path: app/jobs/poll_merge_state_job.rb
     owner: PollMergeStateJob
     method: repo_rebase_concurrency_reached?
-    sha: a7092d9613b629af
+    sha: 76b88e974369fc71
   - path: app/services/work_definitions.rb
     owner: WorkDefinitions
     method: landing_capacity_full?
@@ -257,6 +261,10 @@ models:
     sha: b0f523509ab29d09
 - model: ApprovedProgress.lean
   mirrors:
+  - path: app/services/landing_queue_processor.rb
+    owner: LandingQueueProcessor
+    method: rebase_slot_wait_reason
+    sha: 45219634c756add3
   - path: app/services/landing_queue_processor.rb
     owner: LandingQueueProcessor
     method: mergeability_admits_landing?
@@ -303,6 +311,22 @@ models:
     owner: LandingFailureHandler
     method: call
     sha: 268a4692da51340a
+  - path: app/services/merge_trains/runaway_hold.rb
+    owner: RunawayHold
+    method: failed_train_since_consent
+    sha: 88b3cc77b4dd5fcb
+  - path: app/services/merge_trains/runaway_hold.rb
+    owner: RunawayHold
+    method: consent_at
+    sha: 3a9623c76440187a
+  - path: app/services/merge_train_dispatcher.rb
+    owner: MergeTrainDispatcher
+    method: runaway_hold_reason
+    sha: 3e12e7729360f1dc
+  - path: app/services/job_bundle_dispatcher.rb
+    owner: JobBundleDispatcher
+    method: runaway_hold_reason
+    sha: 3e12e7729360f1dc
   - path: app/services/landing_failure_handler.rb
     owner: LandingFailureHandler
     method: runaway_retry_refused?

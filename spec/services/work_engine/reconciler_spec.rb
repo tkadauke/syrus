@@ -9222,6 +9222,39 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  # Regression: the rebuild repair relaunched a failed train whose
+  # runaway-protected member had already spent its operator consent; with the
+  # dispatcher now refusing it, planning it would be skipped on every pass.
+  it "hands a train held by runaway protection to the operator instead of planning a rebuild" do
+    train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium",
+                               state: "failed", finished_at: Time.current)
+    MergeTrainMember.create!(merge_train: train, job: job, position: 0, state: "failed")
+    job.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 1.hour.ago)
+    update_columns_with_artifacts(workflow, trigger_kind: "merge_train",
+      state: "failed",
+      finished_at: Time.current,
+      artifacts: { "merge_train_id" => train.id }
+    )
+    step.update_columns(kind: "merge_train_build", state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    attach_work_unit(workflow, kind: "job_bundle", state: "failed", member_jobs: [ job ])
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_conflict",
+      retryable: false,
+      confidence: 0.9,
+      reason: "bundle integration conflict",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(plan(result, :rebuild_merge_train)).to be_nil
+    held = plan(result, :operator_review_runaway_protected_train)
+    expect(held.auto_executable).to eq(false)
+    expect(held.reason).to start_with("runaway protection holds #{job.slug}")
+  end
+
   it "does not keep alarming on a nonretryable failure once a newer workflow has superseded it" do
     run.update_columns(state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current)

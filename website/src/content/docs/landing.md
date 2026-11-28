@@ -145,6 +145,12 @@ Common blockers include:
 - another epic-wide workflow already active for the same Epic,
 - admission-control or provider-availability pauses,
 - a manual pause,
+- a PR that needs a rebase while every rebase slot of the repository is in
+  use (shown as waiting for a rebase slot),
+- a paused rebase for a merge train's stack, which an operator must resume or
+  cancel before the train starts,
+- a runaway-protected Job whose last merge train failed after its approval,
+  until an operator re-approves it,
 - repository policy that pauses landing while main-branch health is broken.
 
 The dashboard's landing queue explains the active queue status. The Job detail

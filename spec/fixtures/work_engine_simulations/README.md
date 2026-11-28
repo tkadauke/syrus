@@ -266,8 +266,13 @@ expect:
     - merge_train_land
 ```
 
+`merge_train_counts: { epic_key: n }` pins how many merge trains an Epic ever
+had, for proving that a failed train was not relaunched.
+
 Event conditions currently support `job`, `workflow`, `work_unit`, and `queue`,
-plus `all`, `any`, and `not` composition. Job references can use YAML fixture
+plus `all`, `any`, and `not` composition. `queue: { landing_blocked_reasons:
+{ job_key: reason_key } }` matches the landing-queue entry's blocked reason key,
+like the expectation of the same name. Job references can use YAML fixture
 keys; the loader translates them to database IDs after seeding.
 
 Run fixtures can include a `solid_queue:` block when the exact queue evidence
@@ -383,7 +388,7 @@ zeroes them and asserts persistence instead: a violation fails the scenario
 (status `violated`) once the same fingerprint has held for its sustain
 window of consecutive ticks (`landing_progress` 10, `slot_holders` 3,
 `retry_storms` 1, `failed_blockers` 5, `abandoned_blockers` 5,
-`zombie_workflows` 5, `wait_cycles` 3), or at once if it
+`zombie_workflows` 5, `wait_cycles` 3, `paused_rebase_holds` 3), or at once if it
 is still present when the scenario ends quiescent (`waiting`, or `stuck`
 because nothing changed). A scenario that deliberately models a violating
 state declares it, with a reason:

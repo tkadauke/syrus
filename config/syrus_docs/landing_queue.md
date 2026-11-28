@@ -17,6 +17,36 @@ push records unapplied feedback and places a durable landing hold on the Job;
 ordinary PR review polling does not clear that distinct attention reason, so
 the missing feedback stays visible for operator follow-up.
 
+## Waiting for a rebase slot
+
+A repository runs at most three automatic rebases at once. An approved Job
+whose PR GitHub reports as behind or dirty cannot land until it is rebased,
+and while every rebase slot is taken by running or queued rebases the queue
+shows it as waiting for a rebase slot (`waiting_rebase_slot`, with the number
+of rebases running and the cap). It is a normal wait, not a blocker: the
+rebase starts as soon as a slot frees up, and paused rebases never take a
+slot.
+
+## Paused rebases and merge trains
+
+An Epic merge train or job bundle never starts while a rebase for one of its
+members' stacks is active, because the rebase force-pushes member branches.
+A paused rebase still counts, since it can be resumed at any time, but the
+train reports it as a paused rebase that needs an operator rather than as a
+rebase that must finish: resume it (unpause its Job) or cancel it to let the
+train start.
+
+## Runaway protection and merge trains
+
+Approving a Job stopped by runaway protection buys it one automatic landing
+attempt. Landing alone, a transient failure of that attempt sends it back to
+implemented for re-approval. In an Epic merge train or job bundle, once a
+train containing it fails after that approval, Syrus does not rebuild or
+relaunch the train on its own; the train waits with a "runaway protection
+holds" reason until an operator re-approves the Job or retries it manually.
+Approvals Syrus records on its own (auto-approval rules, re-approval during a
+rebuild) do not count.
+
 ## Approval and landing
 
 Approval moves a Job into the landing queue. Ready work starts the appropriate landing workflow; blocked work remains approved with an operator-visible reason. Candidates are ordered by priority and FIFO approval time, while dependencies remain before dependents and Epic members remain one atomic unit.

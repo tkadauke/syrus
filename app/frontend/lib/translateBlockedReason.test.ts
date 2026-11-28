@@ -36,6 +36,7 @@ describe("translateBlockedReason", () => {
     expect(translateBlockedReason({ key: "waiting_github_mergeability_noop" }, mockT)).toBe("common:blocked_reasons.waiting_github_mergeability_noop")
     expect(translateBlockedReason({ key: "landing_start_blocked_retrying" }, mockT)).toBe("common:blocked_reasons.landing_start_blocked_retrying")
     expect(translateBlockedReason({ key: "rebase_cap_reached" }, mockT)).toBe("common:blocked_reasons.rebase_cap_reached")
+    expect(translateBlockedReason({ key: "waiting_rebase_slot", params: { held: 3, cap: 3 } }, mockT)).toBe("common:blocked_reasons.waiting_rebase_slot(held=3,cap=3)")
     expect(translateBlockedReason({ key: "urgent_job_active" }, mockT)).toBe("common:blocked_reasons.urgent_job_active")
   })
 

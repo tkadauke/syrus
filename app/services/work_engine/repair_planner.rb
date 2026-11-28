@@ -274,6 +274,17 @@ module WorkEngine
         end
 
         def rebuild_work_unit
+          # The dispatcher refuses a rebuild a runaway-protected member's spent
+          # consent holds (MergeTrains::RunawayHold); planning it anyway would
+          # be skipped on every pass. Hand it to the operator instead.
+          if (held = runaway_hold_reason_for_train(primary_workflow))
+            return operator_plan(
+              "operator_review_runaway_protected_train",
+              held,
+              preconditions: { work_unit_kind: primary_workflow.work_unit&.kind, runaway_hold: true }
+            )
+          end
+
           automatic_plan(
             "rebuild_merge_train",
             primary_workflow,
@@ -285,6 +296,16 @@ module WorkEngine
               rebuild_path_available: true
             }
           )
+        end
+
+        def runaway_hold_reason_for_train(workflow)
+          train_id = workflow&.artifact("merge_train_id")
+          return nil if train_id.blank?
+
+          train = MergeTrain.find_by(id: train_id)
+          return nil unless train
+
+          MergeTrains::RunawayHold.reason_for(train.member_jobs)
         end
 
         def active_runtime_work_for_job?(job)

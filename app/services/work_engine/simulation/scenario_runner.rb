@@ -109,6 +109,10 @@ module WorkEngine
           return value.transform_keys { |job_key| world.jobs_by_key.fetch(job_key.to_s).id.to_s }
         end
 
+        if key == "merge_train_counts" && value.is_a?(Hash)
+          return value.transform_keys { |epic_key| world.epics_by_key.fetch(epic_key.to_s).id.to_s }
+        end
+
         if key == "epics" && value.is_a?(Hash)
           return value.transform_keys { |epic_key| world.epics_by_key.fetch(epic_key.to_s).id.to_s }
         end

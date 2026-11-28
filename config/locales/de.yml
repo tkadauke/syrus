@@ -183,6 +183,9 @@ de:
       wait_cycles:
         title: "Blockierte Arbeit wartet nicht auf sich selbst"
         violation: "%{units} warten im Kreis aufeinander (%{reasons}); keine davon kann starten."
+      paused_rebase_holds:
+        title: "Ein pausierter Rebase hält genehmigte Arbeit nicht stillschweigend auf"
+        violation: "%{workflow} (%{job}) ist seit %{hours} h pausiert und hält das Landen von %{count} genehmigten Job(s) auf: %{held}. Ein Operator muss ihn fortsetzen oder abbrechen."
       alert:
         title: "Syrus-Invarianten sind verletzt."
         message: "%{count} offene Invariantenverletzung(en): %{summary}."
