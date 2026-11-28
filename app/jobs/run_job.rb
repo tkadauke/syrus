@@ -663,7 +663,7 @@ class RunJob < ApplicationJob
         PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
         return
       end
-      if @workflow.artifact("cannot_proceed").to_h["disposition"] == "failed"
+      if @workflow.reload.artifact("cannot_proceed").to_h["disposition"] == "failed"
         fail_after_transient_cannot_proceed!(e.reason)
       else
         block_after_cannot_proceed!(e.reason)
@@ -1387,9 +1387,12 @@ class RunJob < ApplicationJob
     held_ids = Array(Thread.current[::Run::INLINE_HELD_RUN_IDS])
     return nil if held_ids.empty?
 
-    cursor = @step.next_step
+    # Failure handling can splice a Try branch or a new loop iteration after
+    # the current Step. Reload before following next_step so an association
+    # cached before that splice cannot hide the inline-held continuation.
+    cursor = @step.reload.next_step
     while cursor
-      queued = cursor.runs.where(state: "queued", id: held_ids).order(:created_at).last
+      queued = cursor.runs.where(state: "queued", id: held_ids).order(:created_at, :id).first
       if queued && !self.class.distributed_parallel_run?(queued)
         return queued if inline_successor_executable_here?(queued)
 
@@ -1401,7 +1404,7 @@ class RunJob < ApplicationJob
         )
         return nil
       end
-      cursor = cursor.next_step
+      cursor = cursor.reload.next_step
     end
     nil
   end
