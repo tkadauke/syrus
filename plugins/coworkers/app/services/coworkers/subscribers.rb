@@ -12,7 +12,9 @@ module Coworkers
     def self.deliver_environment_event(event)
       payload = event.payload.to_h.deep_stringify_keys
       coworker = Coworkers::Coworker.find(payload.fetch("coworker_id"))
-      chat = coworker.coworker_chats.find_by!(role: "main").chat_session
+      chat = coworker.coworker_chats.find_by(role: "main")&.chat_session
+      return unless chat
+
       content = {
         "text" => environment_event_text(event.name),
         "source" => "coworker_environment",

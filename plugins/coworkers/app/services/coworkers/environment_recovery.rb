@@ -45,6 +45,12 @@ module Coworkers
       end
     end
 
+    def eligible_rollback_revision(failed_activation: environment.active_activation)
+      return unless failed_activation
+
+      rollback_target(failed_activation)&.revision
+    end
+
     def refresh_retention!(actor: "system")
       keep = activation_chain(environment.active_activation)
         .select { |activation| launchable?(activation) }.first(rollback_retention_count + 1)

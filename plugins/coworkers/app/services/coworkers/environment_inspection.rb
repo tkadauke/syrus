@@ -22,17 +22,16 @@ class Coworkers::EnvironmentInspection
 
     Snapshot.new(
       environment:, source_revision: revisions.first, build_revision:, candidate_revision: candidate,
-      active_revision: active, rollback_revisions: rollback_revisions(revisions, active),
+      active_revision: active, rollback_revisions: rollback_revisions(revisions),
       active_base: Syrus::Host::RuntimeImages.active_base(platform:)
     )
   end
 
   private
 
-  def rollback_revisions(revisions, active)
-    revisions.select do |revision|
-      image = revision.runtime_image
-      revision.retired? && revision != active && image&.pullable? && image.retained?
-    end
+  def rollback_revisions(revisions)
+    eligible = Coworkers::EnvironmentRecovery.new(@environment).eligible_rollback_revision
+    revision = revisions.index_by(&:id)[eligible&.id]
+    revision ? [ revision ] : []
   end
 end
