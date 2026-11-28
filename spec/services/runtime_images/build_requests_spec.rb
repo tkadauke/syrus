@@ -16,6 +16,18 @@ RSpec.describe RuntimeImages::BuildRequests do
     expect(RuntimeImageBuildRequest.where(id: first.id)).to contain_exactly(first)
   end
 
+  it "creates a distinct request when the runtime provider contract changes" do
+    allow(RuntimeImages::RuntimeAbi).to receive(:digest).and_return("sha256:#{'a' * 64}")
+    first = submit
+
+    allow(RuntimeImages::RuntimeAbi).to receive(:digest).and_return("sha256:#{'b' * 64}")
+    second = submit
+
+    expect(second).not_to eq(first)
+    expect(second.recipe_digest).not_to eq(first.recipe_digest)
+    expect(RuntimeImageBuildRequest.where(id: [ first.id, second.id ])).to contain_exactly(first, second)
+  end
+
   it "exposes only a currently supported base as a rebuild target" do
     allow(BaseRebuildDiscoveryJob).to receive(:perform_later)
     release = active_base

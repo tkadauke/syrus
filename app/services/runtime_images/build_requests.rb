@@ -63,7 +63,8 @@ module RuntimeImages
         "input_policy" => Hash(policy_context).deep_stringify_keys.merge(
           "build_network_policy_digest" => policy.digest,
           "build_network_policy_snapshot" => policy.snapshot,
-          "confinement_policy_version" => RuntimeAbi::CONFINEMENT_POLICY_VERSION
+          "confinement_policy_version" => RuntimeAbi::CONFINEMENT_POLICY_VERSION,
+          "runtime_contract_digest" => RuntimeAbi.digest
         )
       )
       source = Builds::SourceCapture.capture(
