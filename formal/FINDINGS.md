@@ -5230,6 +5230,16 @@ not have (it is `/usr/bin/true`), so one example failed off Linux; the stub now
 uses whichever exists.
 
 
+
+**Superseded on main.** Main's `e2c6d45eb2` (canonical proxy paths and verbs)
+made a forced ref update destructive at the proxy, which closes the rewind
+this finding showed, and deliberately left a fast-forward ref update, ref
+creation and merges allowed under a non-destructive grant: destructive means
+losing history. This branch's broader rule was dropped in favour of main's.
+The wrapper still refuses every `git push` without destructive authority, so a
+fast-forward is refused through Git and allowed through REST; whether those
+should agree is main's call.
+
 ## F144. Two Epic splices after the same Job could fork the chain — fixed
 
 **Invariant.** An Epic's children form one chain and never run in parallel.
