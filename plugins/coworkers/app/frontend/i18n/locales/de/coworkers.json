@@ -251,6 +251,11 @@
     "max_spawns_per_run": "Maximum pro Lauf",
     "max_spawns_per_day": "Maximum pro Tag",
     "save_spawn_caps": "Spawn-Limits speichern",
+    "max_open_jobs": "Maximale offene selbst erstellte Jobs",
+    "max_self_approvals_per_day": "Maximale Selbstfreigaben pro Tag",
+    "max_feedback_rounds_per_job": "Maximale Feedback-Runden pro Job",
+    "allow_sensitive_changes": "Selbstfreigabe sensibler Änderungen erlauben",
+    "save_job_limits": "Autonomie-Limits speichern",
     "unavailable": {
       "confinement_unavailable": "Nicht verfügbar, bis ein aktiver Worker die abgeschirmte Coworker-Ausführung bestätigt.",
       "confinement_worker_unavailable": "Nicht verfügbar, weil kein aktiver Worker einen abgeschirmten Coworker-Turn annehmen kann.",
