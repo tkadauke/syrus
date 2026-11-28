@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe Coworkers::GrantUpdate do
   let(:owner) { Factories.user }
+  let(:repository) { Factories.repository(user: owner) }
   let(:coworker) { Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-policy", workspace_repo: "git@example.com:workspace.git") }
 
   %w[off confirm auto].product(%w[off confirm auto]).reject { |from, to| from == to }.each do |from, to|
@@ -66,5 +67,32 @@ RSpec.describe Coworkers::GrantUpdate do
     expect { described_class.call(owner: coworker, coworker: coworker, capability: "workspace.files", approval_policy: "auto", confirmed: true) }
       .to raise_error(Pundit::NotAuthorizedError)
     expect(coworker.permission_rules.rules).to be_empty
+  end
+
+  it "rejects non-positive autonomy budget limits" do
+    expect {
+      described_class.call(owner:, coworker:, capability: "coworker.jobs.approve", approval_policy: "auto",
+        constraints: { max_self_approvals_per_day: 0 }, scope: repository.id, confirmed: true)
+    }.to raise_error(ArgumentError, /max_self_approvals_per_day must be a positive integer/)
+  end
+
+  it "requires confirmation before increasing an autonomy budget" do
+    coworker.permission_rules.update!(capability: "coworker.jobs.approve", approval_policy: "auto", actor: owner,
+      constraints: Coworkers::JobAutonomy::DEFAULTS, scope: repository.id)
+
+    expect {
+      described_class.call(owner:, coworker:, capability: "coworker.jobs.approve", approval_policy: "auto",
+        constraints: Coworkers::JobAutonomy::DEFAULTS.merge("max_self_approvals_per_day" => 6), scope: repository.id)
+    }.to raise_error(Coworkers::GrantUpdate::ConfirmationRequired)
+  end
+
+  it "requires confirmation before allowing sensitive autonomous approvals" do
+    coworker.permission_rules.update!(capability: "coworker.jobs.approve", approval_policy: "auto", actor: owner,
+      constraints: Coworkers::JobAutonomy::DEFAULTS, scope: repository.id)
+
+    expect {
+      described_class.call(owner:, coworker:, capability: "coworker.jobs.approve", approval_policy: "auto",
+        constraints: Coworkers::JobAutonomy::DEFAULTS.merge("allow_sensitive_changes" => true), scope: repository.id)
+    }.to raise_error(Coworkers::GrantUpdate::ConfirmationRequired)
   end
 end

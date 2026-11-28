@@ -85,4 +85,33 @@ RSpec.describe Coworkers::JobAutonomy do
 
     expect(decision.reason).to include("current implementation HEAD")
   end
+
+  it "refuses a sensitive change through the approval gate by default" do
+    grant!("approve_job")
+    workflow = Workflow.create!(job: own_job, trigger_kind: "initial")
+    allow(Syrus::Host::ImmutableReviewHeadBarrier).to receive(:required_reviews_satisfied?).with(workflow).and_return(true)
+    own_job.diff_review_versions.create!(version_index: 1, base_sha: "base", head_sha: "head", source_key: "final",
+      reason: "source_diff", files_snapshot: [{ "path" => "db/schema.rb", "status" => "modified" }],
+      metadata: {}, truncated: false)
+
+    decision = described_class.new(coworker).authorize(tool_name: "approve_job", repository:, job: own_job)
+
+    expect(decision).not_to be_allowed
+    expect(decision.reason).to include("Sensitive change requires operator approval")
+  end
+
+  it "refuses a bug fix when its regression proof is not proven" do
+    grant!("approve_job")
+    own_job.update!(bug_fix: true)
+    workflow = Workflow.create!(job: own_job, trigger_kind: "initial")
+    allow(Syrus::Host::ImmutableReviewHeadBarrier).to receive(:required_reviews_satisfied?).with(workflow).and_return(true)
+    allow(Coworkers::RegressionProof).to receive(:call).with(own_job).and_return(
+      Coworkers::RegressionProof::Result.new(false, "base_passed")
+    )
+
+    decision = described_class.new(coworker).authorize(tool_name: "approve_job", repository:, job: own_job)
+
+    expect(decision).not_to be_allowed
+    expect(decision.reason).to include("fails on the base revision and passes on the branch")
+  end
 end

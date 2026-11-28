@@ -590,6 +590,67 @@ RSpec.describe BaseRevisionRetry do
     )
   end
 
+  it "requires an explicit candidate command to pass before comparing it with the base" do
+    grader_step.update!(details: {
+      "name" => "rspec", "command" => "bundle exec rspec",
+      "base_retry" => { "strategy" => "full_command" }
+    })
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      require_candidate_pass: true, log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      expect(chdir).to eq(@workspace_path)
+      output << "1 example, 1 failure"
+      command_execution(success: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: true, inherited: false, reason: "candidate_command_failed",
+      method: "candidate_command")
+  end
+
+  it "uses an explicit command even when the grader normally uses focused plugin retries" do
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |command, _chdir, output|
+      expect(command).to eq("bundle exec rspec spec/regression_spec.rb")
+      output << "1 example, 1 failure"
+      command_execution(success: false)
+    end
+
+    expect(retry_check.call).to have_attributes(ran: true, inherited: true, method: "full_command")
+  end
+
+  it "compares the base only after the explicit candidate command passes" do
+    grader_step.update!(details: {
+      "name" => "rspec", "command" => "bundle exec rspec",
+      "base_retry" => { "strategy" => "full_command" }
+    })
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      require_candidate_pass: true, log: ->(_message) { }
+    )
+    calls = 0
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      calls += 1
+      if chdir == @workspace_path
+        command_execution
+      else
+        output << "1 example, 1 failure"
+        command_execution(success: false)
+      end
+    end
+
+    result = retry_check.call
+
+    expect(calls).to eq(2)
+    expect(result).to have_attributes(ran: true, inherited: true)
+  end
+
   it "kills a hung base command when the timeout expires", :allow_host_execution do
     stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
     child_pid_path = @workspace_path.join("child.pid")

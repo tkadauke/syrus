@@ -30,13 +30,14 @@ class BaseRevisionRetry
     new(...).call
   end
 
-  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:, command: nil)
+  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:, command: nil, require_candidate_pass: false)
     @workflow = workflow
     @grader_step = grader_step
     @base_sha = base_sha.to_s
     @failed_cases = Array(failed_cases)
     @log = log
     @command_override = command.to_s.strip.presence
+    @require_candidate_pass = require_candidate_pass
   end
 
   def call
@@ -44,7 +45,7 @@ class BaseRevisionRetry
     return skipped("no_base_retry_config") unless config
     return skipped("base_is_candidate_revision") if base_is_candidate_revision?
 
-    return run_full_command if config.fetch("strategy") == "full_command"
+    return run_full_command if @command_override || config.fetch("strategy") == "full_command"
 
     return skipped("no_structured_cases") if @failed_cases.empty?
 
@@ -155,6 +156,9 @@ class BaseRevisionRetry
     command = @command_override || @grader_step.details.to_h["command"].to_s.strip
     return skipped("no_grader_command") if command.blank?
 
+    candidate_result = run_candidate_command(command) if @require_candidate_pass
+    return candidate_result if candidate_result
+
     output = +""
     execution = nil
     Dir.mktmpdir("syrus-brr-", base_checkout_parent) do |dir|
@@ -190,6 +194,25 @@ class BaseRevisionRetry
       introduced_failed_identities: [],
       output: output_tail(output),
       method: "full_command"
+    )
+  end
+
+  def run_candidate_command(command)
+    output = +""
+    @log.call("[brr:#{grader_name}] verifying focused command at the candidate revision: #{redacted_command(command)}")
+    execution = run_command(command, workspace_path, output)
+    return skipped(execution.skip_reason, command: command, output: output) if execution.interrupted?
+    return if execution.success?
+
+    Result.new(
+      ran: true,
+      inherited: false,
+      reason: "candidate_command_failed",
+      command: redacted_command(command),
+      base_failed_identities: [],
+      introduced_failed_identities: [],
+      output: output_tail(output),
+      method: "candidate_command"
     )
   end
 
