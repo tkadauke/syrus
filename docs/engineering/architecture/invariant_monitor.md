@@ -56,7 +56,7 @@ and `since`, when the violating condition began.
 
 | Key | Holds when | Defaults |
 |---|---|---|
-| `landing_progress` | An approved or landing Job has a queued/running Run, an active WorkUnit (directly or through its Epic), a waiting WorkIntent, or a named landing-queue reason (blocker, Jobs ahead, manual pause). | `threshold: 2h` since the last Run, Workflow, or WorkUnit update. |
+| `landing_progress` | An approved or landing Job has a queued/running Run, an active WorkUnit (directly or through its Epic), a waiting WorkIntent, or a named landing-queue reason (blocker, Jobs ahead, manual pause, or a requested-changes / unapplied-feedback hold, which keeps the Job out of the queue so it never gets a persisted reason). | `threshold: 2h` since the last Run, Workflow, or WorkUnit update. |
 | `slot_holders` | Rebase-cap units have a queued/running workflow, an unpaused Job, and no pause request; no terminal unit holds an active lock; landing lane locks are not held by units blocked on an operator-cleared reason or by runnable units whose workflow ended. | `grace: 15m` |
 | `retry_storms` | No Job fails the same step kind with the same fingerprint (problem code, error class, and error message with numbers, hex ids, and workspace paths masked; the classification only when no error was recorded, since the classifier can label one error differently per run) more than `max_failures` times in `window`. Critical when the classification says retryable. | `max_failures: 5`, `window: 1h` |
 | `failed_blockers` | No failed Job is the stack parent or a declared dependency of a Job still waiting (backlog through approved). The violation lists the blocked Jobs and Epics and the last failure's classification and retryable flag. | `min_age: 1h` |

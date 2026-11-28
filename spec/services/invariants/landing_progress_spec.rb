@@ -73,6 +73,25 @@ RSpec.describe Invariants::LandingProgress do
     expect(described_class.call(now: later)).to be_empty
   end
 
+  # Regression: the landing queue holds a Job whose PR has requested changes
+  # without ever listing it (queue_candidates drops it, so its snapshot stays
+  # empty), and this check reported an approved Job held for months on a review
+  # as having "no named landing blocker".
+  it "treats a requested-changes hold as the named landing blocker the queue computes" do
+    job = approved_job
+    job.update_columns(needs_attention: true, needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+    LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
+
+    expect(job.reload.landing_queue_blocked_reason).to be_nil
+    expect(described_class.call(now: later)).to be_empty
+
+    job.update_columns(needs_attention_reason: Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON)
+    expect(described_class.call(now: later)).to be_empty
+
+    job.update_columns(needs_attention: false, needs_attention_reason: nil)
+    expect(described_class.call(now: later).size).to eq(1)
+  end
+
   it "does not report a Job waiting behind other Jobs in the landing queue" do
     job = approved_job
     job.update_columns(landing_queue_blocker_job_ids: [ job.id + 1000 ])
