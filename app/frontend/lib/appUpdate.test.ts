@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { announceAppUpdate, appUpdateBlocksRetries, installReloadOnNavigation, resetAppUpdateForTests, SAVE_DRAFTS_EVENT, setAppUpdateReloaderForTests } from "./appUpdate"
+import {
+  announceAppUpdate,
+  appUpdateBlocksRetries,
+  installReloadOnNavigation,
+  readAppUpdate,
+  resetAppUpdateForTests,
+  SAVE_DRAFTS_EVENT,
+  setAppUpdateReloaderForTests
+} from "./appUpdate"
 
 describe("app update coordination", () => {
   beforeEach(() => {
@@ -34,6 +42,25 @@ describe("app update coordination", () => {
     expect(assign).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(30_000)
+    expect(assign).toHaveBeenCalledWith(window.location.href)
+  })
+
+  it("keeps a breaking update active when lower-severity updates arrive", () => {
+    vi.useFakeTimers()
+    const assign = vi.fn()
+    setAppUpdateReloaderForTests(assign)
+    const breaking = announceAppUpdate("breaking", "api:1->2")
+
+    vi.advanceTimersByTime(10_000)
+    expect(announceAppUpdate("compatible", "revision:new")).toBe(breaking)
+    expect(announceAppUpdate("stale_chunk", "chunk:old")).toBe(breaking)
+    expect(readAppUpdate()).toBe(breaking)
+    expect(readAppUpdate()?.deadline).toBe(breaking.detectedAt + 30_000)
+    expect(appUpdateBlocksRetries()).toBe(true)
+    expect(assign).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(20_000)
+    expect(assign).toHaveBeenCalledOnce()
     expect(assign).toHaveBeenCalledWith(window.location.href)
   })
 

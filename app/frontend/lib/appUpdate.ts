@@ -43,6 +43,7 @@ function requestServiceWorkerUpdate() {
 
 export function announceAppUpdate(kind: AppUpdateKind, id: string): AppUpdate {
   const existing = readAppUpdate()
+  if (existing?.kind === "breaking") return existing
   if (existing?.id === id && existing.kind === kind) return existing
 
   const detectedAt = Date.now()
