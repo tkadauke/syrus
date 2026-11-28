@@ -2,6 +2,7 @@ module RuntimeImages
   module Verifications
     class Reevaluator
       UNRESOLVED_BUILD_RESULT = Object.new.freeze
+      STALE_ATTEMPT_AFTER = 1.hour
 
       def initialize(orchestrator: Orchestrator.new, build_runner: Builds::Runner.new)
         @orchestrator = orchestrator
@@ -16,7 +17,7 @@ module RuntimeImages
       end
 
       def call(attestation, policy: Policy.current, database_version: nil, now: Time.current, build_result: UNRESOLVED_BUILD_RESULT)
-        return attestation unless mark_reevaluation_pending(attestation)
+        return attestation unless mark_reevaluation_pending(attestation, now)
 
         result = resolve_build_result(attestation, build_result)
         return @orchestrator.verify(attestation.runtime_image, policy: policy, now: now) unless result
@@ -33,12 +34,25 @@ module RuntimeImages
       # attestation remains a scheduling candidate until a replacement attempt
       # supersedes it. An infrastructure failure before verification can then
       # be retried by the next recurring pass instead of stranding the image.
-      def mark_reevaluation_pending(attestation)
+      def mark_reevaluation_pending(attestation, now)
         image = attestation.runtime_image
         image.with_lock do
           attestation.reload
           return false if attestation.invalidated_at?
-          return false unless image.runtime_image_verification_attempts.maximum(:number) == attestation.attempt.number
+
+          latest_attempt = image.runtime_image_verification_attempts.order(number: :desc).first
+          if latest_attempt.number != attestation.attempt.number
+            if latest_attempt.attestation
+              attestation.update!(invalidated_at: now, invalidation_reason: "superseded")
+              return false
+            end
+            if latest_attempt.state == "running"
+              return false if latest_attempt.started_at > now - STALE_ATTEMPT_AFTER
+
+              latest_attempt.update!(state: "blocked", decision: "blocked", failure_class: "infrastructure",
+                failure_code: "verification_interrupted", message: "verification attempt was abandoned", finished_at: now)
+            end
+          end
 
           image.update!(verification_state: "unverified")
           true

@@ -67,6 +67,22 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
     expect(reevaluator.call(attestation, policy: old_policy, database_version: "db-2", build_result: nil)).to eq(attestation)
   end
 
+  it "retries after a newer running attempt is abandoned" do
+    now = Time.current
+    attestation
+    abandoned = image.runtime_image_verification_attempts.create!(number: 2, image_digest: image.digest, state: "running",
+      policy_snapshot: old_policy, policy_digest: RuntimeImages::Verifications::CanonicalJson.digest(old_policy),
+      started_at: now - described_class::STALE_ATTEMPT_AFTER - 1.second)
+    image.update!(verification_state: "unverified")
+    allow(orchestrator).to receive(:verify).and_return(:replacement)
+
+    expect(reevaluator.call(attestation, policy: old_policy, database_version: "db-2", now: now, build_result: nil)).to eq(:replacement)
+    expect(orchestrator).to have_received(:verify).with(image, policy: old_policy, now: now)
+    expect(abandoned.reload).to have_attributes(state: "blocked", decision: "blocked",
+      failure_class: "infrastructure", failure_code: "verification_interrupted")
+    expect(abandoned.finished_at).to be_within(0.001).of(now)
+  end
+
   it "uses the same effective build policy for comparison and verification" do
     request = instance_double(RuntimeImageBuildRequest)
     result = instance_double(RuntimeImageBuildResult, request: request)
