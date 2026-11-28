@@ -49,7 +49,7 @@ export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: stri
 
   async function answer(question: WorkflowAgentQuestion, answers: ChatAgentQuestionAnswer[]) {
     const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
-    await client.invalidateQueries({ queryKey: openQuestionsQueryKey })
+    await client.invalidateQueries({ queryKey: ["agent-questions"] })
     return result
   }
 
@@ -126,7 +126,7 @@ export function QuestionsActivityPanel({ navigateTo, prefix }: { navigateTo: (to
   const [notice, setNotice] = useState<string | null>(null)
   async function answer(question: WorkflowAgentQuestion, answers: ChatAgentQuestionAnswer[]) {
     const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
-    await client.invalidateQueries({ queryKey: openQuestionsQueryKey })
+    await client.invalidateQueries({ queryKey: ["agent-questions"] })
     return result
   }
   return (

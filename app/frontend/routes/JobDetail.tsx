@@ -282,7 +282,9 @@ export function JobQuestionPanel({
     enabled: job.has_open_agent_question === true,
     refetchInterval: 15_000
   })
-  const questions = query.data?.questions ?? []
+  // A disabled query keeps its cached data, so a question answered or
+  // withdrawn elsewhere must not linger once the Job reports none open.
+  const questions = job.has_open_agent_question === true ? (query.data?.questions ?? []) : []
   if (questions.length === 0) return null
 
   async function answer(question: WorkflowAgentQuestion, answers: import("../api/chats").ChatAgentQuestionAnswer[]) {
