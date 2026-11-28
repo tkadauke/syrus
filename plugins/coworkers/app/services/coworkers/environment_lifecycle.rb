@@ -31,11 +31,19 @@ class Coworkers::EnvironmentLifecycle
     published = @environment.with_lock do
       revision.reload(lock: true)
       image = revision.runtime_image
+      if already_published?(revision, image)
+        audit("publication_replayed", revision, actor: actor, code: "already_active")
+        return revision
+      end
       unless revision.candidate? && image&.pullable?
         raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"
       end
-      unless authority&.allow? && authority.subject.revision_id == revision.id && authority.subject.image_digest == image.digest
-        raise Coworkers::EnvironmentRevision::InvalidTransition, "publication authority does not match the candidate"
+      # Serialize activation with generic deletion/revocation. Revocation
+      # commits terminal state under this lock before provider cleanup, while
+      # deletion holds it across provider removal and its durable transition.
+      image.lock!
+      unless image.pullable?
+        raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"
       end
       # Raising inside the lock would roll the rejection back, leaving an
       # incompatible candidate publishable; commit it, then refuse.
@@ -44,6 +52,14 @@ class Coworkers::EnvironmentLifecycle
         next nil
       end
       attestation = current_attestation!(revision)
+      attestation.lock!
+      unless attestation.valid_at?(@now)
+        raise Coworkers::EnvironmentRevision::InvalidTransition, "candidate has no current accepted verification attestation"
+      end
+      authority = Coworkers::EnvironmentPublicationAuthority.revalidate!(
+        authority, owner: @environment.coworker.owner_user, coworker: @environment.coworker,
+        environment: @environment, revision:, now: @now
+      )
 
       previous = @environment.active_revision
       previous_activation = @environment.active_activation
@@ -83,10 +99,17 @@ class Coworkers::EnvironmentLifecycle
     if severity == "severe" && revision.runtime_image&.digest.blank?
       raise Coworkers::EnvironmentRevision::InvalidTransition, "severe revocation requires an affected image digest"
     end
-    result = @environment.with_lock do
-      revoke_locked!(revision, reason: reason, actor: actor, severity: severity)
+    result, changed = @environment.with_lock do
+      revision.reload
+      already_revoked = revision.revoked? && @environment.active_revision_id != revision.id &&
+        @environment.candidate_revision_id != revision.id
+      if already_revoked
+        [ revision, false ]
+      else
+        [ revoke_locked!(revision, reason: reason, actor: actor, severity: severity), true ]
+      end
     end
-    terminate_affected_turns!(revision, reason:) if severity == "severe"
+    terminate_affected_turns!(revision, reason:) if changed && severity == "severe"
     result
   end
 
@@ -134,6 +157,13 @@ class Coworkers::EnvironmentLifecycle
   end
 
   private
+
+  def already_published?(revision, image)
+    activation = @environment.active_activation
+    revision.active? && image && @environment.active_revision_id == revision.id &&
+      @environment.active_runtime_image_id == image.id && activation&.environment_revision_id == revision.id &&
+      activation.runtime_image_id == image.id && activation.image_digest == image.digest
+  end
 
   def terminate_affected_turns!(revision, reason:)
     digest = revision.runtime_image&.digest
