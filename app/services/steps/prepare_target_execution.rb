@@ -25,6 +25,7 @@ module Steps
   #
   # Included into Steps::Grader (and, through it, Steps::PreflightGrader).
   module PrepareTargetExecution
+    PREPARE_TARGET_TAIL_BYTES = 8 * 1024
     MARKER_DIR = ".syrus/prepare-targets".freeze
 
     private
@@ -68,6 +69,7 @@ module Steps
 
       commands.each_with_index do |command, index|
         log("[#{step.kind}] prepare target #{label} (#{index + 1}/#{commands.size}) $ #{command}")
+        tail = +""
         result = ProcessRunner.new(
           env: env,
           command: [ "bash", "-c", command ],
@@ -78,7 +80,11 @@ module Steps
           run: run,
           workflow: workflow,
           display_command: command,
-          on_output_chunk: ->(chunk) { log(chunk, kind: "prepare_log") }
+          on_output_chunk: lambda { |chunk|
+            log(chunk, kind: "prepare_log")
+            tail << chunk.to_s
+            tail = tail[-PREPARE_TARGET_TAIL_BYTES..] if tail.bytesize > PREPARE_TARGET_TAIL_BYTES
+          }
         ).run
         publish_command_completed!(step_kind: "prepare", label: command)
         next if result.success? && !result.timed_out
@@ -86,7 +92,19 @@ module Steps
         # Fully qualified: inside this module a bare StepFailed resolves
         # lexically to Steps::PrepareTargetExecution::StepFailed, so a failed
         # prepare target surfaced as a NameError instead of its own failure.
-        raise Steps::Base::StepFailed, "prepare target #{label} failed (#{prepare_dependency_status(result)}): #{command}"
+        message = "prepare target #{label} failed (#{prepare_dependency_status(result)}): #{command}"
+        # Declared from this command's own exit status and output, as
+        # Steps::Prepare does: a tool missing on the worker (exit 127,
+        # `xcodegen: command not found`) is the worker's gap, not the change's
+        # failure, and must route to a provisioned worker rather than be
+        # classified an unretryable application error.
+        problem = FailureProblems::Prepare.for(
+          "command" => command, "exit_status" => result.exit_status,
+          "timed_out" => result.timed_out, "output_tail" => tail
+        )
+        raise Steps::Base::StepFailed, message unless problem
+
+        fail_with!(problem.code, message, evidence: problem.evidence)
       end
 
       record_prepare_target_mutation_warning!(
