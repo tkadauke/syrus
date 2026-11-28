@@ -88,6 +88,13 @@ RSpec.describe "Syrus::Host agent-runtime facades" do
       expect(affected.reload.kill_requested_at).to be_present
       expect(unaffected.reload.kill_requested_at).to be_nil
     end
+
+    it "requires a digest so omission cannot broaden process termination" do
+      expect {
+        described_class.terminate_chat_processes(chat_session_ids: [ 1 ], reason: "severe revocation",
+                                                  runtime_image_digest: nil)
+      }.to raise_error(ArgumentError, /runtime_image_digest is required/)
+    end
   end
 
   describe Syrus::Host::AgentPrompts do

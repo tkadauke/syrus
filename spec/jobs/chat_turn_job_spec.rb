@@ -284,6 +284,23 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(Thread.current[:syrus_current_chat_session]).to be_nil
   end
 
+  it "preserves the invocation result when reporting a post-launch exception" do
+    lifecycle = Class.new(ChatTurnLifecycles::Default) do
+      def after_execution(result: nil, exception: nil); end
+    end.new(chat_session: chat, user_message: user_message)
+    result = result_fixture(session_id: "s1")
+    allow(lifecycle).to receive(:after_execution)
+    allow(ChatTurnLifecycles).to receive(:for).and_return(lifecycle)
+    allow_any_instance_of(ChatSession).to receive(:record_turn_usage!).and_raise(ActiveRecord::Deadlocked, "late persistence failure")
+    ChatTurnJob.agent_runner = ->(**_) { result }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(lifecycle).to have_received(:after_execution).with(result: result).once
+    expect(lifecycle).to have_received(:after_execution)
+      .with(result: result, exception: instance_of(ActiveRecord::Deadlocked)).once
+  end
+
   it "updates coding_checkout_uncommitted after the turn when there are uncommitted changes" do
     enable_coding_mode!
     chat.update!(mode: "coding", coding_checkout_branch: "syrus-chat-#{chat.id}")
