@@ -20,7 +20,9 @@ export function environmentToolCard(toolName: string): ToolCardRenderer {
         <CardShell>
           <Row label={i18n.t("coworkers:tool_card.environment_state")} value={displayValue(environment.state)} />
           {isPlainObject(build) ? <Row label={i18n.t("coworkers:tool_card.environment_build")} value={displayValue(build.state)} /> : null}
-          {isPlainObject(compatibility) ? <Row label={i18n.t("coworkers:tool_card.environment_compatibility")} value={displayValue(compatibility.status)} /> : null}
+          {isPlainObject(compatibility) ? (
+            <Row label={i18n.t("coworkers:tool_card.environment_compatibility")} value={displayValue(compatibility.status)} />
+          ) : null}
           <Row label={i18n.t("coworkers:tool_card.environment_active_image")} value={displayValue(environment.active_digest)} />
           <Row label={i18n.t("coworkers:tool_card.environment_failure")} value={displayValue(environment.error_code)} />
         </CardShell>
