@@ -7,9 +7,10 @@
 # After an edit, `enforce!` evaluates the Job's start gate:
 #
 # * gate met -> nothing to do.
-# * gate unmet, active Run -> reject by default (the caller's transaction rolls
-#   the edit back); with `hold_running: true` the Job is held in the same
-#   transaction.
+# * gate unmet, active Run -> reject (the caller's transaction rolls the edit
+#   back). Holding running work is a confirmed `hold_job` pending action; the
+#   dependency tools' `hold_running: true` requests one that carries the edit,
+#   and the confirmed hold applies it inside `deferring_to_hold`.
 # * gate unmet, no active Run (blocked, failed, idle with an open Workflow) ->
 #   started Workflows are retired and the Job returns to the waiting state so
 #   `Job#state` agrees with its work intent. A Workflow that blocked with
@@ -18,27 +19,39 @@
 class JobDependencyEditGuard
   class ActiveRunRejection < StandardError; end
 
+  DEFER_KEY = :job_dependency_edit_guard_deferred_job_ids
+
   class << self
-    def enforce!(job, hold_running: false, reason: nil)
+    def enforce!(job)
       job.reload
       return :ok unless job.running?
       return :ok unless JobHold.gate_unmet?(job)
 
       runs = JobHold.active_runs(job)
       if runs.any?
-        unless hold_running
-          raise ActiveRunRejection,
-            "#{job.slug} is executing (#{runs.map(&:slug).join(', ')}) and would no longer be unblocked by its new dependencies. " \
-            "Pass hold_running: true to hold the Job in the same change, or use hold_job first."
-        end
+        # A confirmed hold applies the edit and then holds the Job itself.
+        return :deferred if deferred_job_ids.include?(job.id)
 
-        JobHold.call(job: job, reason: reason.presence || "dependency edit with hold_running", control_path: "dependency_edit")
-        return :held
+        raise ActiveRunRejection,
+          "#{job.slug} is executing (#{runs.map(&:slug).join(', ')}) and would no longer be unblocked by its new dependencies. " \
+          "Pass hold_running: true to request a confirmed hold that applies this edit, or use hold_job first."
       end
 
       demote_idle!(job)
       :waiting
     end
+
+    # Lets a confirmed hold apply a dependency edit to a Job that is still
+    # running; the caller holds the Job in the same transaction.
+    def deferring_to_hold(job)
+      previous = deferred_job_ids
+      Thread.current[DEFER_KEY] = previous + [ job.id ]
+      yield
+    ensure
+      Thread.current[DEFER_KEY] = previous
+    end
+
+    def deferred_job_ids = Thread.current[DEFER_KEY] || []
 
     # The Job has no active Run: retire started Workflows and return it to the
     # waiting state. Also run after dependency edits that bypass the tools.

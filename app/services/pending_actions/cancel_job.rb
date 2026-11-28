@@ -41,6 +41,11 @@ module PendingActions
 
     private
 
+    # Owners cancel their own Jobs; admins may cancel any Job instance-wide.
+    def action_job
+      @action_job ||= repair_action_job
+    end
+
     def accessible_canonical_job
       return if payload["canonical_job_id"].blank?
 

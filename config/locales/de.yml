@@ -97,6 +97,7 @@ de:
         label: "%{job} anhalten"
         detail_waiting: "Aktive Läufe und Workflows abbrechen, den Job zum Warten auf Abhängigkeiten zurücksetzen und PR sowie Branch behalten."
         detail_backlog: "Aktive Läufe und Workflows abbrechen, den Job ins Backlog verschieben und PR sowie Branch behalten."
+        detail_dependency_edit: "Wendet zuerst die angeforderte %{tool}-Änderung an."
       bulk_confirmation:
         cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
         cancel_stale_work: "Veraltete Arbeit für %{count} Jobs abbrechen?"

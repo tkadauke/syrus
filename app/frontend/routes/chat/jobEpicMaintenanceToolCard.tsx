@@ -115,8 +115,20 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     verb: "Assigned to Epic",
     showsAssignedEpic: true
   },
-  add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
-  replace_job_dependency: { toolName: "replace_job_dependency", subjectKind: "job", actionLabel: "Replace Job Dependency", verb: "Dependency replaced" },
+  add_job_dependency: {
+    toolName: "add_job_dependency",
+    subjectKind: "job",
+    actionLabel: "Add Job Dependency",
+    verb: "Dependency added",
+    pendingVerb: "Hold requested"
+  },
+  replace_job_dependency: {
+    toolName: "replace_job_dependency",
+    subjectKind: "job",
+    actionLabel: "Replace Job Dependency",
+    verb: "Dependency replaced",
+    pendingVerb: "Hold requested"
+  },
   reset_job: {
     toolName: "reset_job",
     subjectKind: "job",
@@ -133,6 +145,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     subjectKind: "job",
     actionLabel: "Remove Job Dependency",
     verb: "Dependency removed",
+    pendingVerb: "Hold requested",
     removedDependencyLabel: true,
     emptyDependenciesLabel: "No dependencies",
     hidesSatisfaction: true
@@ -170,6 +183,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     subjectKind: "epic",
     actionLabel: "Remove Epic Dependency",
     verb: "Dependency removed",
+    pendingVerb: "Hold requested",
     removedDependencyLabel: true,
     emptyDependenciesLabel: "No dependencies"
   }

@@ -6,7 +6,8 @@ module Mcp::Tools
 
     tool_name "hold_job"
     description <<~DESC
-      Request that a Job running out of turn be held, without closing it. On
+      Request that a Job running out of turn be held, without closing it. You
+      may hold Jobs you own; admins may hold any Job. On
       confirmation the Job's active Runs and Workflows are cancelled through
       the normal cancellation path, its work-unit locks are released, and the
       Job returns to waiting on its unsatisfied dependencies (or to backlog
@@ -27,16 +28,17 @@ module Mcp::Tools
 
     class << self
       def call(job_id:, reason:, server_context:, to_backlog: false)
-        chat_session = require_admin(server_context)
-        return chat_session if chat_session.is_a?(MCP::Tool::Response)
+        chat_session = server_context.fetch(:chat_session)
+        user = chat_session.user
 
         reason = reason.to_s.strip
         return Mcp::Tools.invalid("reason is required") if reason.empty?
 
         job_id = integer_param(job_id, "job_id")
         return job_id if job_id.is_a?(MCP::Tool::Response)
-        job = Job.find_by(id: job_id)
-        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
+        # Owners hold their own Jobs; admins may hold any Job.
+        job = (user.admin? ? Job.all : user.jobs).find_by(id: job_id)
+        return Mcp::Tools.invalid("job not found or not owned by you: #{job_id}") unless job
 
         blockers = JobHold.blockers(job, to_backlog: to_backlog == true)
         return Mcp::Tools.invalid(blockers.join("; ")) if blockers.any?

@@ -143,7 +143,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `force_state_transition` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `git_diff` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
 | `git_status` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
-| `hold_job` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `hold_job` | chat | essential | write | no | - | - | - | - | gated (operational, destructive) |
 | `inspect_provider_circuit` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
 | `inspect_workflow_outcome_overrides` | chat | essential | read | no | - | - | - | - | essential |
 | `list_epics` | chat | essential | read | no | - | - | - | - | essential |
@@ -325,7 +325,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `force_rebase` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, external_write) |
 | `force_state_transition` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, destructive) |
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (confidential cross boundary) |
-| `hold_job` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, destructive) |
+| `hold_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational, destructive) |
 | `inspect_provider_circuit` | coworker | essential | read | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_diagnostics` | - | deniable (instance wide observability) |
 | `inspect_workflow_outcome_overrides` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_outcome_override_observation` | - | essential |
 | `list_epics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |

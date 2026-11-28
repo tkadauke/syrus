@@ -515,19 +515,52 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
       expect(workflow.reload).to be_running
     end
 
-    it "holds the Job in the same change with hold_running: true" do
+    def confirm_hold(response)
+      action = ChatPendingAction.find(payload(response).fetch(:pending_action_id))
+      expect(action).to have_attributes(action: "hold_job", state: "pending")
+      action.confirm!(user: user)
+      action.reload
+    end
+
+    it "requests a confirmed hold carrying the edit with hold_running: true" do
       job, workflow, run = running_job_with_active_run
 
       response = call_tool("add_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id, hold_running: true, reason: "out of turn")
 
       expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload.dependencies).to be_empty
+      expect(run.reload).to be_running
+
+      action = confirm_hold(response)
+
+      expect(action).to be_confirmed
+      expect(action.reason).to eq("out of turn")
       expect(job.reload.dependencies.count).to eq(1)
       expect(job.state).to eq("queued")
       expect(run.reload).to be_cancelled
       expect(workflow.reload).to be_cancelled
     end
 
-    it "rejects a replacement by default and holds with hold_running: true" do
+    it "refuses hold_running for a Job the user neither owns nor administers" do
+      other = Factories.user
+      repository.repository_memberships.create!(user: other, role: "write")
+      job, _workflow, run = running_job_with_active_run
+      other_session = ChatSession.create!(user: other, repository: repository)
+      other_server = MCP::Server.new(name: "syrus-chat-sidecar", tools: [ Mcp::Tools::AddJobDependencyTool ],
+        server_context: { chat_session: other_session })
+      grant_full_chat_access(other)
+
+      raw = other_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: "add_job_dependency", arguments: { job_id: job.id, depends_on_job_id: admin_prerequisite.id, hold_running: true } } }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("requires owning the Job")
+      expect(ChatPendingAction.where(action: "hold_job")).to be_empty
+      expect(run.reload).to be_running
+    end
+
+    it "rejects a replacement by default and requests a confirmed hold with hold_running: true" do
       job, _workflow, run = running_job_with_active_run
       old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 702, state: "closed", closure_reason: "pr_merged")
       JobDependency.create!(job: job, depends_on_job: old_dependency, source: "manual")
@@ -541,11 +574,14 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
       held = call_tool("replace_job_dependency", job_id: job.id,
         remove_dependency_job_id: old_dependency.id, add_dependency_job_id: admin_prerequisite.id, hold_running: true)
       expect(held.dig(:result, :isError)).to be_falsey
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+
+      expect(confirm_hold(held)).to be_confirmed
       expect(job.reload.depends_on_jobs).to contain_exactly(admin_prerequisite)
       expect(job.state).to eq("queued")
     end
 
-    it "rejects removing a dependency while a Run is active and holds with hold_running: true" do
+    it "rejects removing a dependency while a Run is active and requests a confirmed hold with hold_running: true" do
       job, workflow, run = running_job_with_active_run
       dependency = JobDependency.create!(job: job, depends_on_job: admin_prerequisite, source: "manual")
       other = Factories.job_record(user: user, repository: repository, issue_number: 704, state: "running")
@@ -559,6 +595,9 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
 
       held = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id, hold_running: true)
       expect(held.dig(:result, :isError)).to be_falsey
+      expect(JobDependency.exists?(dependency.id)).to be true
+
+      expect(confirm_hold(held)).to be_confirmed
       expect(JobDependency.exists?(dependency.id)).to be false
       expect(run.reload).to be_cancelled
       expect(workflow.reload).to be_cancelled

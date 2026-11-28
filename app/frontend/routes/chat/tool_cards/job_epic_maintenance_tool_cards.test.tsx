@@ -4,6 +4,7 @@ import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer 
 import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/chats"
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
+import addJobDependencyCard from "./add_job_dependency"
 import { examples as cancelJobExamples } from "./cancel_job"
 import forceFailJobCard from "./force_fail_job"
 import { examples as forceFailJobExamples } from "./force_fail_job"
@@ -144,6 +145,15 @@ describe("Job and Epic maintenance tool cards", () => {
 
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("job must be in implemented state")).toBeInTheDocument()
+  })
+
+  it("summarizes a dependency edit that requested a confirmed hold", () => {
+    const ctx = context("add_job_dependency", {
+      input: { job_id: 50, depends_on_job_id: 49, hold_running: true },
+      parsedResult: { pending_action_id: 812, state: "pending", job_id: 50, message: "Hold JOB-50?" }
+    })
+
+    expect(addJobDependencyCard.collapsedSummary?.(ctx)).toBe("Hold requested · JOB-50 · pending #812")
   })
 
   it("renders pending confirmation state with the target Job id from input", () => {

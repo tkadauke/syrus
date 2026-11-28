@@ -386,7 +386,7 @@ fingerprint diagnostics. Revocation is rechecked at claim or dispatch time.
 
 Core Job and Epic lifecycle tools use stable, explicit capabilities instead of compatibility descriptors:
 
-- `syrus.jobs@v1`: `create`, `approve`, `unapprove`, `cancel`, `retry`, `retry_base_refresh`, `poll_feedback`, `rebase`, `reopen`, `close`, `check_mergeability`, `unland`.
+- `syrus.jobs@v1`: `create`, `approve`, `unapprove`, `cancel`, `hold`, `retry`, `retry_base_refresh`, `poll_feedback`, `rebase`, `reopen`, `close`, `check_mergeability`, `unland`.
 - `syrus.epics@v1`: `start`, `move_to_backlog`, `archive`, `unland`.
 - `syrus.landing_queue@v1`: `pause`, `resume`, `wake`, `force_recheck`, `override_blocker_once`.
 
@@ -396,7 +396,7 @@ A single-Job call and a bulk call (`job_id` versus `job_ids`) share one operatio
 
 Consequential admin repair, operational, and delivery chat tools also use explicit capabilities:
 
-- `syrus.admin_repair@v1`: state repair such as `force_fail_job`, `reconcile_job_state`, `force_state_transition`, `cancel_stale_work`, `hold_job`, `retire_terminal_work_unit`, `reenqueue_work`, `repair_queue_affinity`, `retry_step`, `cleanup_workspace`, `reap_stale_runs`, `kill_process`, `manual_agentic_run`, `force_rebase`, `restack_epic`, PR-branch adoption/replacement, CI repair, and provider-circuit repair.
+- `syrus.admin_repair@v1`: state repair such as `force_fail_job`, `reconcile_job_state`, `force_state_transition`, `cancel_stale_work`, `retire_terminal_work_unit`, `reenqueue_work`, `repair_queue_affinity`, `retry_step`, `cleanup_workspace`, `reap_stale_runs`, `kill_process`, `manual_agentic_run`, `force_rebase`, `restack_epic`, PR-branch adoption/replacement, CI repair, and provider-circuit repair.
 - `syrus.operations@v1`: `maintenance_tasks`, polling/run/user-scheduling pause and unpause, `clear_github_cache`, `refresh_installations`.
 - `syrus.delivery@v1`: `select_track`, `dispatch_ref_movement`, `emergency_land`.
 

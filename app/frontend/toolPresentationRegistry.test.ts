@@ -22,7 +22,7 @@ describe("toolPresentationRegistry", () => {
       expect(entry.ownerType).toBe("core")
       expect(entry.sourceType).toBe("mcp_tool")
       expect(entry.renderer?.toolName).toBe("add_job_dependency")
-      expect(entry.examples.map((example) => example.id)).toEqual(["job_and_epic_dependencies", "validation_error", "empty_dependencies"])
+      expect(entry.examples.map((example) => example.id)).toEqual(["job_and_epic_dependencies", "validation_error", "empty_dependencies", "hold_requested"])
     })
 
     it("resolves a plugin-owned MCP tool card (with its own example fixtures) without any core file naming that plugin", () => {

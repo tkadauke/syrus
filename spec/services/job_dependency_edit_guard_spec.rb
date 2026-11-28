@@ -31,15 +31,13 @@ RSpec.describe JobDependencyEditGuard do
       .to raise_error(described_class::ActiveRunRejection, /#{run.slug}/)
   end
 
-  it "holds the Job when hold_running is set" do
-    workflow = start_workflow
-    run = Run.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "running")
+  it "lets a confirmed hold apply the edit to a still-running Job" do
+    start_workflow
+    Run.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "running")
     add_dependency
 
-    expect(described_class.enforce!(job, hold_running: true, reason: "rewired")).to eq(:held)
-    expect(run.reload).to be_cancelled
-    expect(workflow.reload).to be_cancelled
-    expect(job.reload.state).to eq("queued")
+    expect(described_class.deferring_to_hold(job) { described_class.enforce!(job) }).to eq(:deferred)
+    expect { described_class.enforce!(job) }.to raise_error(described_class::ActiveRunRejection)
   end
 
   it "returns a running Job whose Workflow is blocked to the waiting state" do
