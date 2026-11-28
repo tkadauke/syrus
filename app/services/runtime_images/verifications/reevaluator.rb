@@ -16,13 +16,12 @@ module RuntimeImages
       end
 
       def call(attestation, policy: Policy.current, database_version: nil, now: Time.current, build_result: UNRESOLVED_BUILD_RESULT)
-        reason = invalidation_reason(attestation, policy, database_version, now)
-        attestation.update!(invalidated_at: now, invalidation_reason: reason) if attestation.invalidated_at.nil?
+        return attestation unless mark_reevaluation_pending(attestation)
 
         result = resolve_build_result(attestation, build_result)
         return @orchestrator.verify(attestation.runtime_image, policy: policy, now: now) unless result
 
-        evidence = result.request.evidences.order(:created_at, :id).last
+        evidence = result.request.evidences.max_by { |candidate| [ candidate.created_at, candidate.id ] }
         raise ProviderError, "build evidence is unavailable for re-evaluation" unless evidence
 
         @build_runner.verify_candidate(result.request, attestation.runtime_image, evidence, policy: policy)
@@ -30,11 +29,20 @@ module RuntimeImages
 
       private
 
-      def invalidation_reason(attestation, policy, database_version, now)
-        return "expired" if attestation.expires_at <= now
-        return "vulnerability_database_changed" if database_version.present? && attestation.vulnerability_database_version != database_version
+      # Eligibility fails closed as soon as re-evaluation starts, but the old
+      # attestation remains a scheduling candidate until a replacement attempt
+      # supersedes it. An infrastructure failure before verification can then
+      # be retried by the next recurring pass instead of stranding the image.
+      def mark_reevaluation_pending(attestation)
+        image = attestation.runtime_image
+        image.with_lock do
+          attestation.reload
+          return false if attestation.invalidated_at?
+          return false unless image.runtime_image_verification_attempts.maximum(:number) == attestation.attempt.number
 
-        "policy_changed"
+          image.update!(verification_state: "unverified")
+          true
+        end
       end
 
       def effective_policy(attestation, policy, build_result)
