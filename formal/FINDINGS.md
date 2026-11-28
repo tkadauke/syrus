@@ -5097,7 +5097,7 @@ reading the failure as answered.
 (stuck before) and `spec/services/work_engine/cancel_superseded_ci_repair_behind_base_spec.rb`.
 
 ---
-## M82. Runtime image verification Epic — fixed F153 to F156; leads and NY46
+## M85. Runtime image verification Epic — fixed F153 to F156; leads and NY46
 
 Beside F153 to F156, the sweep of the Epic found: one of its migrations
 (`create_runtime_image_policy_evidences`) was not idempotent, now
@@ -5111,7 +5111,7 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
-## F160. Per-turn image pinning would have stopped every coworker turn in production — fixed (NY48: B)
+## F161. Per-turn image pinning would have stopped every coworker turn in production — fixed (NY48: B)
 
 **Invariant.** A deploy does not take away a working feature: coworker turns
 keep running across the introduction of per-turn image pinning.
@@ -5174,7 +5174,7 @@ re-evaluation does not demote existing images. Spec first: "names the external
 image the final stage builds from, following stage aliases" and "requires the
 approved base on the final stage, not any stage" failed before the change.
 
-## M83. Coworker environment Epic (#576) — F157; NY47 and leads
+## M86. Coworker environment Epic (#576) — F157; NY47 and leads
 
 Swept read-only and re-checked. Holds: publication is atomic (activation and
 pointer swap in one transaction under the environment lock, re-authorized
@@ -8953,7 +8953,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   i18n, permission matrix batching, simulator scenarios) carries no engine
   invariant.
 
-- Main through `871e9bb8c3`: the coworker environment Epic (#576), M83.
+- Main through `871e9bb8c3`: the coworker environment Epic (#576), M86.
 
 - Main through `5d07eeea1b`: desktop update recovery only; no engine invariant.
 

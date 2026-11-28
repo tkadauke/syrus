@@ -15,7 +15,7 @@ RSpec.describe Coworkers::TurnEnvironmentSelection do
 
   # NY48 (B): per-turn pinning refused every coworker turn while no base had
   # ever been promoted, which is how production stands, so a deploy would have
-  # stopped every coworker chat (F160). Until a base is promoted, and while
+  # stopped every coworker chat (F161). Until a base is promoted, and while
   # custom environments are off, the turn runs as it did before pinning.
   describe "with no coworker base ever promoted" do
     def custom_environments(enabled)
