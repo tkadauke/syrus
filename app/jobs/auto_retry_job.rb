@@ -422,6 +422,7 @@ class AutoRetryJob < ApplicationJob
 
     if attempt.workflow.retry_available?
       clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+      clear_unprovisioned_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
       record_automatic_intervention(attempt, "rerun_check") do
         RetryFailedStepEnqueuer.call(
           workflow: attempt.workflow,
@@ -528,6 +529,7 @@ class AutoRetryJob < ApplicationJob
   def retry_running_in_place_step(attempt)
     step = attempt.run.step
     clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+    clear_unprovisioned_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
     replacement = StepDispatcher.create_run_and_enqueue(step, attempt.workflow)
 
     RetryFailedStepEnqueuer::Result.new(
@@ -536,6 +538,26 @@ class AutoRetryJob < ApplicationJob
       step: step,
       error: replacement ? nil : "replacement run could not be queued"
     )
+  end
+
+  # A prepare that failed because its worker lacks a system dependency must
+  # not be pinned back onto that worker. Prepare is the workflow's first step,
+  # so nothing but a fresh checkout is left behind; the workspace is not lost,
+  # only abandoned for one on a provisioned worker.
+  def clear_unprovisioned_worker_affinity!(attempt)
+    workflow = attempt.workflow
+    return unless workflow
+    return unless attempt.run&.step&.kind == "prepare"
+    return unless workflow.worker_hostname.present? || workflow.worker_storage_key.present?
+
+    WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+      workflow,
+      actor: "auto_retry_job",
+      reason: "worker is missing a system dependency prepare needs",
+      storage_lost: false
+    )
+    workflow.reload
+    attempt.run&.association(:step)&.reset
   end
 
   def clear_failed_worker_affinity!(attempt)

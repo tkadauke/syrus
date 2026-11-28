@@ -135,6 +135,7 @@ module WorkEngine
         with_simulated_repository_revisions do
           with_simulated_workspaces do
             with_stubbed_judgment_runner do
+              register_runtime_fleet!
               seed_worker_environments!
               max_ticks.times do |tick|
                 before = fingerprint
@@ -1008,7 +1009,8 @@ module WorkEngine
                            failure_code: simulated_failure_code(outcome),
                            error_message: simulated_outcome_field(outcome, "error_message"),
                            error_class: simulated_outcome_field(outcome, "error_class"),
-                           problem_code: simulated_outcome_field(outcome, "problem_code"))
+                           problem_code: simulated_outcome_field(outcome, "problem_code"),
+                           problem_evidence: simulated_outcome_field(outcome, "problem_evidence"))
           else
             finish_simulated_processes!(run, "succeeded")
             succeed_run_and_step!(run)
@@ -1026,7 +1028,8 @@ module WorkEngine
                          failure_code: simulated_failure_code(outcome),
                          error_message: simulated_outcome_field(outcome, "error_message"),
                          error_class: simulated_outcome_field(outcome, "error_class"),
-                         problem_code: simulated_outcome_field(outcome, "problem_code"))
+                         problem_code: simulated_outcome_field(outcome, "problem_code"),
+                         problem_evidence: simulated_outcome_field(outcome, "problem_evidence"))
         else
           raise ArgumentError, "unknown simulation outcome #{outcome.inspect} for #{run.slug}"
         end
@@ -1052,12 +1055,14 @@ module WorkEngine
         drain_step_success!(step)
       end
 
-      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil, problem_code: nil)
+      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil, problem_code: nil,
+                    problem_evidence: nil)
         if failure_code.present?
           stamp_simulated_failure_code!(run, failure_code)
         end
         if error_message.present? || error_class.present? || problem_code.present?
-          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message, problem_code: problem_code)
+          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message,
+                                            problem_code: problem_code, problem_evidence: problem_evidence)
         end
         run.agent_outcome = agent_outcome
         run.fail!
@@ -1071,12 +1076,13 @@ module WorkEngine
       # of a generic message. `problem_code` is the Problem the real handler
       # would have declared (Steps::Base#fail_with!), which the run
       # classifiers read before any of that text.
-      def record_simulated_diagnostic!(run, error_class:, error_message:, problem_code: nil)
+      def record_simulated_diagnostic!(run, error_class:, error_message:, problem_code: nil, problem_evidence: nil)
         RunDiagnostic.create!(
           run: run,
           error_class: error_class.presence || "Steps::Base::StepFailed",
           error_message: error_message.presence || "simulated failure",
-          problem_code: problem_code.presence
+          problem_code: problem_code.presence,
+          problem_evidence: problem_evidence.presence&.to_h
         )
       end
 
@@ -1120,6 +1126,10 @@ module WorkEngine
       def drain_run_failure!(run)
         step = run.step&.reload
         return unless step
+        # Runs::LifecyclePropagation already scheduled an in-place retry of
+        # this step and deliberately left it unfailed; failing it here would
+        # model a cascade production never performs.
+        return if in_place_step_retry_scheduled?(run)
 
         unless step.failed?
           step.fail!
@@ -1131,6 +1141,14 @@ module WorkEngine
         elsif step.workflow.reload.may_fail?
           StepDispatcher.fail_from(step)
         end
+      end
+
+      def in_place_step_retry_scheduled?(run)
+        AutoRetryAttempt.pending.where(
+          run_id: run.id,
+          retry_kind: "failed_step",
+          failure_classification: AutoRetryAttempt::IN_PLACE_STEP_CLASSIFICATIONS
+        ).exists?
       end
 
       def step_fail_policy(step)
@@ -1320,10 +1338,25 @@ module WorkEngine
       end
 
       def worker_hostname_for(run, outcome)
-        simulated_outcome_field(outcome, "worker").presence ||
+        hostname = simulated_outcome_field(outcome, "worker").presence ||
           simulated_outcome_field(outcome, "hostname").presence ||
           runtime.fetch("step_workers", {})[run_worker_key(run)].presence ||
           next_worker_hostname
+        avoid_unprovisioned_worker(run, hostname)
+      end
+
+      # A worker recorded as missing a dependency this Run's install needs
+      # hands the Run back (RunJob#hand_back_incapable_run?); the simulated
+      # fleet's next provisioned worker picks it up, as the shared queue would.
+      def avoid_unprovisioned_worker(run, hostname)
+        return hostname unless RunQueueResolver.worker_environment_blocks?(run: run, hostname: hostname)
+
+        workers = Array(runtime["workers"]).map(&:to_s)
+        alternative = workers.find { |worker| !RunQueueResolver.worker_environment_blocks?(run: run, hostname: worker) }
+        return hostname unless alternative
+
+        events << "placement avoided #{run.slug} #{run.step&.kind} on #{hostname} (worker environment missing); ran on #{alternative}"
+        alternative
       end
 
       def worker_storage_key_for(hostname, outcome)
@@ -1341,6 +1374,15 @@ module WorkEngine
         worker = workers[@worker_index % workers.length]
         @worker_index += 1
         worker.to_s
+      end
+
+      # A declared `runtime.workers` fleet exists before any work lands on it,
+      # as a real one does: placement decisions (RunQueueResolver) see every
+      # worker from the first tick, not only the ones a Run already touched.
+      def register_runtime_fleet!
+        Array(runtime["workers"]).map(&:to_s).each do |hostname|
+          ensure_worker_live!(hostname, worker_storage_key_for(hostname, nil))
+        end
       end
 
       def ensure_worker_live!(hostname, storage_key)
@@ -1589,8 +1631,18 @@ module WorkEngine
           .includes(:job, step: :workflow)
           .to_a
           .reject { |run| queued_run_blocked_by_explicit_solid_queue_state?(run) }
+          .reject { |run| queued_run_held_for_worker_environment?(run) }
           .reject { |run| run.running? && terminal_spawned_process_for?(run) }
           .reject { |run| run.running? && stale_simulated_worker_evidence?(run) }
+      end
+
+      # Run#enqueue never hands a Run to SolidQueue while every live worker
+      # lacks what its install needs (it records a no_capable_worker hold
+      # instead), so no worker can pick it up until that changes.
+      def queued_run_held_for_worker_environment?(run)
+        return false unless run.queued?
+
+        RunQueueResolver.resolve(run: run).blocked_reason == WorkerEnvironmentGap::BLOCKED_REASON
       end
 
       def queued_run_blocked_by_explicit_solid_queue_state?(run)

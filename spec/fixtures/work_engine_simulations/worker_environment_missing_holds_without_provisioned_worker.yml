@@ -1,0 +1,60 @@
+# The only live worker lacks the zstd library the repository's mysql2 build
+# links against. Nothing about the change can fix that, so the Job must not
+# fail and no repair may run: prepare's in-place retry is held on
+# `no_capable_worker` with the reason `worker_environment_missing` and the
+# missing library named, until a provisioned worker joins (or the gap
+# expires or the worker is reprovisioned).
+name: worker environment missing holds without a provisioned worker
+max_ticks: 30
+repository:
+  owner: simulation
+  name: worker-environment-missing-holds
+runtime:
+  workers:
+    - worker-unprovisioned
+runner:
+  auto_retry_failed_jobs: false
+jobs:
+  needs_zstd:
+    title: mysql2 links zstd
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+  steps:
+    prepare:
+      - status: failure
+        problem_code: worker_environment_missing
+        problem_evidence:
+          missing_kind: library
+          missing_name: zstd
+          command: bundle install
+        error_message: "prepare command failed (exit 5): bundle install\nOutput tail:\nld: library 'zstd' not found"
+expect:
+  jobs:
+    needs_zstd:
+      - queued
+      - running
+  run_evidence:
+    - job: needs_zstd
+      step: prepare
+      classification: worker_environment_missing
+  workflow_artifacts:
+    - job: needs_zstd
+      values:
+        run_queue_blocked:
+          reason: worker_environment_missing
+          step_kind: prepare
+  absent_events:
+    - "implement ->"
+    - "retry_workflow"
+success_states:
+  needs_zstd:
+    - implemented
+wait_states:
+  needs_zstd:
+    - queued
+    - running

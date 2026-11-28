@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_041857) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -5154,6 +5154,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_041857) do
     t.index ["scope_type", "scope_id", "state"], name: "idx_work_units_scope_state"
     t.index ["work_intent_id", "state"], name: "idx_work_units_intent_state"
     t.index ["workflow_id"], name: "idx_work_units_workflow"
+  end
+
+  create_table "worker_environment_gaps", force: :cascade do |t|
+    t.string "hostname", null: false
+    t.string "worker_storage_key"
+    t.integer "repository_id"
+    t.string "missing_kind", null: false
+    t.string "missing_name"
+    t.string "source", null: false
+    t.integer "run_id"
+    t.json "evidence"
+    t.datetime "detected_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "cleared_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname", "cleared_at"], name: "idx_worker_environment_gaps_host_active"
+    t.index ["repository_id", "cleared_at"], name: "idx_worker_environment_gaps_repo_active"
   end
 
   create_table "worker_host_health_samples", force: :cascade do |t|

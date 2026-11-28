@@ -38,6 +38,7 @@ module Steps
       disk_full
       git_transport_transient
       prepare_network_transient
+      worker_environment_missing
       grader_cancelled
       silent_timed_out
       timed_out

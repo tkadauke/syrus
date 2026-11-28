@@ -29,7 +29,7 @@ RSpec.describe RunFailureClassifier do
   end
 
   declared = {
-    "prepare" => %w[prepare_install_failed prepare_network_transient timeout validation_or_user_error],
+    "prepare" => %w[prepare_install_failed prepare_network_transient worker_environment_missing timeout validation_or_user_error],
     "push" => %w[git_transport_transient git_conflict git_ref_missing git_auth_denied branch_diverged],
     "pr_open" => %w[github_api_transient github_api_rate_limited github_api_rejected],
     "grader" => %w[grader_failure timeout]

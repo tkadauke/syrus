@@ -12,15 +12,20 @@ module FailureProblems
   #   2. process disappeared    -- worker_died
   #   3. timed out              -- timeout (retryable within the retry budget)
   #   4. disk full              -- disk_full
-  #   5. deterministic build    -- prepare_install_failed (compile, link,
-  #                                missing library, lockfile resolution,
-  #                                missing executable). Checked before the
+  #   5. worker environment     -- worker_environment_missing: a system
+  #                                library, header or executable this worker
+  #                                does not have. The change is fine; the same
+  #                                prepare passes on a provisioned worker, so
+  #                                this is infrastructure, routed elsewhere.
+  #   6. deterministic build    -- prepare_install_failed (compile, lockfile
+  #                                resolution, a repository-relative script
+  #                                that does not exist). Checked before the
   #                                network patterns because a failed build
   #                                prints download lines ("Fetching ...")
   #                                that can look like network activity.
-  #   6. registry network       -- prepare_network_transient
-  #   7. ambiguous "not found"  -- prepare_install_failed, unless (6) matched
-  #   8. anything else          -- prepare_install_failed (unrecognized): a
+  #   7. registry network       -- prepare_network_transient
+  #   8. ambiguous "not found"  -- prepare_install_failed, unless (7) matched
+  #   9. anything else          -- prepare_install_failed (unrecognized): a
   #                                command that failed twice in a row, with
   #                                no network evidence, is not noise.
   module Prepare
@@ -31,12 +36,6 @@ module FailureProblems
     # present, names the package or library involved.
     DETERMINISTIC_PATTERNS = [
       # Native extensions: RubyGems, node-gyp, Python wheels, generic make/ld.
-      [ "missing_system_library", /ld: library '([^']+)' not found/ ],
-      [ "missing_system_library", /cannot find -l(\S+)/ ],
-      [ "missing_system_library", /fatal error: ([\w\/.+-]+\.h): No such file or directory/ ],
-      [ "missing_system_library", /fatal error: '([\w\/.+-]+\.h)' file not found/ ],
-      [ "missing_system_library", /Package '?([\w.+-]+)'?,? (?:was not found in the pkg-config search path|required by .* not found)/ ],
-      [ "missing_system_library", /\b(mysql_config|pg_config) (?:not found|is not in PATH)|Can't find the '([\w.+-]+)' library/i ],
       [ "native_extension", /Failed to build gem native extension/ ],
       [ "native_extension", /Gem::Ext::BuildError/ ],
       [ "native_extension", /^make(?:\[\d+\])?: \*\*\* .*Error \d+/ ],
@@ -57,11 +56,27 @@ module FailureProblems
       [ "dependency_resolution", /Your bundle is locked to (\S+)/ ],
       [ "dependency_resolution", /ResolutionImpossible|Cannot install .* because these package versions have conflicting dependencies/ ],
       [ "dependency_resolution", /poetry\.lock .*(?:not consistent|was last generated)|pyproject\.toml changed significantly since poetry\.lock/ ],
-      [ "dependency_resolution", /Gemfile\.lock.*(?:merge conflict|corrupt)|Your Gemfile\.lock contains merge conflicts/ ],
-      # A command or binary that does not exist on this worker.
-      [ "missing_executable", /(?:bash|sh): (?:line \d+: |\d+: )?([\w.\/-]+): (?:command )?not found/ ],
-      [ "missing_executable", /npm (?:ERR!|error) syscall spawn (\S+)/ ],
-      [ "missing_executable", /spawn (\S+) ENOENT/ ]
+      [ "dependency_resolution", /Gemfile\.lock.*(?:merge conflict|corrupt)|Your Gemfile\.lock contains merge conflicts/ ]
+    ].freeze
+
+    # Something this worker lacks: [failure_kind, missing_kind, pattern]. The
+    # first capture group names what is missing. Checked before the
+    # repository's own build failures, because a native extension that cannot
+    # find a library also reports "Failed to build gem native extension".
+    ENVIRONMENT_PATTERNS = [
+      [ "missing_system_library", "library", /ld: library '([^']+)' not found/ ],
+      [ "missing_system_library", "library", /cannot find -l(\S+)/ ],
+      [ "missing_system_library", "library", /error while loading shared libraries: (\S+?):? cannot open shared object file/ ],
+      [ "missing_system_library", "library", /Package '?([\w.+-]+)'?,? (?:was not found in the pkg-config search path|required by .* not found)/ ],
+      [ "missing_system_library", "library", /Can't find the '([\w.+-]+)' library/i ],
+      [ "missing_system_library", "executable", /\b(mysql_config|pg_config) (?:not found|is not in PATH)/i ],
+      [ "missing_system_library", "header", /fatal error: ([\w\/.+-]+\.h): No such file or directory/ ],
+      [ "missing_system_library", "header", /fatal error: '([\w\/.+-]+\.h)' file not found/ ],
+      [ "missing_executable", "executable", /(?:bash|sh): (?:line \d+: |\d+: )?([\w.\/-]+): (?:command )?not found/ ],
+      [ "missing_executable", "executable", /(?:bash|sh): (?:line \d+: )?([\w.\/-]+): No such file or directory/ ],
+      [ "missing_executable", "executable", /gyp ERR! stack Error: not found: (\S+)/ ],
+      [ "missing_executable", "executable", /npm (?:ERR!|error) syscall spawn (\S+)/ ],
+      [ "missing_executable", "executable", /spawn (\S+) ENOENT/ ]
     ].freeze
 
     # Statements that a package could not be found that a registry outage can
@@ -131,6 +146,13 @@ module FailureProblems
       return FailureProblems.declare(:timeout, base.merge(timed_out: true, duration_s: failure["duration_s"])) if failure["timed_out"]
       return FailureProblems.declare(:disk_full, base) if tail.match?(Steps::Base::DISK_FULL_PATTERN)
 
+      if (missing = environment_gap(tail))
+        failure_kind, missing_kind, name = missing
+        return install_failed(base, tail, failure_kind, name) if missing_kind == :repository
+
+        return environment_missing(base, tail, failure_kind, missing_kind, name)
+      end
+
       if (match = first_match(DETERMINISTIC_PATTERNS, tail))
         return install_failed(base, tail, *match)
       end
@@ -143,11 +165,53 @@ module FailureProblems
         return install_failed(base, tail, *match)
       end
 
+      # The shell's "command not found" status with no message naming the
+      # command: the program the prepare line starts with is not here.
       if failure["exit_status"].to_i == MISSING_EXECUTABLE_EXIT
-        return install_failed(base, tail, "missing_executable", nil)
+        program = failure["command"].to_s.split.first
+        return install_failed(base, tail, "missing_executable", program) if repository_path?(program)
+
+        return environment_missing(base, tail, "missing_executable", "executable", program)
       end
 
       install_failed(base, tail, "unrecognized", nil)
+    end
+
+    # [failure_kind, missing_kind, name] for a missing worker dependency, or
+    # nil. A missing *repository-relative* program (`bin/setup`,
+    # `./scripts/x`, `node_modules/.bin/y`) is the repository's own problem,
+    # not the worker's: it comes back with missing_kind :repository, and is
+    # answered as prepare_install_failed.
+    def environment_gap(tail)
+      ENVIRONMENT_PATTERNS.each do |failure_kind, missing_kind, pattern|
+        match = tail.match(pattern)
+        next unless match
+
+        name = match.captures.compact.first
+        return [ failure_kind, :repository, name ] if missing_kind == "executable" && repository_path?(name)
+
+        return [ failure_kind, missing_kind, name ]
+      end
+      nil
+    end
+
+    def repository_path?(program)
+      program = program.to_s
+      return false if program.blank? || program.start_with?("/")
+
+      program.include?("/")
+    end
+
+    def environment_missing(base, tail, failure_kind, missing_kind, name)
+      evidence = base.merge(
+        failure_kind: failure_kind,
+        missing_kind: missing_kind,
+        missing_name: name,
+        subject: name,
+        failed_package: failed_package(tail),
+        error_line: error_line(tail)
+      )
+      FailureProblems.declare(:worker_environment_missing, evidence)
     end
 
     def first_match(patterns, tail)

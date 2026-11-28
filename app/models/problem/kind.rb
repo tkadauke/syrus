@@ -86,6 +86,14 @@ class Problem
       Entry.new(code: "prepare_network_transient", scope: :external, retryable: true,
                 default_remediation: :retry_step,
                 label: "Package registry temporarily unreachable"),
+      # Declared by FailureProblems::Prepare when an install fails because the
+      # worker lacks a system library, header or executable. Not the change's
+      # failure: the worker is recorded as unable to run that repository's
+      # work (WorkerEnvironmentGap), so the step is retried in place on
+      # another worker, or holds on `no_capable_worker` when none is left.
+      Entry.new(code: "worker_environment_missing", scope: :external, retryable: true,
+                default_remediation: :defer,
+                label: "Worker is missing a required system dependency"),
       # Declared by FailureProblems::GithubApi from Octokit's error class and
       # HTTP status. Separate from provider_transient, which feeds the agent
       # provider circuit breaker: a GitHub outage is not a provider outage.

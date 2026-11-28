@@ -333,7 +333,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       YAML
     end
 
-    it "declares a native extension that cannot link a non-retryable install failure naming the gem" do
+    it "declares a native extension that cannot link the worker's missing dependency, naming the gem and library" do
       stub_command_output(<<~OUT, exit_status: 5)
         Fetching timeout 0.6.1
         Installing mysql2 0.5.7 with native extensions
@@ -346,9 +346,16 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
 
       problem = failure_problem
 
+      expect(problem.code).to eq("worker_environment_missing")
+      expect(problem.evidence).to include(command: "bundle install --jobs 4", failed_package: "mysql2 (0.5.7)", missing_name: "zstd")
+    end
+
+    it "declares a lockfile that does not resolve the repository's own non-retryable failure" do
+      stub_command_output("npm error code ERESOLVE\nnpm error ERESOLVE unable to resolve dependency tree\n", exit_status: 1)
+
+      problem = failure_problem
       expect(problem.code).to eq("prepare_install_failed")
       expect(problem).not_to be_retryable
-      expect(problem.evidence).to include(command: "bundle install --jobs 4", failed_package: "mysql2 (0.5.7)", subject: "zstd")
     end
 
     it "declares a registry connection reset retryable" do
@@ -378,7 +385,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
         CaptureRunDiagnostic.capture(run, e)
       end
 
-      expect(run.reload.run_diagnostic.problem_code).to eq("prepare_install_failed")
+      expect(run.reload.run_diagnostic.problem_code).to eq("worker_environment_missing")
     end
   end
 

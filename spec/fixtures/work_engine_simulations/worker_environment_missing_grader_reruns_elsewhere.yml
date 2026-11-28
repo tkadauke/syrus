@@ -1,0 +1,91 @@
+# A distributed grader's own dependency install fails on a worker that lacks
+# the zstd library. The tree is fine -- the same install passes on a
+# provisioned worker -- so the failure must not reach grader collect as a red
+# verdict for the repair agent to "fix". The grader declares
+# worker_environment_missing, is retried in place on the provisioned worker,
+# and the grade loop collects green without any repair step.
+name: worker environment missing grader reruns elsewhere
+max_ticks: 40
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: worker-environment-missing-grader-reruns-elsewhere
+  distributed_workflow_dag_enabled: true
+runtime:
+  workers:
+    - worker-unprovisioned
+    - worker-provisioned
+jobs:
+  job:
+    title: Grader install needs zstd
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: rspec
+          kind: grader
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: rspec
+            required: true
+          run:
+            state: queued
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - rspec
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+  steps:
+    grader:rspec:
+      - status: failure
+        worker: worker-unprovisioned
+        problem_code: worker_environment_missing
+        problem_evidence:
+          missing_kind: library
+          missing_name: zstd
+          command: bundle install
+        error_message: "immutable source prepare command failed: bundle install"
+      - status: success
+        worker: worker-unprovisioned
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  run_evidence:
+    - job: job
+      step: grader
+      classification: worker_environment_missing
+  events:
+    - "placement avoided"
+  absent_events:
+    - "landing_fix ->"
+    - "implement ->"
+    - "analyze_and_fix ->"

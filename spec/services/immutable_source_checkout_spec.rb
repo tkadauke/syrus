@@ -396,7 +396,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     }
   end
 
-  it "declares a native build failure a non-retryable install failure naming the package" do
+  it "declares a native build that cannot find a worker library the worker's missing dependency, naming the package" do
     update_remote_config(<<~'YAML')
       prepare:
         - "echo \"ld: library 'zstd' not found\" && echo \"An error occurred while installing mysql2 (0.5.7), and Bundler cannot continue.\" && exit 5"
@@ -404,8 +404,8 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     checkout = described_class.new(step)
 
     expect { checkout.setup }.to raise_error(Steps::Base::StepFailed, /immutable source prepare command failed/) { |error|
-      expect(error.problem.code).to eq("prepare_install_failed")
-      expect(error.problem.evidence).to include(failed_package: "mysql2 (0.5.7)", subject: "zstd", exit_status: 5)
+      expect(error.problem.code).to eq("worker_environment_missing")
+      expect(error.problem.evidence).to include(failed_package: "mysql2 (0.5.7)", missing_name: "zstd", exit_status: 5)
     }
   end
 

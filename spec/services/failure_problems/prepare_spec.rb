@@ -50,18 +50,42 @@ RSpec.describe FailureProblems::Prepare do
       mysql2
   TAIL
 
-  it "declares a native extension that cannot link a system library a non-retryable install failure" do
+  # The change is fine: the same install passes on a worker that has zstd.
+  # So it is the worker's defect, never the change's failure.
+  it "declares a native extension that cannot link a system library the worker's missing dependency" do
     problem = classify(mysql2_zstd_tail)
 
-    expect(problem.code).to eq("prepare_install_failed")
-    expect(problem).not_to be_retryable
+    expect(problem.code).to eq("worker_environment_missing")
+    expect(problem).to be_retryable
     expect(problem.evidence).to include(
       command: "bundle install --jobs 4",
       exit_status: 5,
       failure_kind: "missing_system_library",
-      subject: "zstd",
+      missing_kind: "library",
+      missing_name: "zstd",
       failed_package: "mysql2 (0.5.7)"
     )
+  end
+
+  it "keeps a gem whose own source fails to compile against present libraries the repository's failure" do
+    tail = <<~TAIL
+      Installing broken_ext 0.1.0 with native extensions
+      Gem::Ext::BuildError: ERROR: Failed to build gem native extension.
+      compiling broken_ext.c
+      broken_ext.c:12:3: error: use of undeclared identifier 'rb_frobnicate'
+      make: *** [broken_ext.o] Error 1
+      An error occurred while installing broken_ext (0.1.0), and Bundler cannot continue.
+    TAIL
+
+    problem = classify(tail)
+    expect(problem.code).to eq("prepare_install_failed")
+    expect(problem.evidence).to include(failure_kind: "native_extension", failed_package: "broken_ext (0.1.0)")
+  end
+
+  it "declares a shared library the worker cannot load a missing worker library" do
+    tail = "node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory"
+
+    expect(classify(tail, exit_status: 127)).to have_attributes(code: "worker_environment_missing")
   end
 
   it "names the gem from Bundler's remaining-files notice when the summary line was cut off" do
@@ -78,7 +102,9 @@ RSpec.describe FailureProblems::Prepare do
       An error occurred while installing pg (1.5.9), and Bundler cannot continue.
     TAIL
 
-    expect(classify(tail).evidence).to include(failure_kind: "missing_system_library", subject: "libpq-fe.h", failed_package: "pg (1.5.9)")
+    problem = classify(tail)
+    expect(problem.code).to eq("worker_environment_missing")
+    expect(problem.evidence).to include(missing_kind: "header", missing_name: "libpq-fe.h", failed_package: "pg (1.5.9)")
   end
 
   it "declares an npm dependency-tree conflict a resolution failure" do
@@ -100,11 +126,34 @@ RSpec.describe FailureProblems::Prepare do
     expect(classify(tail, exit_status: 1).evidence).to include(failure_kind: "dependency_resolution")
   end
 
-  it "declares a missing executable from exit 127 and the shell's own message" do
+  it "declares a tool the worker does not have a missing worker executable" do
     problem = classify("bash: line 1: pnpm: command not found", exit_status: 127)
 
+    expect(problem.code).to eq("worker_environment_missing")
+    expect(problem.evidence).to include(failure_kind: "missing_executable", missing_kind: "executable", missing_name: "pnpm")
+  end
+
+  it "declares a bare exit 127 the missing program the prepare line starts with" do
+    problem = described_class.for(failure("", exit_status: 127).merge("command" => "gh auth setup-git"))
+
+    expect(problem.code).to eq("worker_environment_missing")
+    expect(problem.evidence).to include(missing_name: "gh")
+  end
+
+  it "declares spawn ENOENT for a missing tool a missing worker executable" do
+    problem = classify("npm error code ENOENT\nnpm error syscall spawn playwright-mcp\nnpm error path /work\n", exit_status: 1)
+
+    expect(problem.code).to eq("worker_environment_missing")
+    expect(problem.evidence).to include(missing_name: "playwright-mcp")
+  end
+
+  # A script the repository itself should contain is the repository's
+  # problem, not the worker's.
+  it "keeps a missing repository-relative script the repository's failure" do
+    problem = classify("bash: line 1: bin/setup-deps: No such file or directory", exit_status: 127)
+
     expect(problem.code).to eq("prepare_install_failed")
-    expect(problem.evidence).to include(failure_kind: "missing_executable", subject: "pnpm")
+    expect(problem.evidence).to include(failure_kind: "missing_executable", subject: "bin/setup-deps")
   end
 
   it "declares an npm registry connection reset a retryable network failure" do
