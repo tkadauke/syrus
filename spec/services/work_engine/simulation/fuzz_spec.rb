@@ -92,6 +92,19 @@ RSpec.describe WorkEngine::Simulation::Fuzz do
       expect(events.to_json).not_to include('"job":null')
     end
 
+    it "never closes a Job other Jobs depend on, which only rediscovers abandoned_blockers" do
+      context = described_class.context_for(
+        { "jobs" => { "parent" => {}, "child" => { "depends_on" => [ "parent" ] }, "stacked" => { "parent_job" => "child" } } },
+        ticks: 8
+      )
+      catalog = described_class.new(Random.new(3), context)
+
+      closed = 40.times.flat_map { catalog.send(:build, "close_externally", 0) }.map { |event| event.dig("do", "merge_pr", "job") }
+
+      expect(context.blocker_keys).to eq(%w[child parent])
+      expect(closed.uniq).to eq([ "stacked" ])
+    end
+
     it "draws every catalog perturbation as events the runner knows" do
       context = described_class.context_for({ "jobs" => { "a" => {}, "b" => {} }, "runtime" => { "workers" => [ "w1" ] } }, ticks: 8)
       catalog = described_class.new(Random.new(7), context)

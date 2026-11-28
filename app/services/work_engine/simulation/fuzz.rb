@@ -72,12 +72,14 @@ module WorkEngine
         OPERATOR_RACES = [
           %w[approve pause_work], %w[pause_work approve], %w[approve approve], %w[pause_work pause_work]
         ].freeze
-        Context = Data.define(:job_keys, :stack_children, :workers, :workspace, :ticks, :git)
+        Context = Data.define(:job_keys, :blocker_keys, :stack_children, :workers, :workspace, :ticks, :git)
 
         def self.context_for(data, ticks:)
           jobs = data.fetch("jobs", {}).to_h
+          blockers = jobs.values.flat_map { |attrs| [ *Array(attrs.to_h["depends_on"]), attrs.to_h["parent_job"] ] }
           Context.new(
             job_keys: jobs.keys.map(&:to_s).sort,
+            blocker_keys: blockers.compact.map(&:to_s).uniq.sort,
             stack_children: jobs.select { |_key, attrs| attrs.to_h["parent_job"].present? }.keys.map(&:to_s).sort,
             workers: Array(data.dig("runtime", "workers")).map(&:to_s),
             workspace: data.dig("runtime", "workspace").present?,
@@ -162,7 +164,13 @@ module WorkEngine
             key = job
             [ event(kind, index, at, { "report_ci_failure" => { "job" => key } }, key) ]
           when "close_externally"
-            key = job
+            # Closing a Job others wait on unmerged is exactly what
+            # abandoned_blockers reports (detection only, an operator decides),
+            # so like a force-fail it would only rediscover that invariant.
+            candidates = context.job_keys - context.blocker_keys
+            return [] if candidates.empty?
+
+            key = candidates.sample(random: rng)
             [ event(kind, index, at, { "merge_pr" => { "job" => key, "merged" => false } }, key) ]
           when "merge_externally"
             key = job
