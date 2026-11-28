@@ -55,6 +55,15 @@ RSpec.describe Invariants::RetryStorms do
     expect(described_class.call(now: Time.current)).to be_empty
   end
 
+  it "counts one error together when the classifier labels it differently from run to run" do
+    3.times { |index| failed_attempt(message: native_gem_failure(index), classification: "provider_transient") }
+    3.times { |index| failed_attempt(message: native_gem_failure(index), classification: "timeout") }
+
+    storm = described_class.call(now: Time.current).sole
+
+    expect(storm.details).to include("failures" => 6, "classifications" => { "provider_transient" => 3, "timeout" => 3 }, "retryable" => true)
+  end
+
   it "keeps different step kinds apart" do
     3.times { |index| failed_attempt(message: native_gem_failure(index)) }
     3.times { |index| failed_attempt(kind: "implement", message: native_gem_failure(index)) }

@@ -10,10 +10,15 @@ module Invariants
   # transient -- a native-gem build failure in a prepare step once failed
   # twenty times an hour classified as provider_transient.
   #
-  # The fingerprint is the failure classification plus the recorded error
-  # class and message with volatile tokens (numbers, hex ids, paths under the
-  # data root) masked, so two failures that differ only in a run id or a
-  # timestamp count as one failure repeated.
+  # The fingerprint is the recorded problem code, error class, and error
+  # message with volatile tokens (numbers, hex ids, workspace paths) masked, so
+  # two failures that differ only in a run id or a timestamp count as one
+  # failure repeated. The classification is deliberately not part of it when
+  # an error was recorded: the classifier can label the same error differently
+  # from run to run (the native-gem storm alternated between
+  # provider_transient and timeout), and splitting on that would hide the
+  # storm. It is reported instead, as a tally. Runs without a recorded error
+  # fall back to their classification.
   class RetryStorms < Base
     DEFAULTS = { max_failures: 5, window: 1.hour }.freeze
     SAMPLE_RUN_IDS = 10
@@ -40,17 +45,20 @@ module Invariants
         next unless job
 
         ordered = group.sort_by { |_, _, _, finished_at| finished_at }
-        sample_run_id = ordered.last.first
-        classification, retryable = classifications[sample_run_id]
-        error_class, error_message, problem_code = diagnostics[sample_run_id]
+        verdicts = ordered.map { |run_id, *| classifications[run_id] || [ nil, nil ] }
+        tally = verdicts.map { |classification, _| classification || "unclassified" }.tally
+        classification = tally.max_by { |name, count| [ count, name ] }.first
+        error_class, error_message, problem_code = diagnostics[ordered.last.first]
+        # Critical while any attempt was judged retryable: that is the
+        # mislabel that keeps the storm going.
         violation(
-          severity: retryable == false ? :warning : :critical,
+          severity: verdicts.all? { |_, retryable| retryable == false } ? :warning : :critical,
           subject_type: "Job",
           subject_id: job.id,
           discriminator: "#{step_kind}:#{fingerprint}",
           since: ordered.first.last,
           message_params: { job: job.slug, step: step_kind, count: group.size, window_minutes: (options.fetch(:window) / 1.minute).round,
-                            classification: classification || "unclassified" },
+                            classification: classification },
           affected_ids: { job_ids: [ job.id ], run_ids: ordered.last(SAMPLE_RUN_IDS).map(&:first) },
           details: {
             job: job_ref(job),
@@ -62,7 +70,8 @@ module Invariants
             last_failure_at: iso(ordered.last.last),
             fingerprint: fingerprint,
             classification: classification,
-            retryable: retryable,
+            classifications: tally,
+            retryable: verdicts.any? { |_, retryable| retryable != false },
             problem_code: problem_code,
             error_class: error_class,
             error_message: error_message.to_s.squish.truncate(MESSAGE_PREFIX),
@@ -81,15 +90,19 @@ module Invariants
     end
 
     def fingerprint_for(classification_row, diagnostic_row)
-      classification, = classification_row
       error_class, error_message, problem_code = diagnostic_row
+      if error_class.blank? && error_message.blank?
+        classification, = classification_row
+        return Digest::SHA256.hexdigest("classification\n#{classification}").first(16)
+      end
+
       normalized = error_message.to_s
                                 .gsub(%r{/[^\s:'"]*/(?:workflows|runs|tmp)/[^\s:'"]*}, "<path>")
                                 .gsub(/\b[0-9a-f]{7,40}\b/i, "<hex>")
                                 .gsub(/\d+/, "<n>")
                                 .squish
                                 .first(MESSAGE_PREFIX)
-      Digest::SHA256.hexdigest([ classification, problem_code, error_class, normalized ].join("\n")).first(16)
+      Digest::SHA256.hexdigest([ problem_code, error_class, normalized ].join("\n")).first(16)
     end
   end
 end
