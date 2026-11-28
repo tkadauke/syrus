@@ -36,18 +36,19 @@ module RuntimeImages
       releases = CoworkerBaseRelease.includes(:runtime_image).index_by { |release| release.digest }
       return [] if releases.empty?
 
-      stale = releases.select { |_, release| reasons_for(release).any? }
-      return [] if stale.empty?
-
       replacements = {}
       findings = []
       RuntimeImage.pullable.where.not(source_kind: CoworkerBase::SOURCE_KIND).find_each(batch_size: @batch_size) do |image|
         digests = Array(Hash(image.provenance)["base_images"]).filter_map { |entry| entry["digest"] if entry.is_a?(Hash) }
-        base = digests.filter_map { |digest| stale[digest] }.first
+        base = digests.filter_map { |digest| releases[digest] }.first
         next unless base
 
+        reasons = reasons_for(base)
+        reasons << "provider_contract_outdated" if RuntimeAbi.outdated_contract?(image)
+        next if reasons.empty?
+
         replacement = replacements.fetch(base.platform) { replacements[base.platform] = usable_replacement(base.platform) }
-        findings << Finding.new(image: image, base: base, reasons: reasons_for(base), replacement: replacement)
+        findings << Finding.new(image: image, base: base, reasons: reasons, replacement: replacement)
       end
       findings
     end
@@ -60,8 +61,7 @@ module RuntimeImages
       release if release && reasons_for(release).empty?
     end
 
-    def summary
-      findings = environments_needing_rebuild
+    def summary(findings: environments_needing_rebuild)
       { total: findings.size, blocked: findings.count { |f| f.replacement.nil? },
         by_reason: findings.flat_map(&:reasons).tally, environments: findings.first(50).map(&:to_h) }
     end

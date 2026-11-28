@@ -1,6 +1,9 @@
 require "rails_helper"
+require "support/coworker_base_release_helpers"
 
 RSpec.describe RuntimeImages::BuildRequests do
+  include CoworkerBaseReleaseHelpers
+
   let(:service) { described_class.new }
   let(:files) { { "smoke-test" => "#!/bin/sh\ntrue\n", "Dockerfile" => "FROM scratch\n" } }
 
@@ -11,6 +14,18 @@ RSpec.describe RuntimeImages::BuildRequests do
 
     expect(second).to eq(first)
     expect(RuntimeImageBuildRequest.where(id: first.id)).to contain_exactly(first)
+  end
+
+  it "exposes only a currently supported base as a rebuild target" do
+    allow(BaseRebuildDiscoveryJob).to receive(:perform_later)
+    release = active_base
+
+    expect(service.base_for_rebuild(release.id)).to have_attributes(
+      id: release.id, digest: release.digest, runtime_abi: release.runtime_abi
+    )
+
+    base_releases.set_support_deadline!(release, until_time: 1.minute.ago, actor: "operator")
+    expect(service.base_for_rebuild(release.id)).to be_nil
   end
 
   private

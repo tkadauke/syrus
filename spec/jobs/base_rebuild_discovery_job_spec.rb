@@ -17,6 +17,23 @@ RSpec.describe BaseRebuildDiscoveryJob do
     expect(event.details).to include("total" => 1, "blocked" => 1)
   end
 
+  it "requests a replacement build when a compatible active base exists" do
+    old_release = active_base
+    environment_image = publish_environment(old_release)
+    replacement = candidate
+    base_releases.promote!(replacement, actor: "operator")
+    base_releases.set_support_deadline!(old_release, until_time: 1.minute.ago, actor: "operator")
+
+    expect(Syrus::Events).to receive(:publish).with(
+      "runtime_image.rebuild_requested",
+      runtime_image_id: environment_image.id,
+      replacement_base_release_id: replacement.id,
+      reasons: [ "support_ended" ]
+    )
+
+    described_class.new.perform
+  end
+
   it "stays quiet when nothing needs a rebuild" do
     active_base
     expect(described_class.new.perform).to eq(0)
