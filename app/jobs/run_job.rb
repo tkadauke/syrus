@@ -862,7 +862,7 @@ class RunJob < ApplicationJob
     end
   end
 
-  def with_lifecycle_lock_retry(operation, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS)
+  def with_lifecycle_lock_retry(operation, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS, causal_exception: nil)
     attempts = 0
 
     begin
@@ -872,7 +872,14 @@ class RunJob < ApplicationJob
     rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
       attempts += 1
       exhausted = attempts >= max_attempts
-      log_lifecycle_lock_conflict(operation, e, attempts:, exhausted:, max_attempts:)
+      log_lifecycle_lock_conflict(
+        operation,
+        e,
+        attempts:,
+        exhausted:,
+        max_attempts:,
+        causal_exception:
+      )
       if exhausted
         record_lifecycle_lock_outcome(operation, "exhausted")
         raise
@@ -892,10 +899,19 @@ class RunJob < ApplicationJob
     base + rand(0.0..base)
   end
 
-  def log_lifecycle_lock_conflict(operation, error, attempts:, exhausted:, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS)
+  def log_lifecycle_lock_conflict(
+    operation,
+    error,
+    attempts:,
+    exhausted:,
+    max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS,
+    causal_exception: nil
+  )
+    sql = lifecycle_lock_sql(error)
     Rails.logger.warn({
       event: "run_lifecycle_persistence_contention",
       operation: operation,
+      transaction_boundary: "RunJob##{operation}",
       queue: queue_name.to_s,
       job_id: @job&.id || @run&.job_id,
       workflow_id: @workflow&.id,
@@ -906,8 +922,19 @@ class RunJob < ApplicationJob
       exhausted: exhausted,
       error_class: error.class.name,
       error_message: error.message,
+      sql_fingerprint: (PerformanceLogging.fingerprint_sql(sql) if sql.present?),
+      causal_exception_class: causal_exception&.class&.name,
+      causal_exception_message: causal_exception&.message,
       error_backtrace: (error.backtrace if exhausted)
     }.compact.to_json)
+  end
+
+  def lifecycle_lock_sql(error)
+    [ error, error.cause ].compact.each do |candidate|
+      sql = candidate.sql if candidate.respond_to?(:sql)
+      return sql if sql.present?
+    end
+    nil
   end
 
   def record_lifecycle_lock_outcome(operation, outcome)
@@ -1220,12 +1247,16 @@ class RunJob < ApplicationJob
     # burst timed out, and its Run recorded the lock wait instead of the
     # grader's own result. Retried like every other lifecycle write.
     if @run&.may_fail?
-      with_lifecycle_lock_retry("fail_run") { fail_run_tolerating_duplicate_diagnostic! if @run.may_fail? }
+      with_lifecycle_lock_retry("fail_run", causal_exception: exception) do
+        fail_run_tolerating_duplicate_diagnostic! if @run.may_fail?
+      end
     end
 
-    with_lifecycle_lock_retry("record_landing_failure") { record_landing_failure!(exception) }
+    with_lifecycle_lock_retry("record_landing_failure", causal_exception: exception) do
+      record_landing_failure!(exception)
+    end
     if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
-      with_lifecycle_lock_retry("record_failure") do
+      with_lifecycle_lock_retry("record_failure", causal_exception: exception) do
         @workflow.record_run_failure!
       end
     end
