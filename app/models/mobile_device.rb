@@ -14,7 +14,7 @@ class MobileDevice < ApplicationRecord
   validates :platform, inclusion: { in: PLATFORMS }
   validates :apns_environment, inclusion: { in: APNS_ENVIRONMENTS }
   validates :token, presence: true, length: { maximum: 191 },
-                    format: { with: /\A[0-9a-fA-F]+\z/, message: "must be a hex-encoded device token" }
+                    format: { with: /\A[0-9a-fA-F]+\z/, message: :hex_encoded_device_token }
   validates :bundle_id, presence: true
   validates :last_registered_at, presence: true
 

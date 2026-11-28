@@ -171,6 +171,7 @@ en:
   errors:
     messages:
       inclusion: "is not included in the list"
+      hex_encoded_device_token: "must be a hex-encoded device token"
       review_evidence_run_lineage: "must match the Run lineage"
       review_evidence_provenance_immutable: "review evidence provenance is immutable: %{attributes}"
       review_evidence_stale_monotonic: "cannot leave stale"

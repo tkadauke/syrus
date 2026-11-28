@@ -141,6 +141,7 @@ la:
   errors:
     messages:
       inclusion: "non est in indice valorum permissorum"
+      hex_encoded_device_token: "signum machinae hexadecimaliter codificatum esse debet"
       review_evidence_run_lineage: "cum origine cursus congruere debet"
       review_evidence_provenance_immutable: "origo testimonii recensionis immutabilis est: %{attributes}"
       review_evidence_stale_monotonic: "statum obsoletum relinquere non potest"
