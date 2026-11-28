@@ -10,7 +10,7 @@ class Coworkers::EnvironmentPageSerializer
       "publication_state" => publication_state(snapshot),
       "verification_state" => snapshot.build_revision&.state,
       "current_base_digest" => snapshot.active_base&.digest,
-      "latest_safe_findings" => safe_findings(snapshot.build_revision),
+      "latest_safe_findings" => Coworkers::EnvironmentInspectionSerializer.safe_verification(snapshot.build_revision),
       "revisions" => revisions(snapshot),
       "main_chat_path" => main_chat_path
     )
@@ -30,16 +30,9 @@ class Coworkers::EnvironmentPageSerializer
     end
   end
 
-  def safe_findings(revision)
-    request = revision&.build_request
-    request&.evidences&.last&.safe_summary ||
-      request&.result&.details.to_h.fetch("evidence", {}).slice(*Coworkers::EnvironmentInspectionSerializer::SAFE_EVIDENCE_KEYS).presence
-  end
-
   def revisions(snapshot)
     rollback_ids = snapshot.rollback_revisions.map(&:id).to_set
-    environment.revisions.includes(:runtime_image, :base_release, build_request: :result)
-      .reorder(number: :desc).map do |revision|
+    snapshot.revisions.first(Coworkers::EnvironmentInspection::HISTORY_LIMIT).map do |revision|
       request = revision.build_request
       {
         "id" => revision.id,

@@ -8,6 +8,16 @@ class Coworkers::EnvironmentInspectionSerializer
     base_images layer_count layer_digests destination_count resources log_bytes log_dropped_bytes finished_at
   ].freeze
 
+  def self.safe_verification(revision)
+    return unless revision
+
+    request = revision.build_request
+    evidence = request&.evidences&.last
+    return evidence.safe_summary if evidence
+
+    request&.result&.details.to_h.fetch("evidence", {}).slice(*SAFE_EVIDENCE_KEYS).presence
+  end
+
   def initialize(snapshot)
     @snapshot = snapshot
   end
@@ -52,13 +62,7 @@ class Coworkers::EnvironmentInspectionSerializer
   end
 
   def safe_verification(revision)
-    return unless revision
-
-    request = revision.build_request
-    evidence = request&.evidences&.last
-    return evidence.safe_summary if evidence
-
-    request&.result&.details.to_h.fetch("evidence", {}).slice(*SAFE_EVIDENCE_KEYS).presence
+    self.class.safe_verification(revision)
   end
 
   def rollback_summary(revision)

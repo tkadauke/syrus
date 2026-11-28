@@ -30,6 +30,37 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "returns an empty environment for an owned coworker that has not configured one" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "New", handle: "new-environment-ui",
+                                            workspace_repo: "https://github.com/acme/new-workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      "environment" => nil,
+      "source" => { "repository" => coworker.workspace_repo, "branch" => "coworkers/#{coworker.handle}",
+                    "path" => "environment/" }
+    )
+  end
+
+  it "bounds the environment history to the newest revisions" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "History", handle: "bounded-environment-ui",
+                                            workspace_repo: "https://github.com/acme/history.git")
+    environment = Coworkers::Environment.create!(coworker:, state: "draft")
+    51.times do |index|
+      environment.revisions.create!(number: index + 1, source_digest: "sha256:#{(index + 1).to_s(16).rjust(64, '0')}")
+    end
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+
+    revisions = response.parsed_body.dig("environment", "revisions")
+    expect(revisions.size).to eq(Coworkers::EnvironmentInspection::HISTORY_LIMIT)
+    expect(revisions.pluck("number")).to eq((2..51).to_a.reverse)
+  end
+
   it "keeps coworker provenance out of slim navigation rows" do
     chat = ChatSession.create!(
       user: owner,
