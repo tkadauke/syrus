@@ -198,6 +198,24 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "permits an operator-confirmed autonomy mode switch to enabled" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "autonomy-target")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-autonomy-mode",
+      workspace_repo: "https://github.com/acme/workspace.git"
+    )
+    sign_in_as(owner)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}/grants", params: {
+      capability: "coworker.jobs.retry", approval_policy: "auto", scope: repository.id, confirmed: true,
+      constraints: { mode: "enabled" }
+    }
+
+    expect(response).to have_http_status(:no_content)
+    grant = coworker.permission_rules.entries.find { |entry| entry[:capability] == "coworker.jobs.retry" }
+    expect(grant[:constraints]).to include("mode" => "enabled")
+  end
+
   it "does not let another user change coworker grants" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-grant-owner", workspace_repo: "https://github.com/acme/workspace.git")
     sign_in_as(Factories.user)
