@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_143006) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -4067,6 +4067,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_143006) do
     t.index ["step_id", "state", "finished_at", "id"], name: "idx_runs_step_state_finished_for_throughput"
     t.index ["step_id", "state", "id"], name: "idx_runs_step_state_id"
     t.index ["step_id"], name: "index_runs_on_step_id"
+    t.index ["trigger_kind", "id"], name: "idx_runs_trigger_kind_id"
     t.index ["user_id", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_latest_finished"
     t.index ["user_id", "agent_provider", "state", "finished_at", "updated_at", "id"], name: "idx_runs_user_provider_state_recent"
     t.index ["user_id", "agent_provider", "state", "finished_at"], name: "idx_runs_user_provider_state_finished"
