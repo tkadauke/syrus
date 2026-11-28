@@ -4,7 +4,6 @@ import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer 
 import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/chats"
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
-import addJobDependencyCard from "./add_job_dependency"
 import { examples as cancelJobExamples } from "./cancel_job"
 import forceFailJobCard from "./force_fail_job"
 import { examples as forceFailJobExamples } from "./force_fail_job"
