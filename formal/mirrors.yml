@@ -359,3 +359,17 @@ models:
     owner: LandingFailureHandler
     method: runaway_retry_refused?
     sha: a366bdd3423383e7
+- model: BundleSelection.lean
+  mirrors:
+  - path: app/services/landing_bundle_assembler/scopes/priority_tier.rb
+    owner: PriorityTier
+    method: capped_members
+    sha: 91246e88205351cc
+  - path: app/services/landing_bundle_assembler/scopes/priority_tier.rb
+    owner: PriorityTier
+    method: coalesced_dependency_members
+    sha: 8190c926a0f8c14f
+  - path: app/services/landing_bundle_assembler/scopes/priority_tier.rb
+    owner: PriorityTier
+    method: candidates_with_satisfied_prerequisites
+    sha: '0123190337b50114'

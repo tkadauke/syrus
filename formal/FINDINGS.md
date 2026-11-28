@@ -5111,6 +5111,19 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
+## M87. A landing bundle never lands a member ahead of its prerequisite — proved, no bug
+
+`LandingBundleAssembler::Scopes::PriorityTier` keeps only candidates whose
+prerequisites are merged or are candidates themselves (a fixpoint), orders them
+by dependency (`LandingOrder.lean`), and caps them with `capped_members`.
+`BundleSelection.lean` mirrors the cap (the connected-set preference and the
+safe prefix) and checks every dependency graph on up to five candidates and
+every cap: every prerequisite of a member is a member, the cap is never
+exceeded, and under the cap every candidate is taken. In dependency order a
+prerequisite always precedes its dependent, so the safe-prefix rule only ever
+matters for the order's cycle fallback. This closes the last open p1 coverage
+item (`landing-queue-order`).
+
 ## F161. Per-turn image pinning would have stopped every coworker turn in production — fixed (NY48: B)
 
 **Invariant.** A deploy does not take away a working feature: coworker turns
