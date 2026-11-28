@@ -67,6 +67,7 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/dashboard/JobsTable.tsx#root1" => "dashboard job table uses dashboard preference controls for sort and column reorder",
     "plugins/agent_insights/app/frontend/agentInsightToolCard.tsx#root1" => "compact chat tool-card result summary",
     "plugins/agent_memory/app/frontend/memoryToolCard.tsx#root1" => "compact chat tool-card result summary",
+    "plugins/coworkers/app/frontend/routes/Coworkers.tsx#root1" => "coworker environment revision history detail table with fixed columns",
     "plugins/k8s_cluster/app/frontend/kubernetesToolCard.tsx#root1" => "compact chat tool-card result summary",
     "plugins/local_backups/app/frontend/routes/AdminLocalBackups.tsx#root1" => "backup inventory has fixed recovery-safety and action columns",
     "plugins/metrics_dashboard/app/frontend/routes/MetricsDashboard.tsx#root1" => "plugin-provided dashboard summary with a fixed schema",

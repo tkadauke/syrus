@@ -192,6 +192,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
         users.ok users.info_admin teams.heading teams.col_name teams.name_label operational_logs.revision_scope
         operational_logs.col_refs plugins.heading plugins.homepage plugins.version plugins.back_to_plugins
         plugins.col_tags installations.col_app_credential installations.col_pat_credential
+        retention_settings.environment.network_host retention_settings.environment.network_port
         stuck.filter_status stuck.col_status console.runs_title queue.col_pid queue.col_threads
         queue.col_version queue.col_minute queue.metric_cpu queue.metric_disk queue.metric_io
         queue.metric_load processes.col_chat_session processes.col_host_pid processes.detail_pid_pgid

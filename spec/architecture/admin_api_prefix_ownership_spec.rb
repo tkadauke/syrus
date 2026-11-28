@@ -99,6 +99,9 @@ RSpec.describe "admin API prefix ownership" do
     POST /api/v1/app/admin/settings/clear_secret api/v1/app/admin/settings#clear_secret
     GET /api/v1/app/admin/retention_settings api/v1/app/admin/retention_settings#show
     PATCH /api/v1/app/admin/retention_settings api/v1/app/admin/retention_settings#update
+    POST /api/v1/app/admin/retention_settings/network_rules api/v1/app/admin/retention_settings#create_network_rule
+    PATCH /api/v1/app/admin/retention_settings/network_rules/:id api/v1/app/admin/retention_settings#update_network_rule
+    DELETE /api/v1/app/admin/retention_settings/network_rules/:id api/v1/app/admin/retention_settings#destroy_network_rule
     GET /api/v1/app/admin/retention_archives/:id/download api/v1/app/admin/retention_archives#download
     GET /api/v1/app/admin/retention_archives api/v1/app/admin/retention_archives#index
     POST /api/v1/app/admin/platform_polling/start api/v1/app/admin/platform_polling#start

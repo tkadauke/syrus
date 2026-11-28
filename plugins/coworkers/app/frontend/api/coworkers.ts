@@ -57,6 +57,10 @@ export type CoworkerDetail = CoworkerSummary & {
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
 }
+
+type CoworkerFetchPayload = {
+  coworker: CoworkerSummary & Pick<CoworkerDetail, "chat_provider" | "chat_model" | "effective_model" | "workspace_repo" | "about">
+}
 export type CoworkerEnvironmentPayload = {
   feature_enabled: boolean
   source: { repository: string; branch: string; path: string }
@@ -274,9 +278,7 @@ export const fetchCoworkerOptions = () =>
 export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)
 export const acknowledgeProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/acknowledge`)
 export function fetchCoworker(id: string) {
-  return getJson<{ coworker: CoworkerSummary & Pick<CoworkerDetail, "chat_provider" | "chat_model" | "effective_model" | "workspace_repo" | "about"> }>(
-    `/api/v1/app/coworkers/${id}`
-  )
+  return getJson<CoworkerFetchPayload>(`/api/v1/app/coworkers/${id}`)
 }
 export function fetchCoworkerTab(id: string, tab: "chats" | "capabilities" | "schedules") {
   return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
@@ -291,7 +293,9 @@ export function fetchCoworkerWorkspace(id: string, search: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${search}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
-export const fetchCoworkerEnvironment = (id: string) => getJson<CoworkerEnvironmentPayload>(`/api/v1/app/coworkers/${id}/environment`)
+export function fetchCoworkerEnvironment(id: string) {
+  return getJson<CoworkerEnvironmentPayload>(`/api/v1/app/coworkers/${id}/environment`)
+}
 export function fetchCoworkerActivity(id: string, search = "", cursors?: { jobs?: string | null; sideChats?: string | null }) {
   const query = new URLSearchParams(search)
   query.delete("tab")

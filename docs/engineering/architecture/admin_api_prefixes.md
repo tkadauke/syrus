@@ -62,6 +62,10 @@ route intended only for the in-app admin UI should declare the
 credential-scope options is a UI-shaped app-admin endpoint, not an operator API.
 Connected-account provider configuration follows the same pattern: its read and
 update endpoints exist only to drive the plugin's in-app administrator form.
+Runtime-image build-network rule creation, editing, and deletion likewise live
+under the app-admin retention-settings surface because those mutations exist to
+drive that administrator form. The token-only operator API keeps its separate
+runtime-image network-rule contract for automation.
 The local-backup inventory, validation, pinning, deletion, download, and manual
 creation routes likewise exist only to drive its in-app administrator page.
 
