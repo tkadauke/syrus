@@ -3,6 +3,7 @@
 # the remaining coworkers from being reconciled.
 class Coworkers::EnvironmentReconciler
   STALE_BUILD_AFTER = 2.hours
+  TERMINAL_REVISION_STATES = %w[revoked rejected build_failed].freeze
   Finding = Data.define(:environment_id, :revision_id, :kind, :detail)
 
   attr_reader :findings
@@ -45,8 +46,12 @@ class Coworkers::EnvironmentReconciler
 
     image = revision.reload.runtime_image
     return unless image
+    # Terminal revisions cannot move to revoked, so revoking them again on
+    # every tick would only re-audit, re-publish, and overwrite the
+    # environment's error code with an old revision's image state.
+    return if TERMINAL_REVISION_STATES.include?(revision.state)
     if image.revoked? || image.deleted?
-      lifecycle.revoke!(revision, reason: "image_#{image.availability}") unless revision.revoked?
+      lifecycle.revoke!(revision, reason: "image_#{image.availability}")
       add(environment, revision, :image_unavailable, image.availability)
     end
   end
