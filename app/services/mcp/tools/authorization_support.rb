@@ -73,12 +73,12 @@ module Mcp::Tools
         context = McpToolContext.from_server_context(server_context)
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
-        if autonomous_coworker_job_action?(tool, context, server_context, arguments)
-          return
-        end
-
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
+        if autonomous_coworker_job_action?(tool, context, server_context, arguments)
+          enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
+          return
+        end
         if descriptor.ungated
           audit_essential!(context, coworker_capability_descriptor(descriptor), arguments)
           return
