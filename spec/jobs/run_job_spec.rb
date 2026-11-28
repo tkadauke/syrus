@@ -204,6 +204,73 @@ RSpec.describe RunJob, :ci_only do
       expect(landing_job.landing_failure_reason).to include("required grader failed")
     end
 
+    it "retains SQL, transaction, and causal evidence when landing failure persistence exhausts" do
+      landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 44,
+        pr_number: 125,
+        state: "implemented"
+      )
+      landing_job.approve!(via: "github_review")
+      landing_job.start_landing!
+      landing_job.save!
+      workflow = Workflows::AutoMerge.instantiate(job: landing_job)
+      run = workflow.steps.last.runs.create!(
+        job: landing_job,
+        trigger_kind: "auto_merge",
+        agent_provider: workflow.agent_provider,
+        state: "running",
+        started_at: Time.current
+      )
+      run_job = RunJob.new
+      run_job.queue_name = "resume-storage-key"
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, workflow)
+      run_job.instance_variable_set(:@job, landing_job)
+      semantic_failure_message =
+        "required grader failed at https://x-access-token:github_pat_secret123@github.com/example/repo"
+      semantic_failure = Steps::Base::StepFailed.new(semantic_failure_message)
+      deadlock = ActiveRecord::Deadlocked.new("Deadlock found when trying to get lock")
+      allow(deadlock).to receive(:sql).and_return("UPDATE jobs SET state = 'implemented' WHERE id = 44")
+      allow(LandingFailureHandler).to receive(:call).and_raise(deadlock)
+      messages = []
+      allow(Rails.logger).to receive(:warn) do |message|
+        parsed = JSON.parse(message)
+        messages << parsed if parsed["event"] == "run_lifecycle_persistence_contention"
+      rescue JSON::ParserError
+        nil
+      end
+
+      expect { run_job.send(:handle_failure, semantic_failure) }.to raise_error(ActiveRecord::Deadlocked)
+
+      evidence = messages.last
+      expect(evidence).to include(
+        "operation" => "record_landing_failure",
+        "transaction_boundary" => "RunJob#record_landing_failure",
+        "queue" => "resume-storage-key",
+        "job_id" => landing_job.id,
+        "workflow_id" => workflow.id,
+        "step_id" => run.step_id,
+        "run_id" => run.id,
+        "attempt" => RunJob::LIFECYCLE_LOCK_RETRY_ATTEMPTS,
+        "exhausted" => true,
+        "error_class" => "ActiveRecord::Deadlocked",
+        "causal_exception_class" => "Steps::Base::StepFailed",
+        "causal_exception_message" =>
+          "required grader failed at https://x-access-token:[REDACTED]@github.com/example/repo"
+      )
+      expect(evidence.fetch("sql_fingerprint"))
+        .to eq("UPDATE jobs SET state = ? WHERE id = ?")
+      expect(evidence.fetch("error_backtrace")).to be_an(Array)
+      expect(run.reload).to be_failed
+      expect(run.run_diagnostic).to have_attributes(
+        error_class: "Steps::Base::StepFailed",
+        error_message: semantic_failure_message
+      )
+    end
+
     it "records recovered lock contention with queue and lifecycle context" do
       run = job.initial_run
       run_job = RunJob.new
@@ -253,6 +320,7 @@ RSpec.describe RunJob, :ci_only do
       expect(run_job).to have_received(:defer_run).with(run.id, anything)
       expect(messages.last).to include(
         "event" => "run_lifecycle_persistence_contention",
+        "transaction_boundary" => "RunJob#acquire_execution",
         "job_id" => job.id,
         "workflow_id" => run.workflow_id,
         "run_id" => run.id,
