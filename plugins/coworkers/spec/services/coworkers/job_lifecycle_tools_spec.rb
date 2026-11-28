@@ -21,6 +21,15 @@ RSpec.describe "coworker Job lifecycle tools" do
     )
   end
 
+  def retryable_job
+    job = Factories.job_record(user: owner, repository:, state: "failed", filed_by_coworker_id: coworker.id)
+    workflow = Workflow.create!(job:, trigger_kind: "initial", state: "failed")
+    workflow.update_columns(started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    step = Step.create!(workflow:, kind: "implement", position: 0)
+    step.runs.create!(job:, trigger_kind: "initial", state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+    job
+  end
+
   it "inherits eligible shared Job lifecycle tools for coworkers" do
     coworker_tools = McpToolRegistry.entries(surface: :coworker).select do |entry|
       entry.descriptor.capability == Permissions::JobLifecycle::JOBS
@@ -83,7 +92,10 @@ RSpec.describe "coworker Job lifecycle tools" do
   end
 
   it "enforces a canonical deny rule before creating the lifecycle pending action" do
-    job = Factories.job_record(user: owner, repository:, state: "implemented")
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+    )
     descriptor = McpToolRegistry.entries(surface: :coworker)
       .find { |entry| entry.tool == Mcp::Tools::CancelJobTool }.descriptor
     PermissionRule.create!(
@@ -99,5 +111,99 @@ RSpec.describe "coworker Job lifecycle tools" do
     expect(response).to be_error
     expect(chat.pending_actions).to be_empty
     expect(job.reload).to be_implemented
+  end
+
+  it "autonomously approves its own Job under the repository rule and records the rule" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.approve", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+    rule = coworker.permission_rules.rules.find { |candidate| candidate.capability.start_with?("coworker.jobs.approve") }
+
+    response = Mcp::Tools::ApproveJobTool.call(job_id: job.id, server_context:)
+
+    expect(response).not_to be_error
+    expect(job.reload).to be_approved
+    audit = Permissions::CoworkerAudit.events_for(coworker).last
+    expect(audit.params).to include(
+      "permission_rule_id" => rule.id, "job_id" => job.id,
+      "autonomous_action" => "approve_job"
+    )
+  end
+
+  it "keeps operator confirmation for an ungranted own Job" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+
+    response = Mcp::Tools::CancelJobTool.call(job_id: job.id, reason: "Obsolete.", server_context:)
+
+    expect(response).not_to be_error
+    expect(job.reload).to be_implemented
+    expect(chat.pending_actions.last).to be_pending
+  end
+
+  it "does not give a regular chat a coworker's matching autonomy rule" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    regular_chat = ChatSession.create!(user: owner, repository:, title: "Operator chat")
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+
+    response = Mcp::Tools::CancelJobTool.call(
+      job_id: job.id, reason: "Obsolete.", server_context: { chat_session: regular_chat }
+    )
+
+    expect(response).not_to be_error
+    expect(job.reload).to be_implemented
+    expect(regular_chat.pending_actions.last).to be_pending
+  end
+
+  it "autonomously cancels its own Job under the repository rule" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+
+    response = Mcp::Tools::CancelJobTool.call(job_id: job.id, reason: "Superseded.", server_context:)
+
+    expect(response).not_to be_error
+    expect(job.reload).to be_closed
+    expect(chat.pending_actions.last).to be_confirmed
+    expect(Permissions::CoworkerAudit.events_for(coworker).last.params).to include(
+      "job_id" => job.id, "autonomous_action" => "cancel_job"
+    )
+  end
+
+  it "autonomously submits feedback on its own Job under the repository rule" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.feedback", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+
+    response = Mcp::Tools::SubmitChatFeedbackTool.call(
+      job_id: job.id, feedback: "Exercise the broader failure path.", server_context:
+    )
+
+    expect(response).not_to be_error
+    expect(chat.pending_actions.last).to be_confirmed
+    expect(job.workflows.where(trigger_kind: "chat_feedback")).to exist
+    expect(Permissions::CoworkerAudit.events_for(coworker).last.params).to include(
+      "job_id" => job.id, "autonomous_action" => "submit_chat_feedback"
+    )
+  end
+
+  it "autonomously retries its own Job under the repository rule" do
+    job = retryable_job
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.retry", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+
+    response = Mcp::Tools::RetryJobTool.call(job_id: job.id, server_context:)
+
+    expect(response).not_to be_error
+    expect(chat.pending_actions.last).to be_confirmed
+    expect(job.workflows.where(trigger_kind: "retry")).to exist
+    expect(Permissions::CoworkerAudit.events_for(coworker).last.params).to include(
+      "job_id" => job.id, "autonomous_action" => "retry_job"
+    )
   end
 end

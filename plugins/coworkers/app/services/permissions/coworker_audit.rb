@@ -14,6 +14,7 @@ module Permissions
       coworker_permission_revocation_requested
       coworker_permission_revoked
       coworker_syrus_chat_spawned
+      coworker_job_autonomy_action
     ].freeze
 
     def self.record!(event, owner:, coworker:, **details)

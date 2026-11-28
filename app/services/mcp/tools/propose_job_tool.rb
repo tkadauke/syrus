@@ -268,7 +268,20 @@ module Mcp::Tools
         end
 
         Mcp::Tools.broadcast_proposal_created(chat_session, proposal)
-        Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal))
+        autonomy = server_context[:coworker_job_autonomy]
+        if autonomy
+          job = ApplicationRecord.transaction do
+            result = ChatProposalFiler.new(user: chat_session.user, repository: repository).file!([ proposal ])
+            result.jobs.sole.tap do |filed_job|
+              filed_job.update!(filed_by_coworker_id: autonomy.fetch("coworker_id"))
+            end
+          end
+          actor = context.agent_actor
+          actor.record_job_autonomy!(authorization: autonomy, job:) if actor&.respond_to?(:record_job_autonomy!)
+          Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal.reload).merge(job_id: job.id, job_slug: job.slug))
+        else
+          Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal))
+        end
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       rescue ArgumentError => e

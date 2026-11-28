@@ -45,7 +45,10 @@ module Mcp::Tools
           return Mcp::Tools.invalid("job must be in implemented state") unless job.implemented?
 
           previous_state = job.state
+          autonomy = server_context[:coworker_job_autonomy]
           job.approve!(via: "operator", by_user: chat_session.user)
+          actor = McpToolContext.from_server_context(server_context).agent_actor
+          actor.record_job_autonomy!(authorization: autonomy, job:) if autonomy && actor&.respond_to?(:record_job_autonomy!)
 
           return Mcp::Tools.success(job_id: job.id, previous_state: previous_state, new_state: job.reload.state)
         end

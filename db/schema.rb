@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_164604) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -2330,6 +2330,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
     t.integer "question_answer_timeout_seconds"
     t.text "question_eagerness_reason"
     t.json "external_pr_bot_recovery"
+    t.integer "filed_by_coworker_id"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
@@ -2343,6 +2344,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
     t.index ["emergency_landed_by_user_id"], name: "index_jobs_on_emergency_landed_by_user_id"
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
+    t.index ["filed_by_coworker_id"], name: "index_jobs_on_filed_by_coworker_id"
     t.index ["grace_period_expires_at"], name: "index_jobs_on_grace_period_expires_at"
     t.index ["input_source_id"], name: "index_jobs_on_input_source_id"
     t.index ["landing_blocker_override_key"], name: "index_jobs_on_landing_blocker_override_key"

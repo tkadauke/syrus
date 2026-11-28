@@ -75,6 +75,10 @@ module Mcp::Tools
 
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
+        if autonomous_coworker_job_action?(tool, context, server_context, arguments)
+          enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
+          return
+        end
         if descriptor.ungated
           audit_essential!(context, coworker_capability_descriptor(descriptor), arguments)
           return
@@ -88,6 +92,41 @@ module Mcp::Tools
         protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
         create_coworker_pending_action(context:, server_context:, descriptor:,
           arguments:, always_pending: protected_path)
+      end
+
+      def autonomous_coworker_job_action?(tool, context, server_context, arguments)
+        actor = context.agent_actor
+        return false unless actor&.respond_to?(:job_autonomy)
+
+        tool_name = McpToolRegistry.tool_name_for(tool)
+        job_id = arguments[:job_id]
+        job = Job.visible_to(context.user).find_by(id: job_id) if job_id.present?
+        return false if job_id.present? && !job
+        repository = job&.repository || context.chat_session&.repository
+        return false unless repository
+
+        decision = actor.job_autonomy.authorize(tool_name:, repository:, job:)
+        return false unless decision.allowed?
+
+        server_context[:coworker_job_autonomy] = {
+          "tool_name" => tool_name, "rule_id" => decision.rule.id,
+          "coworker_id" => actor.id, "job_id" => job&.id, "repository_id" => repository.id
+        }.compact.freeze
+        true
+      end
+
+      def coworker_job_autonomy_context(server_context)
+        server_context[:coworker_job_autonomy]
+      end
+
+      def complete_autonomous_pending_action!(pending_action, server_context, job:)
+        authorization = coworker_job_autonomy_context(server_context)
+        return false unless authorization
+
+        pending_action.confirm!(user: server_context.fetch(:chat_session).user)
+        actor = McpToolContext.from_server_context(server_context).agent_actor
+        actor.record_job_autonomy!(authorization:, job:) if actor&.respond_to?(:record_job_autonomy!)
+        true
       end
 
       def pending_actor_approval(tool, server_context, arguments)

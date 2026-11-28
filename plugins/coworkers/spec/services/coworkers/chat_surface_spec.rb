@@ -180,6 +180,52 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
   end
 
+  it "autonomously files a Job with coworker ownership under the repository rule" do
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.propose", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+
+    response = coworker_tool("propose_job").call(
+      repo: repository.slug,
+      title: "Improve release notes autonomously",
+      description: "Make the release summary clearer.",
+      planned_execution: { capabilities: { os: [ "linux" ] } },
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    payload = response_payload(response)
+    job = Job.find(payload.fetch("job_id"))
+    expect(job).to have_attributes(filed_by_coworker_id: coworker.id, issue_title: "Improve release notes autonomously")
+    expect(chat.proposals.find_by!(slug: payload.fetch("slug"))).to be_confirmed
+    expect(Permissions::CoworkerAudit.events_for(coworker).last.params).to include(
+      "job_id" => job.id, "autonomous_action" => "propose_job"
+    )
+  end
+
+  it "rolls back autonomous Job filing when coworker ownership cannot be recorded" do
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.propose", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+    allow_any_instance_of(Job).to receive(:update!).and_wrap_original do |method, attributes|
+      raise ArgumentError, "ownership could not be recorded" if attributes.key?(:filed_by_coworker_id)
+
+      method.call(attributes)
+    end
+
+    response = coworker_tool("propose_job").call(
+      repo: repository.slug,
+      title: "Rollback incomplete filing",
+      description: "This Job must not survive without ownership.",
+      planned_execution: { capabilities: { os: [ "linux" ] } },
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).to be_error
+    expect(Job.where(issue_title: "Rollback incomplete filing")).to be_empty
+    expect(chat.proposals.find_by!(slug: "job-rollback-incomplete-filing")).to be_proposed
+  end
+
   it "submits targeted Job feedback through the shared confirmation and records coworker provenance" do
     allow_tool(Mcp::Tools::SubmitChatFeedbackTool)
     job = Factories.job_record(user: owner, repository: repository, state: "implemented")

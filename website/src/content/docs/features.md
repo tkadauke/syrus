@@ -2512,6 +2512,14 @@ keeping the execution provider separate, then links the resulting feedback
 workflow. Review-step verdict tools remain unavailable outside their matching
 review context.
 
+An owner can opt a coworker into five independent autonomy capabilities for a
+selected repository: file a Job, approve it, submit feedback, cancel it, or
+retry it. The capabilities are off by default and do nothing without a
+repository scope. Lifecycle capabilities apply only to Jobs filed by that same
+coworker, never to ordinary chats, and every autonomous action records the
+coworker, matching permission rule, Job, repository, and action. Normal Job
+eligibility, review evidence, landing queue, and retry safeguards still apply.
+
 When provider routing selects a named coworker for repository review, Syrus
 freezes a protected context containing only that identity, applicable
 repository criteria, and the published repository memories actually shown to
