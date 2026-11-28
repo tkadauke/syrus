@@ -34,6 +34,7 @@ module RuntimeImages
         user = metadata.dig("Config", "User").to_s.split(":", 2).first
         entrypoint = Array(metadata.dig("Config", "Entrypoint"))
         command = Array(metadata.dig("Config", "Cmd"))
+        declared_volumes = Hash(metadata.dig("Config", "Volumes"))
         capabilities = metadata.dig("Config", "Labels", "io.syrus.requested-capabilities").to_s.split(",").map(&:strip)
         findings = []
         findings << finding("image_too_large", "metadata") if size > config.fetch("max_bytes").to_i
@@ -41,6 +42,7 @@ module RuntimeImages
         findings << finding("invalid_user", "metadata") if user != config.fetch("required_user").to_s
         findings << finding("invalid_entrypoint", "metadata") unless entrypoint == Array(config.fetch("required_entrypoint")) &&
           command == Array(config.fetch("required_command"))
+        findings << finding("declared_volume", "metadata") if declared_volumes.any?
         findings << finding("forbidden_capability", "metadata") if (capabilities & Array(config["forbidden_capabilities"])).any?
         findings << finding("build_destination_not_allowlisted", "build_network") unless destinations_allowed?(evidence)
         secret_count = Array(Hash(report.secrets)["Results"]).sum { |result| Array(result["Secrets"]).size }

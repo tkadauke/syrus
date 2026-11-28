@@ -28,7 +28,14 @@ plane deduplicates on source, recipe, and platform.
 The image runs as user `coworker` (uid/gid 1000 by default, `COWORKER_UID` and
 `COWORKER_GID` build args) and ends in `USER`. It needs no write access to its
 own filesystem. The only writable paths are mounts supplied by Container
-Execution: `/workspace`, the provider home (`/home/coworker`), and `/tmp`.
+Execution: `/workspace`, the provider home (`/home/coworker`), and bounded
+`nosuid,nodev,noexec` `/tmp`. The administrator-selected
+`executable_scratch` mount profile additionally supplies bounded, ephemeral
+`/scratch`; the default `standard` profile does not. Configure the profile and
+sizes with `SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE`,
+`SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_TMPFS`, and
+`SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_SCRATCH`. An unknown profile fails
+admission closed.
 The execution envelope (read-only root, dropped capabilities, no-new-privileges,
 egress policy) belongs to Container Execution, not the image; image metadata
 cannot weaken it.

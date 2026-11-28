@@ -162,13 +162,50 @@ RSpec.describe ContainerExecution::Backend do
         "https_proxy", "https_proxy=http://unsafe-host-proxy:8080", "no_proxy", "no_proxy=169.254.169.254")
       expect(command).to include("--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=256m")
       expect(mounts).to contain_exactly(
-        "type=bind,src=#{@host_workspace},dst=#{@container_workspace}",
-        "type=bind,src=#{File.join(@host_workspace, "agent-home-#{provider}")},dst=#{agent_home}",
+        "type=bind,src=#{@host_workspace},dst=/workspace",
+        "type=bind,src=#{File.join(@host_workspace, "agent-home-#{provider}")},dst=/home/coworker",
         "type=bind,src=#{@host_workspace}/mcp.sock,dst=/run/syrus/mcp.sock,readonly"
       )
-      expect(command).to include("--env", "SYRUS_PERSISTENT_MCP_SOCKET=/run/syrus/mcp.sock")
+      expect(command).to include("--workdir", "/workspace", "--env", "HOME=/home/coworker",
+        "--env", "TMPDIR=/tmp", "--env", "SYRUS_WORKSPACE=/workspace",
+        "--env", "SYRUS_MCP_SOCKET=/run/syrus/mcp.sock",
+        "--env", "SYRUS_PERSISTENT_MCP_SOCKET=/run/syrus/mcp.sock")
       expect(mounts.join(" ")).not_to match(%r{/(?:workflows|agent_homes)/(?![^ ]*agent-home-#{provider})})
     end
+  end
+
+  it "adds only the fixed bounded executable scratch mount when the administrator selects that profile" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    configure_coworker_egress("codex")
+    ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE"] = "executable_scratch"
+    ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_SCRATCH"] = "768m"
+    agent_home = File.join(@container_workspace, "agent-home")
+    FileUtils.mkdir_p(agent_home)
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true)
+    chat = instance_double(ChatSession, effective_chat_provider: "codex")
+    runner = instance_double(ProcessRunner, run: success_result)
+    command = nil
+    allow(ProcessRunner).to receive(:new) { |kwargs| command = kwargs.fetch(:command); runner }
+
+    described_class.new.run(request(kind: "agent", chat_session: chat, workload_policy: policy,
+      mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home), env: { "HOME" => agent_home }))
+
+    expect(command).to include("--tmpfs", "/scratch:rw,nosuid,nodev,exec,size=768m")
+    expect(command.each_index.filter_map { |index| command[index + 1] if command[index] == "--mount" })
+      .not_to include(a_string_including("/scratch"))
+  end
+
+  it "fails closed for an unknown administrator mount profile" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    configure_coworker_egress("codex")
+    ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE"] = "coworker-supplied"
+    agent_home = File.join(@container_workspace, "agent-home")
+    FileUtils.mkdir_p(agent_home)
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true)
+    chat = instance_double(ChatSession, effective_chat_provider: "codex")
+
+    expect(described_class.available_for?(request(kind: "agent", chat_session: chat, workload_policy: policy,
+      mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home), env: { "HOME" => agent_home }))).to be(false)
   end
 
   it "fails closed when the provider egress profile is not configured" do
@@ -200,6 +237,37 @@ RSpec.describe ContainerExecution::Backend do
     )
 
     expect(described_class.available_for?(unsafe_request)).to be(false)
+  end
+
+  it "rejects every caller-supplied read-only and artifact mount" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    configure_coworker_egress("codex")
+    agent_home = File.join(@container_workspace, "agent-home")
+    FileUtils.mkdir_p(agent_home)
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true)
+    chat = instance_double(ChatSession, effective_chat_provider: "codex")
+    base = { kind: "agent", chat_session: chat, workload_policy: policy, env: { "HOME" => agent_home } }
+
+    read_only = ProcessRunner.mounts(@container_workspace,
+      read_write: [ @container_workspace, agent_home ], read_only: agent_home)
+    artifacts = ProcessRunner.mounts(@container_workspace,
+      read_write: [ @container_workspace, agent_home ], artifacts: agent_home)
+
+    expect(described_class.available_for?(request(**base, mounts: read_only))).to be(false)
+    expect(described_class.available_for?(request(**base, mounts: artifacts))).to be(false)
+  end
+
+  it "rejects a working directory outside the authorized coworker workspace" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    configure_coworker_egress("codex")
+    agent_home = File.join(@container_workspace, "agent-home")
+    FileUtils.mkdir_p(agent_home)
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true)
+    chat = instance_double(ChatSession, effective_chat_provider: "codex")
+
+    expect(described_class.available_for?(request(kind: "agent", chat_session: chat, workload_policy: policy,
+      chdir: @workspace, mounts: ProcessRunner.agent_mounts(@container_workspace, agent_home),
+      env: { "HOME" => agent_home }))).to be(false)
   end
 
   def configure_container_execution(host_paths: nil)
