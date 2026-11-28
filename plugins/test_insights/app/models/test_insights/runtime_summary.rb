@@ -6,6 +6,7 @@ module TestInsights
     RECENT_100_WINDOW = "recent_100".freeze
     WINDOW_SIZE = 100
     RUNTIME_QUERY_BATCH_SIZE = 100
+    REFRESH_INTERVAL = 6.hours
 
     belongs_to :repository
     belongs_to :test_identity
@@ -27,6 +28,28 @@ module TestInsights
         delete_stale_summaries!(identities.keys, refreshed_grader_names)
         rows = summary_rows(identities, refreshed_grader_names)
         upsert_all(rows, **summary_upsert_options) if rows.any?
+      end
+
+      # The identities whose recent-100 summaries for this grader (and for all
+      # graders) are missing or older than REFRESH_INTERVAL. One new sample
+      # moves a 100-sample window by about one percent, so recomputing every
+      # identity after every grader run bought almost nothing, and the
+      # history reads behind it were the largest consumer of production MySQL
+      # time (well over a CPU-core of continuous query time). Identities with
+      # no summary yet are always due.
+      def identity_ids_due_for_refresh(identity_ids, grader_name:, now: Time.current)
+        identity_ids = Array(identity_ids).compact.uniq
+        return identity_ids if identity_ids.empty?
+
+        graders = [ ALL_GRADERS, grader_name ].compact_blank.uniq
+        fresh = identity_ids.each_slice(1_000).flat_map do |slice|
+          where(test_identity_id: slice, window: RECENT_100_WINDOW, grader_name: graders)
+            .where("updated_at >= ?", now - REFRESH_INTERVAL)
+            .group(:test_identity_id)
+            .having("COUNT(DISTINCT grader_name) = ?", graders.size)
+            .pluck(:test_identity_id)
+        end.to_set
+        identity_ids.reject { |id| fresh.include?(id) }
       end
 
       private
