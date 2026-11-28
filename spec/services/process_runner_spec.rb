@@ -1554,6 +1554,8 @@ RSpec.describe ProcessRunner, :ci_only do
     child_command = <<~RUBY
       trap('TERM') { File.write(#{terminated.inspect}, 'yes'); exit! }
       File.write(#{marker.inspect}, Process.pid.to_s)
+      STDOUT.sync = true
+      puts "ready"
       sleep 120
     RUBY
     command = <<~RUBY
