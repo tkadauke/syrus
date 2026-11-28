@@ -2,7 +2,13 @@ import { test, expect, type Locator, type Page } from "@playwright/test"
 import { execFileSync } from "node:child_process"
 import { ONBOARDING_USER, signIn } from "./support/auth"
 
-test.setTimeout(60_000)
+// Four of this test's steps advance the fixture with `bin/rails runner`, and
+// each is a full Rails boot -- about six seconds on an idle developer machine,
+// two to three times that on a shared grader worker. Those boots alone used
+// most of a 60-second budget there, so the browser steps between them timed
+// out wherever the worker was busy. The budget covers the boots; every
+// assertion keeps its own default timeout.
+test.setTimeout(150_000)
 
 test("first-run onboarding checklist updates through the golden path", async ({ page }) => {
   skipWhenRemote()
