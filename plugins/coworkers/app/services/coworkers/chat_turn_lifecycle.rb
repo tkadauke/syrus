@@ -13,7 +13,10 @@ class Coworkers::ChatTurnLifecycle
   def admission
     result = Coworkers::PrivilegedGrantGate.turn_admission(coworker)
     result[:message] ||= I18n.t("coworkers.confinement_unavailable", locale: @chat_session.user.locale) if result[:outcome].present?
-    unless result[:outcome].present?
+    # A requeue moves the turn to a confined worker, which admits it again
+    # and pins the image there. Resolving here would let an environment
+    # failure on this worker replace the requeue with a terminal outcome.
+    unless result[:outcome].present? || result[:queue].present?
       @environment_resolver = Coworkers::TurnEnvironmentSelection.new(coworker:, user_message: @user_message)
       @environment_selection = @environment_resolver.resolve
     end
