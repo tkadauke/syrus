@@ -186,6 +186,35 @@ RSpec.describe "worker environment gaps" do
 
       expect(WorkerEnvironmentGap.failed_checks(hostname: "worker-unprovisioned", repository_id: repository_id)).to eq({})
     end
+
+    # The repository's prepare never runs a grader target's tool, so its
+    # success once cleared an iOS-target gap while xcodegen was still missing.
+    it "keeps a target gap when only the repository's prepare succeeds, and clears it when that target's grader does" do
+      WorkerEnvironmentGap.record!(hostname: "mac", repository_id: repository_id, missing_kind: "executable",
+                                   missing_name: "xcodegen", evidence: { "prepare_target" => "//ios:prepare" })
+      workflow.update_columns(state: "running")
+      prepare_step.update_columns(state: "running")
+      run.update_columns(state: "running", started_at: 1.minute.ago)
+      SpawnedProcess.create!(run: run, workflow: workflow, kind: "prepare", command: "bundle install",
+                             hostname: "mac", started_at: 1.minute.ago, finished_at: Time.current, outcome: "succeeded")
+
+      run.reload.succeed!
+      run.save!
+
+      expect(WorkerEnvironmentGap.failed_checks(hostname: "mac", repository_id: repository_id, prepare_targets: [ "//ios:prepare" ]))
+        .to have_key("missing_executable:xcodegen")
+
+      grader = workflow.steps.create!(kind: "grader", position: 50, state: "running", started_at: 1.minute.ago,
+                                      details: { "name" => "ios-test", "prepare_targets" => [ { "target_label" => "//ios:prepare" } ] })
+      grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", started_at: 1.minute.ago)
+      SpawnedProcess.create!(run: grader_run, workflow: workflow, kind: "grader", command: "make test",
+                             hostname: "mac", started_at: 1.minute.ago, finished_at: Time.current, outcome: "succeeded")
+
+      grader_run.reload.succeed!
+      grader_run.save!
+
+      expect(WorkerEnvironmentGap.failed_checks(hostname: "mac", repository_id: repository_id, prepare_targets: [ "//ios:prepare" ])).to eq({})
+    end
   end
 
   it "counts as infrastructure in grader collect, never as the change's verdict" do

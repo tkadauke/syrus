@@ -198,13 +198,25 @@ module Runs
     GAP_CLEARING_STEP_KINDS = %w[prepare].freeze
 
     def clear_worker_environment_gaps!
-      return unless step&.kind.in?(GAP_CLEARING_STEP_KINDS)
+      targets = succeeded_prepare_targets
+      return unless step&.kind.in?(GAP_CLEARING_STEP_KINDS) || targets.any?
 
       hostname = WorkerEnvironmentGap.failure_hostname(run)
-      WorkerEnvironmentGap.clear!(hostname: hostname, repository_id: job&.repository_id) if hostname.present?
+      return if hostname.blank?
+
+      if step.kind.in?(GAP_CLEARING_STEP_KINDS)
+        WorkerEnvironmentGap.clear!(hostname: hostname, repository_id: job&.repository_id)
+      else
+        WorkerEnvironmentGap.clear!(hostname: hostname, repository_id: job&.repository_id, prepare_targets: targets)
+      end
     rescue StandardError => e
       Rails.logger.warn("[Run##{run.id}] failed to clear worker environment gaps: #{e.class}: #{e.message}")
       nil
+    end
+
+    # The prepare targets a succeeded grader ran on this worker.
+    def succeeded_prepare_targets
+      Array(step&.details.to_h["prepare_targets"]).filter_map { |target| target.to_h["target_label"].presence }
     end
 
     def clear_stale_failure_evidence!
