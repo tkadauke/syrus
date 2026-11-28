@@ -15,7 +15,7 @@ RSpec.describe Coworkers::EnvironmentInspection do
   def image(digest, retention_state: "default")
     RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{digest * 64}",
                          platform: "linux/amd64", source_kind: "coworker_environment", source_ref: digest,
-                         availability: "available", retention_state:, published_at: Time.current)
+                         availability: "available", verification_state: "candidate", retention_state:, published_at: Time.current)
   end
 
   it "serializes source, build, candidate, active, rollback, and compatibility state without restricted evidence" do

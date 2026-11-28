@@ -59,6 +59,13 @@ RSpec.describe "runtime image build jobs" do
   end
 
   describe RuntimeImageBuildJob do
+    before do
+      allow_any_instance_of(RuntimeImages::Verifications::SupplyChainVerifier).to receive(:call)
+        .and_return(RuntimeImages::Verifications::Result.pass(evidence_references: [ { "kind" => "test" } ]))
+      allow_any_instance_of(RuntimeImages::Verifications::ImagePolicyVerifier).to receive(:call)
+        .and_return(RuntimeImages::Verifications::Result.pass(evidence_references: [ { "kind" => "test" } ]))
+    end
+
     it "runs the claimed attempt through the registered builder" do
       builder = double("builder")
       allow(builder).to receive(:build).and_return(RuntimeImages::Builds::Output.new(payload: "x", source_digest: source.digest, provenance: {}))

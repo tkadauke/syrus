@@ -8,7 +8,8 @@ RSpec.describe RuntimeImages::Collector do
   let(:window) { 30.days }
 
   def publish(payload, age: 60.days)
-    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "rev-#{payload}", platform: "linux/amd64", payload: payload)
+    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "rev-#{payload}", platform: "linux/amd64",
+                            payload: payload, verification_state: "candidate")
     image.update_columns(published_at: age.ago)
     image
   end

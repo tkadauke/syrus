@@ -160,6 +160,12 @@ de:
       restart_from_base:
         headline: "Neustart von der effektiven Basis"
         explanation: "Es gibt kein verlässliches fortsetzbares Wiederherstellungsziel mehr; starte neu von der effektiven Basis."
+    runtime_images:
+      verifications:
+        reevaluator:
+          abandoned: "Der Verifizierungsversuch wurde abgebrochen."
+        supply_chain_policy:
+          blocked: "Die Lieferkettenrichtlinie hat Funde blockiert: Schwachstellen: %{vulnerability_count}; verbotene Pakete: %{package_count}."
     workflow_outcome_overrides:
       telemetry:
         message: "Workflow-Ergebnis fehlgeschlagen, übersteuert"
@@ -1135,11 +1141,6 @@ de:
       owner_assigned: "Job-Besitzer zugewiesen."
       choose_owner: "Wähle einen Besitzer."
       owner_not_found: "Besitzer nicht gefunden."
-  services:
-    runtime_images:
-      verifications:
-        supply_chain_policy:
-          blocked: "Die Lieferkettenrichtlinie hat Funde blockiert: Schwachstellen: %{vulnerability_count}; verbotene Pakete: %{package_count}."
   plugin_repository_configuration:
     absent_legacy_owner: "%{key} gehört zum fehlenden Plugin %{owner}"
     provider_not_installed: "Konfigurationsanbieter %{owner} ist nicht installiert"

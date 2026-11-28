@@ -14,7 +14,7 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
   let(:image) do
     RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'a' * 64}",
                          platform: "linux/amd64", source_kind: "coworker_environment", source_ref: "revision-1",
-                         availability: "available", published_at: Time.current)
+                         availability: "available", verification_state: "candidate", published_at: Time.current)
   end
   let(:request) do
     RuntimeImageBuildRequest.create!(runtime_image_namespace: namespace, state: "succeeded", platform: "linux/amd64",
