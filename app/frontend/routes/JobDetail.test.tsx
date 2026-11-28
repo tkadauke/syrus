@@ -5709,6 +5709,29 @@ describe("Job Detail keyboard shortcuts", () => {
     })
   })
 
+  it("does not expose the failed-step header shortcut while active work blocks recovery", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
+    renderJobDetail({
+      ...payload,
+      actions: {
+        ...payload.actions,
+        retry_failed_step_action: null,
+        retry_implementation_action: null,
+        retry_failed_step_blocker: {
+          reason_code: "active_work_lock",
+          workflow_slug: "WF-987",
+          message: "Available after WF-987 finishes."
+        }
+      }
+    })
+
+    fireEvent.keyDown(window, { key: "r", altKey: true })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it("does not register the retry shortcut when no retry action is available", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } }))

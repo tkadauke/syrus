@@ -453,6 +453,7 @@ en:
         workflow_not_found: "Workflow not found."
         workflow_not_failed: "Workflow is not in a failed state."
         workspace_cleaned_up: "Workspace already cleaned up - use Start over."
+        active_work_lock: "Available after active work finishes."
         no_failed_step: "No failed step to retry."
         workspace_unavailable: "Workspace is not available for this workflow."
         diagnose_requires_active_run: "Diagnose is only available for active runs."

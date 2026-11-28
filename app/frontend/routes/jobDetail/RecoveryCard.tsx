@@ -27,6 +27,7 @@ export function RecoveryCard({ command, payload }: { command: ReturnType<typeof 
   const required = decision.kind === "grader_loop_no_progress"
   const prefill = [decision.guidance, failures.length ? t("recovery_guidance_failures", { failures: failures.join(", ") }) : null].filter(Boolean).join("\n\n")
   const actionLabel = t(ACTION_KEYS[decision.recommended_action])
+  const blocker = decision.mode === "failed_step" ? payload.actions.retry_failed_step_blocker : null
 
   return (
     <Section.Root className="border-l-4 border-l-warning-border" data-testid="job-recovery-card">
@@ -62,7 +63,9 @@ export function RecoveryCard({ command, payload }: { command: ReturnType<typeof 
             {actionLabel}
           </Button>
         </div>
-        {!action ? (
+        {blocker && payload.actions.can_write ? (
+          <p className="text-xs text-text-muted">{blocker.message}</p>
+        ) : !action ? (
           <p className="text-xs text-text-muted">{t(payload.actions.can_write ? "recovery_action_unavailable" : "recovery_action_permission_disabled")}</p>
         ) : null}
         <details className="text-xs text-text-muted">
