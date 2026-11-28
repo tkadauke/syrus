@@ -45,3 +45,15 @@ Debug builds use the APNs sandbox environment and Release builds use
 production. The app bundles a privacy manifest declaring no tracking. For
 configuring the server side of push delivery (APNs key and team), see
 `ios/README.md` in the repository.
+
+## Versioning and release automation
+
+The marketing version is set in `ios/project.yml`; the build number defaults
+to the commit count of the checked-out ref (override with
+`SYRUS_IOS_BUILD_NUMBER`), so the same commit always produces the same number.
+Pull requests that touch `ios/` run an unsigned simulator build and test job on
+macOS. Authorized operators can trigger the **iOS Release** GitHub Actions
+workflow to archive, export, or upload to TestFlight, with signing credentials
+supplied as repository secrets. Build logs are retained as artifacts; secrets
+are never printed. To roll back, expire the build in App Store Connect and
+re-release the last good commit with a higher build number.

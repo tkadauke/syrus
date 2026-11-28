@@ -104,7 +104,7 @@ export SYRUS_IOS_TEAM_ID=ABCDE12345
 export ASC_KEY_PATH=$HOME/.appstoreconnect/AuthKey_XXXX.p8
 export ASC_KEY_ID=XXXXXXXXXX
 export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
-# optional: SYRUS_IOS_BUNDLE_ID, SYRUS_IOS_BUILD_NUMBER (default: timestamp)
+# optional: SYRUS_IOS_BUNDLE_ID, SYRUS_IOS_BUILD_NUMBER (default: git commit count)
 make archive   # build/release/Syrus.xcarchive (Release, generic iOS device)
 make export    # signed .ipa in build/release/export (from ExportOptions.plist.template)
 make upload    # export with destination=upload: sends the build to TestFlight
@@ -112,7 +112,50 @@ make upload    # export with destination=upload: sends the build to TestFlight
 
 Without the ASC variables, `archive`/`export` use the signing identities and
 profiles in your login keychain/Xcode account. Each upload needs a unique
-build number. `make upload` requires the app record to exist in App Store Connect.
+build number (see *Versioning*). `make upload` requires the app record to exist in App Store Connect.
+
+## Versioning
+
+`MARKETING_VERSION` lives only in `project.yml`; bump it there for a new
+user-visible release. The build number (`CFBundleVersion`) is derived by
+`scripts/version.sh build`: `SYRUS_IOS_BUILD_NUMBER` if set, otherwise the
+commit count of `HEAD`, so every checkout of the same commit yields the same
+number and numbers rise along `main`. Shallow clones are rejected; use full
+history. `scripts/version.sh full` prints `0.1.0 (123)`.
+
+## CI and release automation
+
+- **iOS CI** (`.github/workflows/ios-ci.yml`) runs on PRs and `main` pushes
+  touching `ios/**`: macOS runner, `xcodegen generate`, simulator build and
+  unit tests (`make test`), unsigned. The test log is kept as an artifact for
+  14 days. Syrus also runs the `xcode-test` grader on macOS workers.
+- **iOS Release** (`.github/workflows/ios-release.yml`) is
+  `workflow_dispatch` only. Choose `archive`, `export`, or `upload`, and
+  optionally a build number. It runs in the `ios-release` GitHub environment
+  (add required reviewers there). Configure secrets `SYRUS_IOS_TEAM_ID`,
+  `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the .p8 contents) and optional
+  variable `SYRUS_IOS_BUNDLE_ID`. The key is written to a temp file, deleted
+  afterwards, and never printed. Logs plus `metadata.txt` (version, build,
+  commit) are kept 30 days; the archive/ipa 14 days.
+
+### Failure recovery
+
+- Build fails before upload: fix and re-run; nothing was published.
+- Upload rejected for a duplicate build number: re-run with a higher
+  `build_number`.
+- Signing/provisioning errors: read `build/release/logs/*.log` from the
+  artifact; usually the App ID lacks Push Notifications or the key lacks
+  App Manager access.
+- Local fallback: the same `make archive|export|upload` with the environment
+  variables above.
+
+### Rollback
+
+A build uploaded to TestFlight cannot be deleted by this pipeline. To roll
+back, expire the bad build in App Store Connect and have testers reinstall the
+previous build, or re-release the last good commit with a new, higher build
+number (build numbers must never be reused). Server-side push changes are
+independent of the app build.
 
 ## Diagnostics and physical-device acceptance
 
