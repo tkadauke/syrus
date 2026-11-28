@@ -127,6 +127,10 @@ module RuntimeImages
         image
       end
 
+      public
+
+      # Reuses the exact candidate suite for scheduled security and policy
+      # re-evaluation without rebuilding the immutable image.
       def verify_candidate(request, image, evidence)
         registry = Verifications::Registry.new
         registry.register("manifest", Verifications::ManifestVerifier.new(service: @service))
@@ -150,6 +154,8 @@ module RuntimeImages
           image, policy: policy, context: { build_request_id: request.id, build_evidence: evidence }
         )
       end
+
+      private
 
       # A verified standard base becomes a promotion candidate. It is never
       # active until an operator promotes it.

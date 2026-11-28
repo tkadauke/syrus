@@ -54,6 +54,11 @@ class Coworkers::EnvironmentInspectionSerializer
   def safe_verification(revision)
     return unless revision
 
+    attestation = revision.runtime_image&.runtime_image_verification_attestations&.order(issued_at: :desc)&.first
+    return attestation.safe_summary.merge("issued_at" => attestation.issued_at.iso8601,
+                                          "expires_at" => attestation.expires_at.iso8601,
+                                          "valid" => attestation.valid_at?) if attestation
+
     request = revision.build_request
     evidence = request&.evidences&.last
     return evidence.safe_summary if evidence
