@@ -9,11 +9,14 @@ RSpec.describe RuntimeImageRevocationCandidate do
                                   source_kind: "test", source_ref: "two", provenance: {})
     attempt = first.runtime_image_verification_attempts.create!(number: 1, image_digest: first.digest, state: "rejected",
       policy_snapshot: {}, policy_digest: "sha256:#{"c" * 64}", started_at: Time.current)
+    attestation = attempt.create_attestation!(runtime_image: first, image_digest: first.digest,
+      policy_digest: attempt.policy_digest, evidence_digest: "sha256:#{"d" * 64}", outcome: "rejected",
+      issued_at: Time.current, expires_at: 1.day.from_now)
 
-    candidate = described_class.new(runtime_image: second, attempt: attempt, trigger_kind: "policy_changed",
-                                    severity: "high", state: "open", reason: "safe summary", detected_at: Time.current)
+    candidate = described_class.new(runtime_image: second, prior_attestation: attestation,
+      triggering_attestation: attestation, reason_code: "policy_changed", state: "pending", detected_at: Time.current)
 
     expect(candidate).not_to be_valid
-    expect(candidate.errors[:attempt]).to be_present
+    expect(candidate.errors[:runtime_image]).to be_present
   end
 end

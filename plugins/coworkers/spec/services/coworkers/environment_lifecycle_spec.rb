@@ -303,7 +303,7 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     described_class.new(environment).reconcile_build!(revision)
     allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(base.with(runtime_abi: 9))
 
-    expect { described_class.new(environment).publish!(revision, actor: "operator") }
+      expect { described_class.new(environment).publish!(revision, actor: "operator", authority: publication_authority(revision)) }
       .to raise_error(Coworkers::EnvironmentRevision::InvalidTransition)
 
     expect(revision.reload).to be_rejected

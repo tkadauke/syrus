@@ -38,9 +38,11 @@ module Api
           attempt = image&.runtime_image_verification_attempts&.order(number: :desc)&.first
           return nil unless attempt
 
+          attestation = attempt.attestation
           policy = attempt.policy_evidence
           scan = attempt.scan_evidence
-          attempt.slice(*%w[image_digest policy_digest evidence_digest attestation_digest expires_at]).merge(
+          (attestation&.slice(*%w[image_digest policy_digest evidence_digest expires_at]) ||
+            attempt.slice(*%w[image_digest policy_digest])).merge(
             "safe_summary" => { "policy" => policy&.safe_summary, "supply_chain" => scan&.finding_summary }.compact,
             "policy_report_digest" => policy&.report_digest,
             "policy_report" => attached_json(policy&.report),
@@ -48,7 +50,8 @@ module Api
             "scan_report" => attached_json(scan&.scan_report)
           )
         rescue JSON::ParserError
-          attempt.slice(*%w[image_digest policy_digest evidence_digest attestation_digest expires_at])
+          attestation&.slice(*%w[image_digest policy_digest evidence_digest expires_at]) ||
+            attempt.slice(*%w[image_digest policy_digest])
         end
 
 
