@@ -8,7 +8,9 @@ module MaintenanceTasks
       recurrence "one_off"
       required_role "admin"
       concurrency_key "test_insights_grader_name_backfill"
-      batch_size 500
+      # A batch is a window of this many consecutive case ids (a primary-key
+      # range read), so it rewrites at most this many rows.
+      batch_size 1000
       # Each batch rewrites rows of a very large table and its indexes; run back
       # to back it held MySQL at its memory limit until production went down.
       pause_between_batches 2
