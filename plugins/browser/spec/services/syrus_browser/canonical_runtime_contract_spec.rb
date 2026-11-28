@@ -97,6 +97,10 @@ RSpec.describe "Browser canonical Runtime Session contract" do
 
   before do
     allow(Feature).to receive(:coding_mode_enabled?).and_return(true)
+    # This contract covers Runtime Session parity, not the independent
+    # permission prompt. Keep authorization local instead of depending on a
+    # preceding spec having disabled permission enforcement globally.
+    allow(Permissions::Enforcement).to receive(:disabled?).and_return(true)
     allow(Mcp::Tools).to receive(:run_from_context).with({ run_id: run.id }).and_return(run)
     SyrusBrowser::SessionRegistry.session_factory = lambda do |session_key|
       browser_sessions[session_key] = instance_double(SyrusBrowser::Session,
