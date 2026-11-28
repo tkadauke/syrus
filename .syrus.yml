@@ -687,6 +687,12 @@ grade:
       # most landing rounds. Eight shards halve that; each pays a few minutes
       # of setup, but on separate workers that runs in parallel.
       shards: 8
+      # Shards are split to equal work, so their wall time is set by the cores
+      # each is granted: one round ran `-n 12` beside `-n 3` shards (3 vs 17
+      # minutes). Six cores is what a shard needs to finish in ~11 minutes; a
+      # worker that cannot grant six passes the shard on (for at most ten
+      # minutes) instead of running it narrow.
+      shard_cpu_min: 6
       # The serial paths below added about ten minutes to the last shard,
       # which made it the long pole of every grading round. Run them as a
       # grader of their own, beside the shards.

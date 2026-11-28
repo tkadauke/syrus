@@ -199,6 +199,56 @@ RSpec.describe RunHostAdmission do
       expect(described_class.call(run: run)).to be_defer
     end
 
+    # Regression: equal-work rspec shards ran `-n 12` and `-n 3` in one round
+    # and took 3 and 17 minutes; the round waited for the 17.
+    describe "declared cpu_min" do
+      before do
+        run.step.update!(details: { "name" => "rspec-ci-1-of-8", "resources" => { "cpu" => "all", "cpu_min" => 8 } })
+      end
+
+      it "reroutes a shard from a host too small to grant its minimum" do
+        decision = described_class.call(run: run)
+
+        expect(decision).to be_defer
+        expect(decision.reason).to be_in(DistributedRunAdmissionRouter::REROUTABLE_REASONS)
+        expect(decision.details["resource_guard_binding_terms"]).to eq([ "grader_cpu_booked" ])
+      end
+
+      it "reroutes a shard when free memory bounds its width below the minimum" do
+        allow(RunProcessParallelism).to receive(:host_capacity).and_return(16)
+        allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(13.gigabytes)
+
+        decision = described_class.call(run: run)
+
+        expect(decision).to be_defer
+        expect(decision.reason).to be_in(DistributedRunAdmissionRouter::REROUTABLE_REASONS)
+        expect(decision.details["resource_guard_binding_terms"]).to eq([ "grader_cpu_min_unavailable" ])
+      end
+
+      it "books a second shard out of a host that can grant only one of them its minimum" do
+        allow(RunProcessParallelism).to receive(:host_capacity).and_return(12)
+        sibling = whole_host_grader_on_worker_a(0)
+        sibling.step.update!(details: sibling.step.details.merge("resources" => { "cpu" => "all", "cpu_min" => 8 }))
+
+        expect(described_class.call(run: run).details["resource_guard_binding_terms"]).to eq([ "grader_cpu_booked" ])
+      end
+
+      it "admits a shard on a host that can grant its minimum" do
+        allow(RunProcessParallelism).to receive(:host_capacity).and_return(12)
+
+        expect(described_class.call(run: run)).to be_admit
+        expect(GraderResourceGrant.inflight_claims(excluding_run_id: nil)).to eq(run.id => 8)
+      end
+
+      it "starts narrow after waiting out the patience window rather than never" do
+        allow(RunProcessParallelism).to receive(:host_capacity).and_return(16)
+        allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(13.gigabytes)
+        run.update_columns(created_at: (described_class::CPU_MIN_PATIENCE + 1.minute).ago)
+
+        expect(described_class.call(run: run)).to be_admit
+      end
+    end
+
     it "leaves bounded graders to the existing guards" do
       run.step.update!(details: { "name" => "lint", "resources" => { "cpu" => 1 } })
       2.times { |i| whole_host_grader_on_worker_a(i) }
