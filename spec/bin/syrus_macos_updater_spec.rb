@@ -102,7 +102,19 @@ RSpec.describe "native macOS worker updater" do
     FileUtils.mkdir_p(File.join(mysql, "lib"))
     FileUtils.touch(File.join(mysql, "lib", "libmysqlclient.24.dylib"))
     install_fake_browser_tools(tools)
+    install_fake_xcodegen(tools)
     tools
+  end
+
+  # XcodeGen as bin/macos-runtime-env installs it: the release archive's bin/
+  # and share/xcodegen, under one prefix per pinned version.
+  def install_fake_xcodegen(tools_root)
+    version = toolchain_pin("XCODEGEN_VERSION")
+    prefix = File.join(tools_root, "xcodegen", version)
+    FileUtils.mkdir_p([ File.join(prefix, "bin"), File.join(prefix, "share", "xcodegen", "SettingPresets") ])
+    File.write(File.join(prefix, "bin", "xcodegen"), "#!/usr/bin/env bash\necho Version: #{version}\n")
+    File.chmod(0o755, File.join(prefix, "bin", "xcodegen"))
+    prefix
   end
 
   # The browser tools as bin/macos-runtime-env installs them: one prefix per

@@ -156,6 +156,10 @@ grade:
     timeout_minutes: 20
 ```
 
+macOS workers provide XcodeGen alongside Xcode, so a project that generates
+its `.xcodeproj` from a `project.yml` can run `xcodegen generate` in
+`prepare` without installing anything itself.
+
 When proposing an iOS-only Job or mixed iOS/backend Job whose implementation
 needs Xcode feedback, set primary planned execution to
 `{"capabilities":{"os":["macos"]}}`; Xcode, architecture, and simulator

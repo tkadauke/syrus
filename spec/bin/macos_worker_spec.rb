@@ -110,6 +110,17 @@ RSpec.describe "native macOS worker scripts" do
     prefix
   end
 
+  # XcodeGen as bin/macos-runtime-env installs it: the release archive's bin/
+  # and share/xcodegen, under one prefix per pinned version.
+  def install_fake_xcodegen(tools_root)
+    version = toolchain_pin("XCODEGEN_VERSION")
+    prefix = File.join(tools_root, "xcodegen", version)
+    FileUtils.mkdir_p([ File.join(prefix, "bin"), File.join(prefix, "share", "xcodegen", "SettingPresets") ])
+    File.write(File.join(prefix, "bin", "xcodegen"), "#!/usr/bin/env bash\necho Version: #{version}\n")
+    File.chmod(0o755, File.join(prefix, "bin", "xcodegen"))
+    prefix
+  end
+
   def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer", ruby_version: pinned_ruby,
                             node_version: pinned_node)
     bin_dir = File.join(dir, "bin")
@@ -125,6 +136,7 @@ RSpec.describe "native macOS worker scripts" do
     write_stub(File.join(bin_dir, "codex"), "#!/usr/bin/env bash\necho codex-cli 0.160.0\n")
     write_stub(File.join(bin_dir, "claude"), "#!/usr/bin/env bash\necho 2.1.289\n")
     write_stub(File.join(bin_dir, "playwright-mcp"), "#!/usr/bin/env bash\nexit 0\n")
+    write_stub(File.join(bin_dir, "xcodegen"), "#!/usr/bin/env bash\necho Version: #{toolchain_pin("XCODEGEN_VERSION")}\n")
     install_fake_browser_tools(File.join(dir, "tools"))
     write_stub(File.join(bin_dir, "xcode-select"), "#!/usr/bin/env bash\necho #{xcode_select_path}\n")
     write_stub(File.join(bin_dir, "xcodebuild"), "#!/usr/bin/env bash\necho Xcode 16.4\necho Build version 16F6\n")

@@ -170,6 +170,7 @@ require_command git Git
 require_command mise Mise
 require_command codex Codex
 require_command claude Claude
+require_command xcodegen XcodeGen
 
 # The browser tools and visual review spawn `playwright-mcp` with the
 # release's pinned Chromium (bin/macos-runtime-env). Not run with --version:
