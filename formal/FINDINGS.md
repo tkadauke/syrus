@@ -8969,7 +8969,14 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   and the surface catalogs (with F159). NY48: per-turn pinning refuses every
   coworker turn while no base is promoted, and production has none.
 
-Checked through main `efbf32da60`. Each loop iteration continues from there:
+- Main through `14478f0c6e`: main fixed the same red coworker specs this
+  branch had (purge table list, lifecycle contract, the locked re-read before a
+  compatibility rebuild) and now requeues privileged turns before pinning; the
+  container runner carries the pinned digest into process registration, so a
+  severe revocation can find the process, and an unpinned turn (F161)
+  registers with no digest. Holds.
+
+Checked through main `14478f0c6e`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
