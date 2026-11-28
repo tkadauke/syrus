@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import type { LandingLanesPayload } from "../api/landingLanes"
@@ -201,13 +201,9 @@ describe("landing lanes", () => {
 
     const link = await screen.findByRole("link", { name: "View all lanes" })
     expect(link).toHaveAttribute("href", "/landing_lanes")
-    expect(within(screen.getByText("Landing lanes").parentElement!).getAllByRole("link")).toEqual([link])
-    expect(screen.getByText("JOB-10")).toBeInTheDocument()
-    const emptyProgress = screen.getByRole("progressbar", { name: "acme/rocket Lane 2 landing progress" })
-    expect(emptyProgress).toHaveAttribute("aria-valuenow", "0")
-    Array.from(emptyProgress.children).forEach((segment) => {
-      expect(segment.firstElementChild).toHaveStyle({ width: "0%" })
-    })
+    expect(screen.getByRole("link", { name: "JOB-10" })).toHaveAttribute("href", "/jobs/10")
+    expect(screen.queryByText("Empty lane")).not.toBeInTheDocument()
+    expect(screen.queryByRole("progressbar", { name: "acme/rocket Lane 2 landing progress" })).not.toBeInTheDocument()
     current = {
       ...payload,
       repositories: [
@@ -218,5 +214,90 @@ describe("landing lanes", () => {
 
     expect(await screen.findByText("JOB-99")).toBeInTheDocument()
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+  })
+
+  it("shows every occupied branch lane and omits empty sections and repositories", () => {
+    const activePayload: LandingLanesPayload = {
+      estimate_kind: "best_case",
+      repositories: [
+        {
+          ...payload.repositories[0],
+          landing_concurrency: 1,
+          lanes: [payload.repositories[0].lanes[0], payload.repositories[0].lanes[1], {
+            number: 3,
+            empty: false,
+            draining: true,
+            anchor_job: { id: 30, slug: "JOB-30", app_path: "/jobs/30" },
+            phase: "land",
+            progress: 0.9
+          }],
+          additional_branches: [{
+            branch: "release",
+            busy_lane_count: 1,
+            lanes: [{
+              number: 1,
+              empty: false,
+              draining: false,
+              anchor_job: { id: 31, slug: "JOB-31", app_path: "/jobs/31" },
+              phase: "grade",
+              progress: 0.4
+            }]
+          }]
+        },
+        {
+          ...payload.repositories[1],
+          slug: "acme/empty",
+          busy_lane_count: 0,
+          lanes: [{ number: 1, empty: true, draining: false }]
+        }
+      ]
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["landing_lanes"], activePayload)
+
+    render(<LandingLanesStrip />, { wrapper: wrapper(client) })
+
+    expect(screen.getByText("acme/rocket")).toBeInTheDocument()
+    expect(screen.queryByText("acme/empty")).not.toBeInTheDocument()
+    expect(screen.queryByText("Empty lane")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-10" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-30" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-31" })).toBeInTheDocument()
+    expect(screen.getByText("Branch release")).toBeInTheDocument()
+  })
+
+  it("prefixes strip job links for the app shell", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["bootstrap"], { feature_flags: { landing_lanes: true } })
+    client.setQueryData(["landing_lanes"], payload)
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell"]}>
+          <LandingLanesStrip prefix="/app-shell" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-10" })).toHaveAttribute("href", "/app-shell/jobs/10")
+    expect(screen.getByRole("link", { name: "View all lanes" })).toHaveAttribute("href", "/app-shell/landing_lanes")
+  })
+
+  it("omits the strip when no lanes are active", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["landing_lanes"], {
+      estimate_kind: "best_case",
+      repositories: payload.repositories.map((repository) => ({
+        ...repository,
+        busy_lane_count: 0,
+        lanes: repository.lanes.map((lane) => ({ number: lane.number, empty: true, draining: lane.draining })),
+        additional_branches: []
+      }))
+    } satisfies LandingLanesPayload)
+
+    render(<LandingLanesStrip />, { wrapper: wrapper(client) })
+
+    expect(screen.queryByText("Landing lanes")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "View all lanes" })).not.toBeInTheDocument()
   })
 })
