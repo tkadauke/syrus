@@ -13,6 +13,25 @@ RSpec.describe "native macOS worker scripts" do
   let(:pinned_node) { File.read(File.join(root, ".node-version")).strip }
   let(:system_path) { "/usr/bin:/bin:/usr/sbin:/sbin" }
 
+  # The system directories are the grading host's own, and a Linux grader
+  # image ships playwright-mcp in /usr/bin. Mirror them without the named
+  # tools so a "missing tool" example means the same thing on every host.
+  def system_path_without(dir, *tools)
+    mirror = File.join(dir, "system-bin")
+    FileUtils.mkdir_p(mirror)
+    system_path.split(":").each do |source|
+      next unless File.directory?(source)
+
+      Dir.each_child(source) do |name|
+        target = File.join(mirror, name)
+        next if tools.include?(name) || File.exist?(target)
+
+        File.symlink(File.join(source, name), target)
+      end
+    end
+    mirror
+  end
+
   def toolchain_pin(key)
     File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^#{key}=(.+)$/, 1]
   end
@@ -473,7 +492,7 @@ RSpec.describe "native macOS worker scripts" do
       FileUtils.rm_rf(File.join(dir, "tools", "playwright"))
 
       stdout, _stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path_without(dir, "playwright-mcp")}", "HOME" => ENV.fetch("HOME") },
         "bash", check, "--env-file", env_file,
         unsetenv_others: true
       )
