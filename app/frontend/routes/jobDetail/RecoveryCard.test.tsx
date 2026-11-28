@@ -104,6 +104,37 @@ describe("RecoveryCard", () => {
     expect(screen.getByText(/do not have permission/)).toBeVisible()
   })
 
+  it("keeps recovery evidence visible and explains a temporary work blocker", () => {
+    render(
+      <RecoveryCard
+        command={command()}
+        payload={payload({
+          recovery_decision: {
+            kind: "measured_failure",
+            recommended_action: "repair_with_guidance",
+            mode: "failed_step",
+            explanation: "A required check still fails.",
+            measured_failures: ["spec/services/retry_spec.rb"],
+            evidence: {}
+          },
+          retry_failed_step_action: null,
+          retry_failed_step_blocker: {
+            reason_code: "active_work_lock",
+            workflow_id: 987,
+            workflow_slug: "WF-987",
+            work_unit_id: 654,
+            message: "Available after WF-987 finishes."
+          }
+        })}
+      />
+    )
+
+    expect(screen.getByText("A required check still fails.")).toBeVisible()
+    expect(screen.getByText("spec/services/retry_spec.rb")).toBeVisible()
+    expect(screen.getByRole("button", { name: "Repair with guidance" })).toBeDisabled()
+    expect(screen.getByText("Available after WF-987 finishes.")).toBeVisible()
+  })
+
   it("uses the restart action when the workspace is unavailable", () => {
     render(
       <RecoveryCard

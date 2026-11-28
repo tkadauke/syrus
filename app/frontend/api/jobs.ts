@@ -1126,6 +1126,7 @@ export type JobActions = {
   can_retry: boolean
   can_retry_from_failed_step: boolean
   retry_failed_step_action?: JobRetryAction | null
+  retry_failed_step_blocker?: JobRetryBlocker | null
   retry_implementation_action?: JobRetryAction | null
   can_restart: boolean
   reset_job_action?: JobResetAction | null
@@ -1210,6 +1211,14 @@ export type JobRetryAction = {
   step_id?: number
   step_kind?: string
   step_label?: string
+}
+
+export type JobRetryBlocker = {
+  reason_code: "active_work_lock"
+  workflow_id?: number
+  workflow_slug?: string
+  work_unit_id?: number
+  message: string
 }
 
 export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"

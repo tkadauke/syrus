@@ -469,6 +469,32 @@ RSpec.describe "App API job run commands", type: :request do
     expect(response).to have_http_status(:forbidden)
   end
 
+
+  it "returns a structured temporary conflict when a lock is acquired after page load" do
+    workflow = job.workflows.last
+    failed_step = workflow.steps.find_by!(kind: "summarize")
+    failed_step.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    workflow.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    blocker = RetryFailedStepEnqueuer::Blocker.new(
+      reason_code: "active_work_lock", workflow_id: 987, workflow_slug: "WF-987", work_unit_id: 654
+    )
+    allow(RetryFailedStepEnqueuer).to receive(:call).and_return(
+      RetryFailedStepEnqueuer::Result.new(run: nil, workflow: workflow, step: failed_step, error: "active_work_lock: raced")
+    )
+    allow(RetryFailedStepEnqueuer).to receive(:preflight).with(workflow: workflow).and_return(blocker)
+
+    post app_job_path("/workflows/#{workflow.id}/retry_step"), as: :json
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.fetch("error")).to include(
+      "code" => "active_work_lock",
+      "message" => "Available after WF-987 finishes.",
+      "blocker" => include(
+        "reason_code" => "active_work_lock", "workflow_slug" => "WF-987", "work_unit_id" => 654
+      )
+    )
+  end
+
   it "refuses to retry a failed step once the workspace has been cleaned up" do
     workflow = job.workflows.last
     failed_step = workflow.steps.find_by!(kind: "summarize")
