@@ -31,7 +31,42 @@ RSpec.describe Coworkers::RegressionProof do
     expect(Syrus::Host::BaseRevisionRetry).to have_received(:call).with(hash_including(
       workflow:, grader_step: grader, base_sha: "base", command: "bundle exec rspec spec/services/fix_spec.rb",
       require_candidate_pass: true, candidate_files: [ "spec/services/fix_spec.rb" ],
-      require_failed_test_evidence: true
+      require_failed_test_evidence: true, expected_failure_files: [ "spec/services/fix_spec.rb" ]
+    ))
+  end
+
+  it "executes the regression spec while overlaying an added support file" do
+    job.diff_review_versions.last.update!(files_snapshot: [
+      { "path" => "spec/services/fix_spec.rb", "status" => "added" },
+      { "path" => "spec/support/fix_fixture.rb", "status" => "added" }
+    ])
+    allow(Syrus::Host::BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(ran: true, inherited: true, reason: "base_failed", command: "",
+        base_failed_identities: [], introduced_failed_identities: [], output: "", method: "full_command")
+    )
+
+    expect(described_class.call(job)).to be_proven
+    expect(Syrus::Host::BaseRevisionRetry).to have_received(:call).with(hash_including(
+      command: "bundle exec rspec spec/services/fix_spec.rb",
+      candidate_files: [ "spec/services/fix_spec.rb", "spec/support/fix_fixture.rb" ],
+      expected_failure_files: [ "spec/services/fix_spec.rb" ]
+    ))
+  end
+
+  it "recognizes a colocated frontend regression test" do
+    job.diff_review_versions.last.update!(files_snapshot: [
+      { "path" => "app/frontend/widgets/fix.test.tsx", "status" => "added" }
+    ])
+    allow(Syrus::Host::BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(ran: true, inherited: true, reason: "base_failed", command: "",
+        base_failed_identities: [], introduced_failed_identities: [], output: "", method: "full_command")
+    )
+
+    expect(described_class.call(job)).to be_proven
+    expect(Syrus::Host::BaseRevisionRetry).to have_received(:call).with(hash_including(
+      command: "npm test -- --run app/frontend/widgets/fix.test.tsx",
+      candidate_files: [ "app/frontend/widgets/fix.test.tsx" ],
+      expected_failure_files: [ "app/frontend/widgets/fix.test.tsx" ]
     ))
   end
 

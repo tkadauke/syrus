@@ -17,13 +17,15 @@ module Coworkers
         return Result.new(cached["proven"] == true, cached["reason"])
       end
 
-      paths = added_spec_paths(version)
+      overlay_paths = added_test_tree_paths(version)
+      paths = executable_test_paths(overlay_paths)
       grader = regression_grader(workflow)
       command = focused_command(paths)
       return Result.new(false, "missing_regression_spec") if paths.empty? || grader.nil? || command.nil? || head.blank?
 
       retry_result = Syrus::Host::BaseRevisionRetry.call(workflow:, grader_step: grader, base_sha: version.base_sha,
-        command:, require_candidate_pass: true, candidate_files: paths, require_failed_test_evidence: true,
+        command:, require_candidate_pass: true, candidate_files: overlay_paths, require_failed_test_evidence: true,
+        expected_failure_files: paths,
         log: ->(message) { Rails.logger.info(message) })
       proven = retry_result.ran && retry_result.inherited
       if retry_result.ran
@@ -45,12 +47,22 @@ module Coworkers
       end
     end
 
-    def added_spec_paths(version)
+    def added_test_tree_paths(version)
       Array(version&.files_snapshot).filter_map do |file|
         path = file["path"].to_s
-        path if file["status"].to_s == "added" && path.match?(%r{(?:\A|/)(?:spec|test)/})
+        in_test_tree = path.match?(%r{(?:\A|/)(?:spec|tests?|__tests__|__snapshots__)/})
+        path if file["status"].to_s == "added" && (in_test_tree || executable_test_path?(path))
       end
     end
+
+    def executable_test_paths(paths)
+      ruby = paths.select { |path| path.end_with?("_spec.rb") }
+      return ruby if ruby.any?
+
+      paths.select { |path| executable_test_path?(path) }
+    end
+
+    def executable_test_path?(path) = path.match?(/\.(?:test|spec)\.[cm]?[jt]sx?\z/)
 
     def focused_command(paths)
       quoted = paths.map { |path| Shellwords.escape(path) }.join(" ")
