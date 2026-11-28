@@ -22,13 +22,15 @@ module Syrus
 
         # Cross-worker termination is a durable database request; the process
         # owner observes it and terminates the local process group.
-        def terminate_chat_processes(chat_session_ids:, reason:, runtime_image_digest: nil)
+        def terminate_chat_processes(chat_session_ids:, reason:, runtime_image_digest:)
+          raise ArgumentError, "runtime_image_digest is required" if runtime_image_digest.blank?
+
           ids = Array(chat_session_ids).map(&:to_i).uniq
           return 0 if ids.empty?
 
           now = Time.current
           scope = SpawnedProcess.live_agent.where(chat_session_id: ids, kill_requested_at: nil)
-          scope = scope.where("json_extract(resource_attribution, '$.runtime_image_digest') = ?", runtime_image_digest) if runtime_image_digest
+          scope = scope.where("json_extract(resource_attribution, '$.runtime_image_digest') = ?", runtime_image_digest)
           count = scope.update_all(kill_requested_at: now, updated_at: now)
           OperationalLogging.ingest(level: "warn", source: "agent_runtime",
                                     message: "chat processes terminated for revoked runtime image",

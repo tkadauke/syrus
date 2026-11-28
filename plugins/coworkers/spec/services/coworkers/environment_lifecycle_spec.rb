@@ -100,20 +100,31 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
   end
 
   it "automatically rolls back after the configured repeated startup failures" do
+    older_image = RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'4' * 64}",
+                                       platform: "linux/amd64", source_kind: "coworker_environment",
+                                       source_ref: "older", availability: "available",
+                                       verification_state: "candidate", published_at: 2.days.ago)
     prior_image = RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'1' * 64}",
                                        platform: "linux/amd64", source_kind: "coworker_environment",
                                        source_ref: "prior", availability: "available",
                                        verification_state: "candidate", published_at: 1.day.ago)
+    older_revision = Coworkers::EnvironmentRevision.create!(environment:, number: 1, state: "retired",
+                                                             source_digest: "sha256:#{'5' * 64}", runtime_image: older_image,
+                                                             runtime_abi: 3, compat_min: 2, compat_max: 4)
     prior_revision = Coworkers::EnvironmentRevision.create!(environment:, number: 2, state: "retired",
                                                              source_digest: "sha256:#{'2' * 64}", runtime_image: prior_image,
                                                              runtime_abi: 3, compat_min: 2, compat_max: 4)
     current_revision = Coworkers::EnvironmentRevision.create!(environment:, number: 3, state: "active",
                                                                source_digest: "sha256:#{'3' * 64}", runtime_image: image,
                                                                runtime_abi: 3, compat_min: 2, compat_max: 4)
+    older_attestation = accepted_attestation(older_image)
     prior_attestation = accepted_attestation(prior_image)
     current_attestation = accepted_attestation(image)
+    older = environment.activations.create!(revision: older_revision, runtime_image: older_image,
+      verification_attestation: older_attestation, source_digest: older_revision.source_digest,
+      image_digest: older_image.digest, authority_kind: "permission", actor: "operator", activated_at: 2.days.ago)
     prior = environment.activations.create!(revision: prior_revision, runtime_image: prior_image,
-      verification_attestation: prior_attestation, source_digest: prior_revision.source_digest,
+      previous_activation: older, verification_attestation: prior_attestation, source_digest: prior_revision.source_digest,
       image_digest: prior_image.digest, authority_kind: "permission", actor: "operator", activated_at: 1.day.ago)
     current = environment.activations.create!(revision: current_revision, runtime_image: image,
       previous_activation: prior, verification_attestation: current_attestation,
@@ -128,10 +139,19 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(environment.reload.active_activation_id).to eq(current.id)
     recovery.record_launch_failure!(current.id, reason: "container_start_failed")
 
-    expect(environment.reload).to have_attributes(active_activation_id: prior.id,
-                                                   active_revision_id: prior_revision.id,
+    first_rollback = environment.reload.active_activation
+    expect(first_rollback).not_to eq(prior)
+    expect(first_rollback).to have_attributes(previous_activation_id: older.id,
+                                               environment_revision_id: prior_revision.id,
+                                               runtime_image_id: prior_image.id)
+    expect(environment).to have_attributes(active_revision_id: prior_revision.id,
                                                    active_runtime_image_id: prior_image.id)
     expect(current.reload.launch_failure_count).to eq(2)
+
+    2.times { recovery.record_launch_failure!(first_rollback.id, reason: "container_start_failed") }
+    expect(environment.reload).to have_attributes(active_revision_id: older_revision.id,
+                                                   active_runtime_image_id: older_image.id)
+    expect(environment.active_activation.previous_activation_id).to be_nil
     expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.rolled_back")).to exist
   end
 
@@ -146,6 +166,14 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
       .with(chat_session_ids: [], reason: "severe environment revocation: critical_vulnerability",
             runtime_image_digest: image.digest)
     expect(image.reload).to be_revoked
+  end
+
+  it "refuses to broaden severe revocation when the revision has no image digest" do
+    expect {
+      described_class.new(environment).revoke!(revision, reason: "critical_vulnerability", severity: :severe)
+    }.to raise_error(Coworkers::EnvironmentRevision::InvalidTransition, /requires an affected image digest/)
+
+    expect(environment.reload.last_error_code).to be_nil
   end
 
   it "fails closed when active pointers do not match the immutable activation" do

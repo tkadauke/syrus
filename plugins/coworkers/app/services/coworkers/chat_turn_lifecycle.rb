@@ -30,9 +30,12 @@ class Coworkers::ChatTurnLifecycle
   # Provider errors after a process started must not roll back valid images.
   def after_execution(result: nil, exception: nil)
     return unless @environment_selection
+    return if @execution_reported
+    return unless exception || result
+
+    @execution_reported = true
     return if result&.success?
     return if result&.spawned_process_id.present?
-    return unless exception || result
 
     Coworkers::EnvironmentRecovery.new(coworker.environment).record_launch_failure!(
       @environment_selection.activation_id,

@@ -79,10 +79,14 @@ class Coworkers::EnvironmentLifecycle
   end
 
   def revoke!(revision, reason:, actor: "system", severity: :normal)
-    result = @environment.with_lock do
-      revoke_locked!(revision, reason: reason, actor: actor)
+    severity = severity.to_s == "severe" ? "severe" : "standard"
+    if severity == "severe" && revision.runtime_image&.digest.blank?
+      raise Coworkers::EnvironmentRevision::InvalidTransition, "severe revocation requires an affected image digest"
     end
-    terminate_affected_turns!(revision, reason:) if severity.to_sym == :severe
+    result = @environment.with_lock do
+      revoke_locked!(revision, reason: reason, actor: actor, severity: severity)
+    end
+    terminate_affected_turns!(revision, reason:) if severity == "severe"
     result
   end
 
@@ -132,10 +136,11 @@ class Coworkers::EnvironmentLifecycle
   private
 
   def terminate_affected_turns!(revision, reason:)
+    digest = revision.runtime_image&.digest
     chat_ids = Coworkers::Chat.where(coworker_id: @environment.coworker_id).pluck(:chat_session_id)
     count = Syrus::Host::AgentRuntime.terminate_chat_processes(chat_session_ids: chat_ids,
                                                                reason: "severe environment revocation: #{reason}",
-                                                               runtime_image_digest: revision.runtime_image&.digest)
+                                                               runtime_image_digest: digest)
     audit("turns_terminated", revision, code: "#{reason}:#{count}")
   end
 
@@ -193,12 +198,12 @@ class Coworkers::EnvironmentLifecycle
     revision.transition_to!(target) if Coworkers::EnvironmentRevision::TRANSITIONS.fetch(revision.state, []).include?(target.to_s)
   end
 
-  def revoke_locked!(revision, reason:, actor: "system")
+  def revoke_locked!(revision, reason:, actor: "system", severity: "standard")
     revision.reload
     projected_current = revision.building? || revision.verifying? ||
       @environment.active_revision_id == revision.id || @environment.candidate_revision_id == revision.id
     image = revision.runtime_image
-    Syrus::Host::RuntimeImages.revoke(image, reason: reason, actor: actor) if image&.available?
+    Syrus::Host::RuntimeImages.revoke(image, reason: reason, actor: actor, severity: severity) if image&.available?
     target = revision.building? ? :build_failed : (revision.verifying? ? :rejected : :revoked)
     transition_revision!(revision, target)
     event = audit("revoked", revision, actor: actor, code: reason)
