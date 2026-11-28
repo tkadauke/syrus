@@ -49,10 +49,23 @@ module Workflows
     # LandingQueueProcessor.try_land! re-runs the standard
     # blockage / per-repository landing / approved guards, so this
     # is race-safe with the recurring loop.
+    #
+    # After the surrounding transaction commits: the hook runs inside the
+    # rebase's success transition, holding its Workflow, and launching the
+    # landing locks the new auto_merge lineage (WorkIntent, WorkUnit) below
+    # it -- out of the row-lock order (NY40). Outside a transaction this runs
+    # at once.
     def self.after_success(workflow)
-      return unless workflow.job&.approved?
+      job = workflow.job
+      return unless job&.approved?
 
-      LandingQueueProcessor.try_land!(workflow.job)
+      ActiveRecord.after_all_transactions_commit do
+        LandingQueueProcessor.try_land!(job.reload)
+      rescue StandardError => e
+        # Best-effort like every lifecycle hook: the rebase's success is
+        # committed, and the recurring landing loop picks the Job up anyway.
+        Rails.logger.warn("[Workflow##{workflow.id}] after_success landing re-dispatch raised: #{e.class}: #{e.message}")
+      end
     end
   end
 end
