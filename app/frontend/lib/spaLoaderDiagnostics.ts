@@ -16,7 +16,7 @@ function readSnapshot(): SpaLoaderDiagnosticsSnapshot {
   const warmup = chunkWarmup.snapshot()
   if (startup) {
     warmup.entries.forEach((entry) => {
-      entry.size = entry.manifestKey ? startup.lazy_chunks?.[entry.manifestKey]?.size ?? null : null
+      entry.size = entry.manifestKey ? (startup.lazy_chunks?.[entry.manifestKey]?.size ?? null) : null
     })
   }
   return { warmup, startup }

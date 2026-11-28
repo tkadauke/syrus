@@ -6,15 +6,34 @@ const upstream = vi.hoisted(() => ({
   warmEverythingNow: vi.fn(),
   clearWarmupState: vi.fn(),
   snapshot: vi.fn(() => ({
-    entries: [{ id: "route:Chat", group: null, priority: 0, state: "queued", source: null, startedAt: null, durationMs: null, manifestKey: "app/frontend/routes/Chat.tsx", size: null }],
-    queue: ["route:Chat"], loading: null, paused: false, pauseReasons: [], stoppedAfterFailure: false
+    entries: [
+      {
+        id: "route:Chat",
+        group: null,
+        priority: 0,
+        state: "queued",
+        source: null,
+        startedAt: null,
+        durationMs: null,
+        manifestKey: "app/frontend/routes/Chat.tsx",
+        size: null
+      }
+    ],
+    queue: ["route:Chat"],
+    loading: null,
+    paused: false,
+    pauseReasons: [],
+    stoppedAfterFailure: false
   }))
 }))
 
 vi.mock("./chunkWarmup", () => ({
   chunkWarmup: {
     snapshot: upstream.snapshot,
-    subscribe: (listener: () => void) => { upstream.warmupListener = listener; return upstream.stopWarmup },
+    subscribe: (listener: () => void) => {
+      upstream.warmupListener = listener
+      return upstream.stopWarmup
+    },
     warmEverythingNow: upstream.warmEverythingNow,
     clearWarmupState: upstream.clearWarmupState
   }
@@ -22,9 +41,14 @@ vi.mock("./chunkWarmup", () => ({
 
 function startupSnapshot() {
   return {
-    milestones: [], assets: [], progress_samples: [], progress: null, budget: null,
+    milestones: [],
+    assets: [],
+    progress_samples: [],
+    progress: null,
+    budget: null,
     lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
-    events: [], revision: { page: "current", previous: null, changed: false },
+    events: [],
+    revision: { page: "current", previous: null, changed: false },
     current_state: "ready",
     last_problem_state: null,
     service_worker: { present: false, controlled: false, registration: null, worker_revision: null, counted_requests: [] },
@@ -48,8 +72,12 @@ describe("spaLoaderDiagnostics", () => {
     const startupListener = vi.fn()
     const stopStartup = vi.fn()
     window.SyrusStartupDiagnostics = {
-      mark: vi.fn(), snapshot: startupSnapshot,
-      subscribe: (listener) => { startupListener.mockImplementation(listener); return stopStartup }
+      mark: vi.fn(),
+      snapshot: startupSnapshot,
+      subscribe: (listener) => {
+        startupListener.mockImplementation(listener)
+        return stopStartup
+      }
     }
     const { spaLoaderDiagnostics } = await import("./spaLoaderDiagnostics")
     const first = vi.fn()

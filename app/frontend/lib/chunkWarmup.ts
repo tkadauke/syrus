@@ -127,7 +127,15 @@ export class ChunkWarmupQueue {
   register<T>(id: string, load: () => Promise<T>, options: ChunkWarmupOptions): WarmableLoader<T> {
     let entry = this.entries.get(id)
     if (!entry) {
-      entry = { id, priority: options.priority, group: options.group, order: this.order++, load, loaded: false, manifestKey: options.manifestKey ?? inferredManifestKey(id) }
+      entry = {
+        id,
+        priority: options.priority,
+        group: options.group,
+        order: this.order++,
+        load,
+        loaded: false,
+        manifestKey: options.manifestKey ?? inferredManifestKey(id)
+      }
       this.entries.set(id, entry)
     }
     const registered = entry
@@ -178,7 +186,10 @@ export class ChunkWarmupQueue {
     })
     return {
       entries,
-      queue: entries.filter((entry) => entry.state === "queued").sort((left, right) => left.priority - right.priority).map((entry) => entry.id),
+      queue: entries
+        .filter((entry) => entry.state === "queued")
+        .sort((left, right) => left.priority - right.priority)
+        .map((entry) => entry.id),
       loading: this.backgroundInFlight?.id ?? entries.find((entry) => entry.state === "loading")?.id ?? null,
       paused: pauseReasons.length > 0,
       pauseReasons,
@@ -247,7 +258,13 @@ export class ChunkWarmupQueue {
 
   private fetch(entry: Entry) {
     if (!entry.promise) {
-      if (this.listeners) this.observedLoads?.set(entry.id, { source: this.backgroundInFlight === entry ? "warmup" : "on_demand", startedAt: performance.now(), durationMs: null, failed: false })
+      if (this.listeners)
+        this.observedLoads?.set(entry.id, {
+          source: this.backgroundInFlight === entry ? "warmup" : "on_demand",
+          startedAt: performance.now(),
+          durationMs: null,
+          failed: false
+        })
       this.notify()
       entry.promise = entry.load().then(
         (module) => {

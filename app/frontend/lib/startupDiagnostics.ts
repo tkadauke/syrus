@@ -10,7 +10,15 @@ type StartupDiagnostics = {
 
 export type StartupDiagnosticsSnapshot = {
   milestones: Array<{ name: string; at_ms: number }>
-  assets: Array<{ path: string; bytes: number; size: number; wire_size: number; budget_size: number | null; source: string; timing: Record<string, unknown> | null }>
+  assets: Array<{
+    path: string
+    bytes: number
+    size: number
+    wire_size: number
+    budget_size: number | null
+    source: string
+    timing: Record<string, unknown> | null
+  }>
   progress_samples: Array<{ at: number; bytes: number }>
   progress: { loaded: number; total: number; speed: number | null; secondsLeft: number | null } | null
   budget: { kind: string; bytes: number } | null
@@ -19,7 +27,13 @@ export type StartupDiagnosticsSnapshot = {
   revision: { page: string; previous: string | null; changed: boolean }
   current_state: string | null
   last_problem_state: string | null
-  service_worker: { present: boolean; controlled: boolean; registration: { installing: string | null; waiting: string | null; active: string | null } | null; worker_revision: string | null; counted_requests: string[] }
+  service_worker: {
+    present: boolean
+    controlled: boolean
+    registration: { installing: string | null; waiting: string | null; active: string | null } | null
+    worker_revision: string | null
+    counted_requests: string[]
+  }
   auto_retry_attempt: number
   maximum_auto_retry_attempt: number
 }

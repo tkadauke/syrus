@@ -56,7 +56,10 @@ export const routeChunks = {
   adminBrowserErrors: warmableChunk("route:AdminBrowserErrors", () => import("./AdminBrowserErrors"), admin),
   adminBackendExceptions: warmableChunk("route:AdminBackendExceptions", () => import("./AdminBackendExceptions"), admin),
   adminPlugins: warmableChunk("route:AdminPlugins", () => import("./AdminPlugins"), admin),
-  adminPluginServices: warmableChunk("route:AdminPluginServices", () => import("@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"), { ...admin, manifestKey: "plugins/plugin_runtime/app/frontend/routes/AdminPluginServices.tsx" }),
+  adminPluginServices: warmableChunk("route:AdminPluginServices", () => import("@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"), {
+    ...admin,
+    manifestKey: "plugins/plugin_runtime/app/frontend/routes/AdminPluginServices.tsx"
+  }),
   adminProcesses: warmableChunk("route:AdminProcesses", () => import("./AdminProcesses"), admin),
   adminMcpToolUsage: warmableChunk("route:AdminMcpToolUsage", () => import("./AdminMcpToolUsage"), admin),
   adminTranscript: warmableChunk("route:AdminTranscript", () => import("./AdminTranscript"), admin),

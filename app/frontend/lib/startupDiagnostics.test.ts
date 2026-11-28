@@ -547,12 +547,18 @@ describe("startupDiagnostics", () => {
   it("offers Retry only once startup has made no progress for the stall window", () => {
     vi.useFakeTimers()
     let resources: PerformanceEntry[] = []
-    installStartupShell({ performanceEntries: { get resource() { return resources } } as unknown as Record<string, PerformanceEntry[]> })
+    installStartupShell({
+      performanceEntries: {
+        get resource() {
+          return resources
+        }
+      } as unknown as Record<string, PerformanceEntry[]>
+    })
 
     vi.advanceTimersByTime(8000)
     // A slow bundle finishes after a while: that is progress, so no Retry yet.
     vi.advanceTimersByTime(25000)
-    resources = [ { name: "/assets/app.js" } as PerformanceEntry ]
+    resources = [{ name: "/assets/app.js" } as PerformanceEntry]
     vi.advanceTimersByTime(5000)
     expect(startupRetry()).toHaveAttribute("hidden")
     expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
@@ -700,7 +706,14 @@ describe("startupDiagnostics", () => {
           resource: [
             // 200 KB of body crossed the network (a little better than the
             // shell expected), in four seconds.
-            { name: `${window.location.origin}${VENDOR_PATH}`, startTime: 100, responseEnd: 4100, transferSize: 205_100, encodedBodySize: 204_800, decodedBodySize: 1_000_000 },
+            {
+              name: `${window.location.origin}${VENDOR_PATH}`,
+              startTime: 100,
+              responseEnd: 4100,
+              transferSize: 205_100,
+              encodedBodySize: 204_800,
+              decodedBodySize: 1_000_000
+            },
             // Cached: counts toward progress, not toward speed.
             { name: `${window.location.origin}/assets/app-74e6a7ef.css`, startTime: 50, responseEnd: 60, transferSize: 0, decodedBodySize: 4000 },
             { name: `${window.location.origin}/api/v1/app/bootstrap`, startTime: 50, responseEnd: 9000, transferSize: 900_000 }

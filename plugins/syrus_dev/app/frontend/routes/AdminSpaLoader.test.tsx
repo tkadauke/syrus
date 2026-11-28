@@ -14,7 +14,9 @@ vi.mock("@app/pluginSdk", () => ({
     snapshot: () => diagnostics.current,
     subscribe: (listener: () => void) => {
       diagnostics.listener = listener
-      return () => { diagnostics.listener = null }
+      return () => {
+        diagnostics.listener = null
+      }
     },
     warmEverythingNow: diagnostics.warmEverythingNow,
     clearWarmupState: diagnostics.clearWarmupState
@@ -26,20 +28,57 @@ import { AdminSpaLoader } from "./AdminSpaLoader"
 function snapshot(state = "queued") {
   return {
     warmup: {
-      entries: [{ id: "chat-route", group: "routes", priority: 1, state, source: null, startedAt: null, durationMs: null, manifestKey: "app/frontend/routes/Chat.tsx", size: 8192 }],
-      queue: state === "queued" ? ["chat-route"] : [], loading: state === "loading" ? "chat-route" : null,
-      paused: true, pauseReasons: ["hidden_tab"], stoppedAfterFailure: false
+      entries: [
+        {
+          id: "chat-route",
+          group: "routes",
+          priority: 1,
+          state,
+          source: null,
+          startedAt: null,
+          durationMs: null,
+          manifestKey: "app/frontend/routes/Chat.tsx",
+          size: 8192
+        }
+      ],
+      queue: state === "queued" ? ["chat-route"] : [],
+      loading: state === "loading" ? "chat-route" : null,
+      paused: true,
+      pauseReasons: ["hidden_tab"],
+      stoppedAfterFailure: false
     },
     startup: {
       milestones: [{ name: "shell_loaded", at_ms: 4 }],
-      assets: [{ path: "/assets/spa.js", bytes: 1024, size: 1024, wire_size: 512, budget_size: 600, source: "service_worker", timing: { request_start_ms: 10, response_start_ms: 25, response_end_ms: 40 } }],
-      progress_samples: [], progress: null, events: [{ kind: "auto_retry", at_ms: 9000, attempt: 1 }, { kind: "stale_chunk_failure", at_ms: 9100, outcome: "reload", revision: "new" }],
+      assets: [
+        {
+          path: "/assets/spa.js",
+          bytes: 1024,
+          size: 1024,
+          wire_size: 512,
+          budget_size: 600,
+          source: "service_worker",
+          timing: { request_start_ms: 10, response_start_ms: 25, response_end_ms: 40 }
+        }
+      ],
+      progress_samples: [],
+      progress: null,
+      events: [
+        { kind: "auto_retry", at_ms: 9000, attempt: 1 },
+        { kind: "stale_chunk_failure", at_ms: 9100, outcome: "reload", revision: "new" }
+      ],
       lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
       revision: { page: "new", previous: "old", changed: true },
       current_state: "ready",
       last_problem_state: "watchdog",
-      service_worker: { present: true, controlled: true, registration: { installing: null, waiting: null, active: "activated" }, worker_revision: "new", counted_requests: ["/assets/spa.js"] },
-      auto_retry_attempt: 1, maximum_auto_retry_attempt: 2
+      service_worker: {
+        present: true,
+        controlled: true,
+        registration: { installing: null, waiting: null, active: "activated" },
+        worker_revision: "new",
+        counted_requests: ["/assets/spa.js"]
+      },
+      auto_retry_attempt: 1,
+      maximum_auto_retry_attempt: 2
     }
   }
 }
@@ -53,7 +92,11 @@ describe("AdminSpaLoader", () => {
   })
 
   it("renders every diagnostic section from the host SDK snapshot and updates live", () => {
-    render(<MemoryRouter initialEntries={["/admin/spa_loader"]}><AdminSpaLoader /></MemoryRouter>)
+    render(
+      <MemoryRouter initialEntries={["/admin/spa_loader"]}>
+        <AdminSpaLoader />
+      </MemoryRouter>
+    )
 
     expect(screen.getByText("chat-route", { selector: "td" })).toBeInTheDocument()
     expect(screen.getByText(/chat-route \(routes, priority 1\)/)).toBeInTheDocument()
