@@ -31,7 +31,8 @@ class BaseRevisionRetry
   end
 
   def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:, command: nil,
-    require_candidate_pass: false, candidate_files: [], require_failed_test_evidence: false)
+    require_candidate_pass: false, candidate_files: [], require_failed_test_evidence: false,
+    expected_failure_files: nil)
     @workflow = workflow
     @grader_step = grader_step
     @base_sha = base_sha.to_s
@@ -41,6 +42,7 @@ class BaseRevisionRetry
     @require_candidate_pass = require_candidate_pass
     @candidate_files = Array(candidate_files)
     @require_failed_test_evidence = require_failed_test_evidence
+    @expected_failure_files = Array(expected_failure_files || candidate_files)
   end
 
   def call
@@ -259,7 +261,7 @@ class BaseRevisionRetry
   end
 
   def failed_test_evidence?(parsed)
-    expected_paths = @candidate_files.map { |path| Pathname.new(path.to_s).cleanpath.to_s }
+    expected_paths = @expected_failure_files.map { |path| Pathname.new(path.to_s).cleanpath.to_s }
     parsed && parsed.cases.any? do |test_case|
       test_case.status == "failed" && expected_paths.include?(Pathname.new(test_case.file_path.to_s).cleanpath.to_s)
     end
@@ -267,10 +269,30 @@ class BaseRevisionRetry
 
   def clear_parse_artifacts!(checkout_path)
     junit_path = @grader_step.details.to_h["junit_output"].to_s.strip.presence
-    FileUtils.rm_f(checkout_path.join(junit_path)) if junit_path
+    FileUtils.rm_f(confined_checkout_path(checkout_path, junit_path)) if junit_path
     JUNIT_SEARCH_GLOBS.each do |glob|
-      Dir.glob(checkout_path.join(glob).to_s).each { |path| FileUtils.rm_f(path) }
+      Dir.glob(checkout_path.join(glob).to_s).each do |path|
+        relative = Pathname.new(path).relative_path_from(checkout_path)
+        FileUtils.rm_f(confined_checkout_path(checkout_path, relative))
+      end
     end
+  end
+
+  def confined_checkout_path(checkout_path, path)
+    root = checkout_path.realpath
+    relative = Pathname.new(path.to_s).cleanpath
+    if relative.absolute? || relative.each_filename.first == ".."
+      raise ArgumentError, "artifact path must stay inside the base checkout: #{path}"
+    end
+
+    parent = root
+    relative.dirname.each_filename do |component|
+      parent = parent.join(component)
+      if parent.symlink?
+        raise ArgumentError, "artifact path cannot traverse a symlink: #{path}"
+      end
+    end
+    root.join(relative)
   end
 
   def skipped(reason, command: nil, output: nil)

@@ -725,6 +725,25 @@ RSpec.describe BaseRevisionRetry do
     )
   end
 
+  it "refuses absolute and traversing configured artifact paths without deleting them" do
+    checkout_path = @workspace_path.join("cleanup-checkout")
+    FileUtils.mkdir_p(checkout_path)
+    protected_path = checkout_path.dirname.join("protected.xml")
+    protected_path.write("keep me")
+
+    [ protected_path.to_s, "../protected.xml" ].each do |junit_output|
+      grader_step.update!(details: grader_step.details.merge("junit_output" => junit_output))
+
+      expect {
+        retry_check = described_class.new(
+          workflow:, grader_step:, base_sha: "main123", log: ->(_message) { }
+        )
+        retry_check.send(:clear_parse_artifacts!, checkout_path)
+      }.to raise_error(ArgumentError, /artifact path must stay inside/)
+      expect(protected_path.read).to eq("keep me")
+    end
+  end
+
   it "kills a hung base command when the timeout expires", :allow_host_execution do
     stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
     child_pid_path = @workspace_path.join("child.pid")
