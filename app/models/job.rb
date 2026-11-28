@@ -1418,6 +1418,19 @@ class Job < ApplicationRecord
       WorkUnits::Ownership.active_units_for_job(self).each do |unit|
         unit.preempt!(reason: reason) if unit.active?
       end
+
+      # Workflows from before WorkUnit ownership (or of a kind it does not
+      # track) are invisible to active_runtime_workflows; closing a Job left
+      # one blocked under the closed Job indefinitely. Nothing may stay
+      # active once the Job's execution is cancelled.
+      workflows.where(state: %w[queued running blocked]).find_each do |workflow|
+        WorkUnits::WorkflowCancellation.cancel!(
+          workflow,
+          reason: reason,
+          cause: cause,
+          artifacts: { "cancelled_reason" => reason, "cancelled_at" => Time.current.iso8601 }
+        )
+      end
     end
   end
 

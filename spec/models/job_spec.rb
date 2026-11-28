@@ -832,6 +832,18 @@ RSpec.describe Job, :ci_only do
       # the Run
     end
 
+    # An old workflow with no WorkUnit was invisible to the ownership-based
+    # cancel and stayed blocked under the closed Job.
+    it "cancels an active workflow that has no WorkUnit when closing the job" do
+      job = Factories.job_record(state: "running")
+      orphan = job.workflows.create!(trigger_kind: "coding_handoff", state: "blocked", agent_provider: "claude")
+
+      job.cancel_active_runs_and_close!("cancelled")
+
+      expect(job.reload).to be_closed
+      expect(orphan.reload.state).to eq("cancelled")
+    end
+
     it "cancels active WorkUnit ownership when closing the job" do
       job = Factories.job_record(state: "running")
       intent = WorkIntent.create!(
