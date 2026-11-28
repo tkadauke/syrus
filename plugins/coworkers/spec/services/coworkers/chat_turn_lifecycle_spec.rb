@@ -354,4 +354,27 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
 
     expect(recovery).not_to have_received(:record_launch_failure!)
   end
+
+  it "counts only failures that occur before the agent process starts" do
+    Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
+    environment = Coworkers::Environment.create!(coworker:, state: "active")
+    selection = Coworkers::EnvironmentActiveSelection::Selection.new(
+      activation_id: 11, revision_id: 21, runtime_image_id: 31,
+      image_digest: "sha256:#{'1' * 64}", runtime_image: instance_double(RuntimeImage)
+    )
+    recovery = instance_double(Coworkers::EnvironmentRecovery, record_launch_failure!: nil)
+    allow(Coworkers::EnvironmentActiveSelection).to receive(:resolve).with(environment).and_return(selection)
+    allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return({})
+    allow(Coworkers::EnvironmentRecovery).to receive(:new).with(environment).and_return(recovery)
+    lifecycle = described_class.new(chat_session: chat, user_message: message)
+    lifecycle.admission
+
+    lifecycle.after_execution(result: instance_double(AgentInvocation::Result, success?: false,
+      spawned_process_id: nil))
+    lifecycle.after_execution(result: instance_double(AgentInvocation::Result, success?: false,
+      spawned_process_id: 99))
+
+    expect(recovery).to have_received(:record_launch_failure!).once
+      .with(11, reason: "agent_process_not_started")
+  end
 end
