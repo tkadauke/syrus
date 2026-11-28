@@ -28,14 +28,18 @@ class Coworkers::EnvironmentLifecycle
     raise Coworkers::EnvironmentRevision::InvalidTransition, "no candidate revision is available" unless revision
     raise Coworkers::EnvironmentBuildRequest::Disabled, "coworker custom environments are not enabled" unless Feature.coworker_custom_environments_enabled?
 
-    @environment.with_lock do
+    published = @environment.with_lock do
       revision.reload
       image = revision.runtime_image
       unless revision.candidate? && image&.pullable?
         raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"
       end
-      mark_incompatible!(revision) unless compatible_now?(revision)
-      raise Coworkers::EnvironmentRevision::InvalidTransition, "candidate is incompatible with the active runtime ABI" unless revision.candidate?
+      # Raising inside the lock would roll the rejection back, leaving an
+      # incompatible candidate publishable; commit it, then refuse.
+      unless compatible_now?(revision)
+        mark_incompatible!(revision)
+        next nil
+      end
 
       previous = @environment.active_revision
       previous.transition_to!(:retired) if previous&.active?
@@ -48,6 +52,9 @@ class Coworkers::EnvironmentLifecycle
       publish_event("activated", revision)
       revision
     end
+    raise Coworkers::EnvironmentRevision::InvalidTransition, "candidate is incompatible with the active runtime ABI" unless published
+
+    published
   end
 
   def reject!(revision, code: "verification_rejected", actor: "system")

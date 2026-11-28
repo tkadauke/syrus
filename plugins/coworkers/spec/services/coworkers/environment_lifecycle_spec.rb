@@ -100,6 +100,18 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     )
   end
 
+  it "persists the rejection when publishing a candidate that became incompatible" do
+    described_class.new(environment).reconcile_build!(revision)
+    allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(base.with(runtime_abi: 9))
+
+    expect { described_class.new(environment).publish!(revision, actor: "operator") }
+      .to raise_error(Coworkers::EnvironmentRevision::InvalidTransition)
+
+    expect(revision.reload).to be_rejected
+    expect(environment.reload).to have_attributes(state: "failed", candidate_revision_id: nil,
+                                                   last_error_code: described_class::INCOMPATIBLE)
+  end
+
   it "fails closed when the image ABI is incompatible" do
     allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(base.with(runtime_abi: 9))
 
