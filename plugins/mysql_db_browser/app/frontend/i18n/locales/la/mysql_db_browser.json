@@ -131,7 +131,7 @@
   "query_truncated": "eventus decurtati",
   "live_process_list": "Index Processuum",
   "live_global_status": "Status Universalis",
-  "live_slow_log": "Diarium Tardum",
+  "live_statement_digests": "Summaria sententiarum",
   "live_auto_refresh": "Quoque 10 secundis renovatur",
   "foreign_keys_heading": "Claves Alienae",
   "no_foreign_keys": "Nullae claves alienae.",

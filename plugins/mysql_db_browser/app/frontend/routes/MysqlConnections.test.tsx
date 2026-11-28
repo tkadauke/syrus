@@ -1145,7 +1145,7 @@ describe("MysqlConnections", () => {
   })
 
   describe("Live tab", () => {
-    it("runs the Process List canned query and lets an operator switch to Global Status", async () => {
+    it("runs canned queries including Performance Schema statement summaries", async () => {
       const { calls } = setupFetchMock()
       renderConnections()
 
@@ -1167,6 +1167,16 @@ describe("MysqlConnections", () => {
         return found
       })
       expect(querySql(statusCall?.body)).toContain("performance_schema.global_status")
+
+      fireEvent.click(screen.getByRole("tab", { name: "Statement Summaries" }))
+      const digestCall = await waitFor(() => {
+        const found = calls.find((call) => querySql(call.body)?.includes("events_statements_summary_by_digest"))
+        expect(found).toBeTruthy()
+        return found
+      })
+      expect(querySql(digestCall?.body)).toContain("SUM_TIMER_WAIT")
+      expect(querySql(digestCall?.body)).toContain("AVG_TIMER_WAIT")
+      expect(querySql(digestCall?.body)).not.toContain("slow_log")
     })
   })
 })

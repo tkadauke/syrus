@@ -6,25 +6,24 @@ import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toolb
 import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
-import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSlowLogRow, type MysqlSnapshot, type MysqlStatementDigest } from "../api/adminMysql"
+import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSlowSqlEvent, type MysqlSnapshot, type MysqlStatementDigest } from "../api/adminMysql"
 
 export function AdminMysql() {
   const { t } = useT("admin_mysql")
   usePageTitle(t("page_title"))
   const [limit, setLimit] = useState(50)
-  const [includeSlowLog, setIncludeSlowLog] = useState(false)
   const [hideIdle, setHideIdle] = useState(true)
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const liveMysql = useQuery({
     queryKey: ["admin", "mysql", "live", limit, hideIdle],
-    queryFn: () => fetchAdminMysql(limit, false, "live", !hideIdle),
+    queryFn: () => fetchAdminMysql(limit, "live", !hideIdle),
     staleTime: 0,
     refetchInterval: 10_000
   })
   const staticMysql = useQuery({
-    queryKey: ["admin", "mysql", "static", limit, includeSlowLog],
-    queryFn: () => fetchAdminMysql(limit, includeSlowLog, "configuration,diagnostics"),
+    queryKey: ["admin", "mysql", "static", limit],
+    queryFn: () => fetchAdminMysql(limit, "configuration,diagnostics"),
     staleTime: 0,
     refetchInterval: 60_000
   })
@@ -93,12 +92,10 @@ export function AdminMysql() {
       {mysql.data ? (
         <MysqlDashboard
           hideIdle={hideIdle}
-          includeSlowLog={includeSlowLog}
           killingThreadId={killQuery.isPending ? killQuery.variables : null}
           payload={mysql.data}
           onKill={onKill}
           onToggleHideIdle={() => setHideIdle((value) => !value)}
-          onToggleSlowLog={() => setIncludeSlowLog((value) => !value)}
           t={t}
         />
       ) : null}
@@ -108,20 +105,16 @@ export function AdminMysql() {
 
 function MysqlDashboard({
   hideIdle,
-  includeSlowLog,
   killingThreadId,
   onKill,
   onToggleHideIdle,
-  onToggleSlowLog,
   payload,
   t
 }: {
   hideIdle: boolean
-  includeSlowLog: boolean
   killingThreadId: number | null
   onKill: (process: MysqlProcess) => void
   onToggleHideIdle: () => void
-  onToggleSlowLog: () => void
   payload: MysqlSnapshot
   t: ReturnType<typeof useT>["t"]
 }) {
@@ -212,7 +205,7 @@ function MysqlDashboard({
 
       <section className="grid gap-6 xl:grid-cols-2">
         <StatementDigestPanel payload={payload} t={t} />
-        <SlowLogPanel includeSlowLog={includeSlowLog} payload={payload} t={t} onToggleSlowLog={onToggleSlowLog} />
+        <SlowSqlEventsPanel payload={payload} t={t} />
       </section>
     </div>
   )
@@ -246,46 +239,24 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
   )
 }
 
-function SlowLogPanel({
-  includeSlowLog,
-  onToggleSlowLog,
-  payload,
-  t
-}: {
-  includeSlowLog: boolean
-  onToggleSlowLog: () => void
-  payload: MysqlSnapshot
-  t: ReturnType<typeof useT>["t"]
-}) {
+function SlowSqlEventsPanel({ payload, t }: { payload: MysqlSnapshot; t: ReturnType<typeof useT>["t"] }) {
   return (
     <Section.Root className="min-w-0 overflow-hidden p-0">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
-        <div>
-          <SectionHeading>{t("slow_log")}</SectionHeading>
-          <Text variant="caption" tone="muted">
-            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")}{" "}
-            · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
-          </Text>
-        </div>
-        <button
-          className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-          onClick={onToggleSlowLog}
-          type="button"
-        >
-          {includeSlowLog ? t("hide_slow_log") : t("load_slow_log")}
-        </button>
+      <div className="border-b border-border px-4 py-3">
+        <SectionHeading>{t("slow_sql_events")}</SectionHeading>
+        <Text variant="caption" tone="muted">{t("slow_sql_events_description")}</Text>
       </div>
-      {!payload.slow_log.available ? (
-        <UnavailablePanel fallback={t("slow_log_unavailable")} error={payload.slow_log.error} />
+      {!payload.slow_sql_events.available ? (
+        <UnavailablePanel fallback={t("slow_sql_events_unavailable")} error={payload.slow_sql_events.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <AdminEventLogTable
-            columns={slowLogColumns(t)}
-            defaultSort={{ column: "start_time", direction: "desc" }}
-            getRowKey={(row) => `${row.start_time}-${row.sql_text}-${row.query_time}`}
+            columns={slowSqlEventColumns(t)}
+            defaultSort={{ column: "occurred_at", direction: "desc" }}
+            getRowKey={(row) => `${row.occurred_at}-${row.fingerprint}-${row.duration_ms}`}
             localSort
-            rows={payload.slow_log.rows}
-            storageKey="syrus.admin.mysql.slow_log.columns"
+            rows={payload.slow_sql_events.rows}
+            storageKey="syrus.admin.mysql.slow_sql_events.columns"
             tableClassName=""
           />
         </div>
@@ -417,8 +388,10 @@ function statementDigestColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEve
       sort: "total_seconds",
       sortValue: (row) => row.total_seconds
     },
+    { key: "avg_seconds", header: t("col_avg"), render: (row) => formatSeconds(row.avg_seconds), sort: "avg_seconds", sortValue: (row) => row.avg_seconds },
     { key: "max_seconds", header: t("col_max"), render: (row) => formatSeconds(row.max_seconds), sort: "max_seconds", sortValue: (row) => row.max_seconds },
     { key: "count", header: t("col_count"), render: (row) => row.count, sort: "count", sortValue: (row) => row.count },
+    { key: "rows_examined", header: t("col_rows_examined"), render: (row) => row.rows_examined, sort: "rows_examined", sortValue: (row) => row.rows_examined },
     {
       key: "statement",
       header: t("col_statement"),
@@ -430,24 +403,24 @@ function statementDigestColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEve
   ]
 }
 
-function slowLogColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<MysqlSlowLogRow>> {
+function slowSqlEventColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<MysqlSlowSqlEvent>> {
   return [
     {
-      key: "start_time",
+      key: "occurred_at",
       header: t("col_time"),
-      render: (row) => (row.start_time ? new Date(row.start_time).toLocaleString() : "-"),
-      sort: "start_time",
-      sortValue: (row) => row.start_time || ""
+      render: (row) => (row.occurred_at ? new Date(row.occurred_at).toLocaleString() : "-"),
+      sort: "occurred_at",
+      sortValue: (row) => row.occurred_at || ""
     },
-    { key: "query_time", header: t("col_query_time"), render: (row) => row.query_time, sort: "query_time", sortValue: (row) => Number(row.query_time) || 0 },
-    { key: "rows_examined", header: t("col_rows_examined"), render: (row) => row.rows_examined, sort: "rows_examined", sortValue: (row) => row.rows_examined },
+    { key: "duration_ms", header: t("col_duration"), render: (row) => `${formatValue(row.duration_ms)} ms`, sort: "duration_ms", sortValue: (row) => row.duration_ms },
+    { key: "source", header: t("col_source"), render: (row) => row.controller ? `${row.controller}#${row.action || "?"}` : row.job_class || row.phase || row.name || "-" },
     {
       key: "sql",
       header: "SQL",
       className: "max-w-xl truncate font-mono text-xs",
-      render: (row) => <span title={row.sql_text || ""}>{row.sql_text || "-"}</span>,
+      render: (row) => <span title={row.sql || ""}>{row.sql || "-"}</span>,
       sort: "sql",
-      sortValue: (row) => row.sql_text || ""
+      sortValue: (row) => row.sql || ""
     }
   ]
 }
