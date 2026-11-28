@@ -22,6 +22,23 @@ module FailureProblems
       nil
     end
 
+    # A request to GitHub that never got a response: the connection could not
+    # be opened, was reset, or timed out. Octokit lets Faraday's exception
+    # escape as-is, so it carries no status -- only a message naming the
+    # host. Transient for GitHub hosts; any other host makes no claim.
+    CONNECTION_ERRORS = [ Faraday::ConnectionFailed, Faraday::TimeoutError, Faraday::SSLError ].freeze
+    GITHUB_HOST_PATTERN = /\b(?:api\.)?github\.com\b|\bgithubusercontent\.com\b/i
+
+    def for_connection(error)
+      return nil unless github_host?(error.message)
+
+      FailureProblems.declare(:github_api_transient, error_class: error.class.name, connection_error: error.message.to_s.truncate(200))
+    end
+
+    def github_host?(message)
+      message.to_s.match?(GITHUB_HOST_PATTERN)
+    end
+
     def response_status(error)
       error.respond_to?(:response_status) ? error.response_status : nil
     end

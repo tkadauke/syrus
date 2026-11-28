@@ -171,7 +171,7 @@ module FailureCorpus
           "classification" => classification.classification,
           "retryable" => classification.retryable == true,
           "confidence" => classification.confidence&.to_f,
-          "source" => CLASSIFIER_INPUT_KEYS.all? { |key| inputs.key?(key) } ? "classifier" : "external",
+          "source" => inputs["declared_by"].blank? && CLASSIFIER_INPUT_KEYS.all? { |key| inputs.key?(key) } ? "classifier" : "external",
           "classified_on" => classified_at&.utc&.strftime("%Y-%m-%d")
         },
         "auto_retry_attempts" => attempts_for(run)

@@ -264,6 +264,29 @@ RSpec.describe WorkEngine::RepairExecutor do
       )
     end
 
+    # Regression: the Run this repair ends is often a grader it killed
+    # mid-run, whose "grader X failed" re-classified as a non-retryable
+    # grader_failure and made AutoRetryJob skip the retry scheduled here.
+    it "marks its verdict so re-classifying a killed grader cannot downgrade it" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      run = workflow.runs.last
+      run.step.update_columns(kind: "grader")
+      recovery_fails_with("durable head validation failed")
+
+      described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      )
+      RunDiagnostic.where(run_id: run.id).delete_all
+      RunDiagnostic.insert!({ run_id: run.id, error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1)",
+                              created_at: Time.current, updated_at: Time.current })
+
+      expect(run.reload.run_failure_classification).to be_written_by_repair
+      expect(RunFailureClassifier.classify(run)).to have_attributes(classification: "grader_failure")
+      expect(RunFailureClassifier.persist!(run)).to have_attributes(
+        classification: "workspace_recovery_failed", retryable: true
+      )
+    end
+
     # The regression. These Runs carry no exception and no agent output --
     # the repair is what ended them -- so with nothing declared the classifier
     # fell through to `application_error, retryable: false`, AutoRetryJob

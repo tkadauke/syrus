@@ -268,7 +268,7 @@ models:
   - path: app/jobs/auto_retry_job.rb
     owner: AutoRetryJob
     method: skip_if_failure_no_longer_retryable
-    sha: 1cb4c3de19cc505f
+    sha: 3fbad03f43d29074
   - path: app/services/work_engine/repair_planner.rb
     owner: BranchDivergedPrOpen
     method: plan

@@ -988,6 +988,48 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.classification).not_to eq("provider_usage_limit")
   end
 
+  # Regression: the bare word "timeout" is not a timeout. A deterministic
+  # `bundle install` failure read as a retryable timeout because the log
+  # installed the `timeout` gem, and grader_collect reports
+  # "configured_timeout=" for graders that finished in seconds.
+  describe "timeout evidence" do
+    def failed_with_log(step_kind, message, chunk)
+      run.step.update_columns(kind: step_kind)
+      run.update!(state: "failed")
+      JobLog.append!(run: run, chunk: chunk, kind: "system")
+      diagnostic("Steps::Base::StepFailed", message)
+    end
+
+    it "does not read a gem named timeout in install output as a timeout" do
+      failed_with_log("prepare", "prepare command failed (exit 5) in /tmp/w: bundle install",
+                      "Fetching timeout 0.6.1\nInstalling timeout 0.6.1\nInstalling mysql2 0.5.7 with native extensions")
+
+      expect(classification.classification).not_to eq("timeout")
+    end
+
+    it "does not read a grader's configured timeout as a timeout" do
+      failed_with_log("grader_collect", "required graders failed",
+                      "[grader_collect] inconclusive grader feature-slugs: configured_timeout=60s observed_duration=3.9s " \
+                      "process_outcome=succeeded assertion_failures_present=false")
+
+      expect(classification.classification).not_to eq("timeout")
+    end
+
+    {
+      "a timed_out process outcome" => "[grader_collect] inconclusive grader rspec: configured_timeout=600s observed_duration=601.4s process_outcome=timed_out",
+      "timed out after N" => "[prepare] failure: prepare command failed (timed out after 600s)",
+      "a Net::ReadTimeout" => "MCP proxy error: Net::ReadTimeout: Net::ReadTimeout with #<TCPSocket:(closed)>",
+      "execution expired" => "Faraday::ConnectionFailed: execution expired",
+      "exit status 124" => "command exited 124"
+    }.each do |signal, chunk|
+      it "still classifies #{signal} as a timeout" do
+        failed_with_log("implement", "step failed", chunk)
+
+        expect(classification).to have_attributes(classification: "timeout", retryable: true)
+      end
+    end
+  end
+
   it "classifies process timeouts from SpawnedProcess outcome" do
     run.update!(state: "failed")
     process("silent_timed_out")
@@ -1374,6 +1416,40 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  # Regression: once the bare word "timeout" stopped counting, a recorded
+  # GitHub connection failure lost the retry it only ever got from its
+  # backtrace's `Timeout.timeout` frames.
+  it "classifies a recorded connection failure to GitHub as a retryable GitHub API failure" do
+    run.update!(state: "failed")
+    run.create_run_diagnostic!(
+      error_class: "Faraday::ConnectionFailed",
+      error_message: "Failed to open TCP connection to api.github.com:443 (No route to host - connect(2) for \"api.github.com\" port 443)",
+      error_backtrace: "/gems/timeout-0.6.1/lib/timeout.rb:304:in 'Timeout.timeout'"
+    )
+
+    expect(classification).to have_attributes(classification: "github_api_transient", retryable: true)
+  end
+
+  # Regression: an earlier, harmless fetch of a branch that did not exist yet
+  # ("couldn't find remote ref", routine before a first push) sat in the
+  # recent logs, and the permanent-failure veto read all of them, so the
+  # GitHub 500 on the push itself became a non-retryable git_state_corrupt.
+  # Only the failing command's own output decides.
+  it "decides a Git failure's transience from the failing command's output, not unrelated earlier log lines" do
+    run.update!(state: "failed")
+    JobLog.create!(run: run, sequence: 900, kind: "system", chunk: "fatal: couldn't find remote ref refs/heads/syrus/direct-5004")
+    diagnostic(
+      "GitRunner::GitError",
+      "git push --force-with-lease=refs/heads/syrus/direct-5004 https://x-access-token:redacted@github.com/owner/repo.git " \
+      "HEAD:refs/heads/syrus/direct-5004 exited 1\n" \
+      "remote: Internal Server Error\n" \
+      " ! [remote rejected]     HEAD -> syrus/direct-5004 (Internal Server Error)\n" \
+      "error: failed to push some refs to 'https://github.com/owner/repo.git'"
+    )
+
+    expect(classification).to have_attributes(classification: "git_transport_transient", retryable: true)
+  end
+
   {
     "ls-remote connection failure" =>
       "git ls-remote --heads https://github.com/owner/repo.git refs/heads/topic exited 128\n" \
@@ -1633,12 +1709,12 @@ RSpec.describe RunFailureClassifier, :ci_only do
   # re-classifies before acting, so the fallback used to cancel the retry the
   # repair had just scheduled.
   describe "re-deriving a classification that was authored elsewhere" do
-    def authored!(classification_name, retryable:, confidence:)
+    def authored!(classification_name, retryable:, confidence:, inputs: RunFailureClassification.repair_inputs("work_engine_repair:spec"))
       run.update!(state: "failed")
       record = run.reload.run_failure_classification || run.build_run_failure_classification
       record.update!(
         classification: classification_name, retryable: retryable, confidence: confidence,
-        reason: "authored by a repair", classified_at: Time.current
+        reason: "authored by a repair", classified_at: Time.current, classifier_inputs: inputs
       )
       record
     end
@@ -1654,10 +1730,48 @@ RSpec.describe RunFailureClassifier, :ci_only do
       )
     end
 
-    # New evidence is the whole reason to re-classify, so a branch that matched
-    # still wins however the confidences compare.
-    it "replaces it as soon as there is evidence to read" do
+    # Regression: a repair that could not recover a workspace killed a grader
+    # mid-run and declared workspace_recovery_failed (retryable). The killed
+    # grader's "grader X failed" diagnostic re-classified as a non-retryable
+    # grader_failure, and AutoRetryJob's recheck skipped the very retry the
+    # repair had scheduled. What the repair did outranks what the Run's text
+    # says afterwards.
+    it "keeps a repair's verdict even when the Run carries text a branch would match" do
       authored!("workspace_recovery_failed", retryable: true, confidence: 1.0)
+      run.step.update_columns(kind: "grader")
+      diagnostic("Steps::Base::StepFailed", "grader rspec failed (exit 1)")
+
+      expect(described_class.classify(run.reload)).to have_attributes(classification: "grader_failure", retryable: false)
+      expect(classification).to have_attributes(
+        classification: "workspace_recovery_failed", retryable: true, confidence: 1.0
+      )
+      expect(AutoRetryJob.retryability_recheck_skips?(
+        retry_kind: "retry_workflow", failure_classification: "workspace_recovery_failed", fresh: classification
+      )).to be(false)
+    end
+
+    it "keeps a repair's verdict over a Problem the step declared" do
+      authored!("workspace_recovery_failed", retryable: true, confidence: 1.0)
+      run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed", problem_code: "grader_failure")
+
+      expect(classification).to have_attributes(classification: "workspace_recovery_failed", retryable: true)
+    end
+
+    # Repair rows written before the marker carry only the repair's own keys.
+    it "recognizes a repair verdict written before the marker existed" do
+      authored!("workspace_recovery_failed", retryable: true, confidence: 1.0,
+                inputs: { "workflow_id" => run.workflow.id, "workspace_lifecycle_state" => "storage_lost" })
+      run.step.update_columns(kind: "grader")
+      diagnostic("Steps::Base::StepFailed", "grader rspec failed (exit 1)")
+
+      expect(classification).to have_attributes(classification: "workspace_recovery_failed", retryable: true)
+    end
+
+    # New evidence is the whole reason to re-classify, so for a verdict the
+    # classifier itself wrote, a branch that matched still wins however the
+    # confidences compare.
+    it "replaces its own earlier verdict as soon as there is evidence to read" do
+      authored!("timeout", retryable: true, confidence: 1.0, inputs: { "run_state" => "failed", "step_kind" => "implement" })
       run.step.update!(kind: "adversarial_review")
       diagnostic("Steps::Base::StepFailed", "agent didn't call submit_adversarial_review")
 
@@ -1668,7 +1782,8 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
     # Nothing is lost by replacing one guess with another.
     it "replaces an equally unconfident verdict" do
-      authored!(described_class::UNCLASSIFIED, retryable: false, confidence: described_class::UNCLASSIFIED_CONFIDENCE)
+      authored!(described_class::UNCLASSIFIED, retryable: false, confidence: described_class::UNCLASSIFIED_CONFIDENCE,
+                inputs: { "run_state" => "failed", "step_kind" => "implement" })
 
       expect(classification.reason).to include("unclassified application error")
     end

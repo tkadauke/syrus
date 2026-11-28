@@ -588,13 +588,18 @@ module WorkEngine
         # It used to fall through every branch to `application_error,
         # retryable: false`, overwrite what is written here, and skip the retry
         # as "failure is not retryable"; the Job then stayed failed with
-        # failure_count 0 and never got a second attempt. RunFailureClassifier
-        # now declines to overwrite a confident verdict with that fallback.
+        # failure_count 0 and never got a second attempt. The same happened
+        # when the Run did carry text: a grader this repair killed mid-run
+        # left "grader X failed", which re-classified as a non-retryable
+        # grader_failure. The verdict is therefore marked as the repair's
+        # (RunFailureClassification.repair_inputs), and
+        # RunFailureClassifier.persist! never re-derives over it.
         def declare_workspace_recovery_failure!(workflow, run, reason, now)
-          classifier_inputs = {
+          classifier_inputs = RunFailureClassification.repair_inputs(
+            "work_engine_repair:recover_missing_workspace",
             "workflow_id" => workflow.id,
             "workspace_lifecycle_state" => workflow.workspace_lifecycle_state
-          }
+          )
 
           classification = run.run_failure_classification || run.build_run_failure_classification
           classification.assign_attributes(
@@ -910,7 +915,10 @@ module WorkEngine
             reason: "The Run's RunJob crashed #{plan.evidence.to_h["failed_executions"] || "repeatedly"} times before the Run started; " \
                     "this is the worker, not the Run's work.",
             diagnostic_summary: "#{error["exception_class"] || "RunJobCrashed"}: #{error["message"]}".truncate(500),
-            classifier_inputs: { "failed_executions" => plan.evidence.to_h["failed_executions"] },
+            classifier_inputs: RunFailureClassification.repair_inputs(
+              "work_engine_repair:fail_crashed_run_job",
+              "failed_executions" => plan.evidence.to_h["failed_executions"]
+            ),
             classified_at: Time.current
           )
           classification.save!

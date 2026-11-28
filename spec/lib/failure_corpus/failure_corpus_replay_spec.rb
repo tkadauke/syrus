@@ -138,20 +138,21 @@ RSpec.describe FailureCorpus::Replay do
     end
 
     it "compares a repair-declared verdict with what re-classifying leaves behind" do
-      # No evidence: the classifier falls back to "unclassified", and persist!
-      # keeps the repair's confident verdict, so nothing changed.
-      kept = kase(id: "kept", error_message: nil, recorded: "workspace_recovery_failed", retryable: true)
-      kept["diagnostic"] = nil
+      # A repair's verdict survives re-classification even when the Run's text
+      # matches a branch: a grader the repair killed mid-run still reads
+      # "grader rspec failed".
+      kept = kase(id: "kept", error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1)",
+                  recorded: "workspace_recovery_failed", retryable: true, step_kind: "grader")
       kept["recorded"].merge!("source" => "external", "confidence" => 1.0)
-      # Evidence the classifier reads overrides the declared verdict.
-      overridden = kase(id: "overridden", error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1)",
-                        recorded: "workspace_recovery_failed", retryable: true, step_kind: "grader")
-      overridden["recorded"].merge!("source" => "external", "confidence" => 1.0)
+      # The same text under a verdict the classifier wrote is re-derived.
+      rederived = kase(id: "rederived", error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1)",
+                       recorded: "timeout", retryable: true, step_kind: "grader")
+      rederived["recorded"].merge!("source" => "classifier", "confidence" => 0.85)
 
-      report = described_class.new(cases: [ kept, overridden ]).call
+      report = described_class.new(cases: [ kept, rederived ]).call
 
       expect(report.changes.map { |change| [ change.case_id, change.transition ] })
-        .to eq([ [ "overridden", "workspace_recovery_failed/retryable -> grader_failure/final" ] ])
+        .to eq([ [ "rederived", "timeout/retryable -> grader_failure/final" ] ])
     end
 
     it "replays explicit rate-limit logs through the classifier's database read" do

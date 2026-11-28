@@ -38,6 +38,18 @@ RSpec.describe FailureProblems do
       expect(described_class.for_exception(wrapped).code).to eq("git_transport_transient")
     end
 
+    # A GitHub call that never got a response escapes Octokit as Faraday's own
+    # error, with no status to read; it used to be retried only by accident
+    # (its backtrace ran through `Timeout.timeout`).
+    it "declares a connection failure to GitHub transient, and makes no claim about other hosts" do
+      github = Faraday::ConnectionFailed.new("Failed to open TCP connection to api.github.com:443 (No route to host - connect(2))")
+      other = Faraday::ConnectionFailed.new("Failed to open TCP connection to example.test:443 (Connection refused)")
+
+      expect(described_class.for_exception(github)).to have_attributes(code: "github_api_transient", retryable?: true)
+      expect(described_class.for_exception(Faraday::TimeoutError.new("Net::ReadTimeout reading api.github.com")).code).to eq("github_api_transient")
+      expect(described_class.for_exception(other)).to be_nil
+    end
+
     it "makes no claim about an exception with no structured cause" do
       expect(described_class.for_exception(RuntimeError.new("boom"))).to be_nil
       expect(described_class.for_exception(nil)).to be_nil

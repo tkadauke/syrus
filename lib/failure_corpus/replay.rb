@@ -37,6 +37,10 @@ module FailureCorpus
   class Replay
     DEFAULT_DIR = File.expand_path("../../spec/fixtures/failure_corpus", __dir__)
     CASES_FILE = "cases.jsonl"
+    # Hand-written cases for real failures the export could not keep (their
+    # evidence was pruned before an export ran). bin/export-failure-corpus
+    # rewrites CASES_FILE and never touches this one.
+    SYNTHETIC_FILE = "synthetic.jsonl"
     ALLOWLIST_FILE = "allowlist.yml"
     HOST = "failure-corpus-replay"
 
@@ -119,7 +123,12 @@ module FailureCorpus
     end
 
     def self.load_cases(dir = DEFAULT_DIR)
-      File.readlines(File.join(dir, CASES_FILE), chomp: true).reject(&:empty?).map { |line| JSON.parse(line) }
+      [ CASES_FILE, SYNTHETIC_FILE ].flat_map do |name|
+        path = File.join(dir, name)
+        next [] unless File.exist?(path)
+
+        File.readlines(path, chomp: true).reject(&:empty?).map { |line| JSON.parse(line) }
+      end
     end
 
     def self.load_allowlist(dir = DEFAULT_DIR)
@@ -300,6 +309,8 @@ module FailureCorpus
           classification: recorded["classification"],
           retryable: recorded["retryable"] == true,
           confidence: recorded["confidence"],
+          # Who wrote the verdict decides whether persist! may re-derive it.
+          classifier_inputs: seeded_inputs(recorded, kase),
           classified_at: Time.current,
           created_at: Time.current,
           updated_at: Time.current
@@ -309,6 +320,14 @@ module FailureCorpus
       end
 
       private
+
+      def seeded_inputs(recorded, kase)
+        if recorded["source"] == "external"
+          RunFailureClassification.repair_inputs("failure_corpus:recorded")
+        else
+          { "run_state" => "failed", "step_kind" => kase["step_kind"] }
+        end
+      end
 
       def apply(kase)
         now = Time.current

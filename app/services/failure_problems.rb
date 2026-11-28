@@ -39,6 +39,7 @@ module FailureProblems
     case exception
     when GitRunner::GitError then Git.for(exception)
     when Octokit::Error then GithubApi.for(exception)
+    when *GithubApi::CONNECTION_ERRORS then GithubApi.for_connection(exception)
     else for_exception(exception.cause, depth: depth + 1)
     end
   rescue StandardError => e

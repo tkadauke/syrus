@@ -28,9 +28,15 @@ class RunFailureClassifier
   UNCLASSIFIED = "application_error".freeze
   UNCLASSIFIED_CONFIDENCE = 0.40
 
+  # Precedence, highest first: a verdict a repair wrote, a Problem the step
+  # declared, then inference from text. The last two are ordered inside
+  # #classify; the first is kept here, because only the record knows who
+  # wrote it.
   def self.persist!(run)
-    result = classify(run)
     record = run.run_failure_classification || run.build_run_failure_classification
+    return record if record.persisted? && record.written_by_repair?
+
+    result = classify(run)
     return record if record.persisted? && superseded_by_unclassified?(record, result)
 
     record.assign_attributes(
@@ -109,6 +115,8 @@ class RunFailureClassifier
       result("prepare_network_transient", 0.90, true, "A dependency install lost its connection to the package registry; retry once the network recovers.")
     when git_transport_transient?
       result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
+    when github_connection_transient?
+      result("github_api_transient", 0.90, true, "The request to GitHub never got a response (connection failed, reset or timed out); retry once GitHub is reachable.")
     when source_snapshot_metadata_invalid?
       result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot setup failed; transient transport failures may succeed on retry.")
     when storage_unavailable?
@@ -253,6 +261,26 @@ class RunFailureClassifier
     ProviderUsageLimit::LegacyText.detect?(text)
   end
 
+  # Text that says an operation actually timed out. The bare word is not
+  # evidence: `bundle install` prints "Installing timeout 0.6.1" (a gem), and
+  # grader_collect reports every grader's "configured_timeout=60s" whether it
+  # ran 3.9 seconds or not -- both made deterministic failures look like
+  # retryable timeouts. What counts: "timed out" / a `timed_out` outcome
+  # token, "timeout after N", Ruby's `execution expired`, timeout error
+  # classes, a named network/operation timeout, or exit status 124 (the
+  # `timeout` utility's).
+  TIMEOUT_SIGNAL = /
+    (?:\b|_)timed[\s_]out\b|
+    \btime[\s-]?out\s+after\s+\d|
+    execution\s+expired|
+    \bNet::(?:Open|Read|Write)Timeout\b|
+    \bTimeout::Error\b|
+    \b\w*TimeoutError\b|
+    \b(?:read|connect|connection|operation|request|gateway|idle|lock\s+wait)\s+timeout\b|
+    deadline\s+exceeded|
+    \bexit(?:ed|\s+status|\s+code)?[\s=:(]*124\b
+  /ix
+
   def timeout?
     if %w[grader preflight_grader].include?(run.step&.kind.to_s)
       return true if run.agent_outcome.to_s.match?(/timeout|timed_out/)
@@ -268,7 +296,7 @@ class RunFailureClassifier
 
     run.agent_outcome.to_s.match?(/timeout|timed_out/) ||
     diagnostic&.error_class.to_s.match?(/Timeout/) ||
-      text_match?(/timed out|timeout|execution expired|read timeout|connect timeout/i) ||
+      text_match?(TIMEOUT_SIGNAL) ||
       spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
   end
 
@@ -570,7 +598,19 @@ class RunFailureClassifier
   def git_transport_transient?
     return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError|WorkflowSourceSnapshots::InfrastructureStateError/)
 
-    GitTransportErrors.transient?(searchable_text)
+    # The failing command's own output -- a GitError's message carries its
+    # command, exit status and stderr; the immutable-checkout wrapper quotes
+    # it. Reading every recent log line let an unrelated earlier fetch's
+    # "couldn't find remote ref" veto a GitHub 500 on the push that failed.
+    GitTransportErrors.transient?(diagnostic.error_message)
+  end
+
+  # Legacy fallback for rows recorded before FailureProblems::GithubApi
+  # declared these at the source. A Faraday connection error to GitHub used to
+  # be retried only because its backtrace ran through `Timeout.timeout`.
+  def github_connection_transient?
+    names = FailureProblems::GithubApi::CONNECTION_ERRORS.map(&:name)
+    names.include?(diagnostic&.error_class.to_s) && FailureProblems::GithubApi.github_host?(diagnostic.error_message)
   end
 
   def git_state_corrupt?
