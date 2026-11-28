@@ -61,6 +61,8 @@ RSpec.describe AppSettingRegistry do
       :chat_coding_workspace_budget_mb,
       :retention_available_space_override_gb,
       :workflow_step_resource_profile_input_retention_days,
+      :coworker_environment_rollback_retention_count,
+      :coworker_environment_launch_failure_threshold,
       :main_concern_report_threshold
     ])
 
