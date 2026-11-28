@@ -10,10 +10,6 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-# Syrus uses this dump for SQLite development and test databases. Production
-# MySQL schema authority is the migration history; do not load this SQLite
-# snapshot into MySQL.
-
 ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
