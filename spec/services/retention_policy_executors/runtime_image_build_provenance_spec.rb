@@ -90,4 +90,43 @@ RSpec.describe RetentionPolicyExecutors::RuntimeImageBuildProvenance do
     expect(RuntimeImageVerificationAttempt.exists?(recent.id)).to be(true)
     expect(RuntimeImageVerificationAttempt.exists?(latest.id)).to be(true)
   end
+
+  it "retains attempts whose attestations bind revocation history" do
+    RetentionPolicySetting.for(RetentionPolicyRegistry.fetch(:runtime_image_build_provenance))
+      .update!(retention_seconds: 180.days.to_i)
+    image = RuntimeImage.create!(
+      runtime_image_namespace: namespace, digest: digest, source_kind: "test", source_ref: "revocation"
+    )
+    prior_attempt = image.runtime_image_verification_attempts.create!(
+      number: 1, image_digest: digest, policy_digest: digest, state: "accepted",
+      started_at: 200.days.ago, finished_at: 200.days.ago
+    )
+    prior = RuntimeImageVerificationAttestation.create!(
+      runtime_image: image, attempt: prior_attempt, image_digest: digest, policy_digest: digest,
+      evidence_digest: digest, outcome: "accepted", issued_at: 200.days.ago, expires_at: 199.days.ago
+    )
+    triggering_attempt = image.runtime_image_verification_attempts.create!(
+      number: 2, image_digest: digest, policy_digest: digest, state: "rejected",
+      started_at: 200.days.ago, finished_at: 200.days.ago
+    )
+    triggering = RuntimeImageVerificationAttestation.create!(
+      runtime_image: image, attempt: triggering_attempt, image_digest: digest, policy_digest: digest,
+      evidence_digest: digest, outcome: "rejected", issued_at: 200.days.ago, expires_at: 199.days.ago
+    )
+    candidate = RuntimeImageRevocationCandidate.create!(
+      runtime_image: image, prior_attestation: prior, triggering_attestation: triggering,
+      reason_code: "high_vulnerability", detected_at: 200.days.ago
+    )
+    image.runtime_image_verification_attempts.create!(
+      number: 3, image_digest: digest, policy_digest: digest, state: "accepted",
+      started_at: 200.days.ago, finished_at: 200.days.ago
+    )
+
+    result = RetentionPolicyRegistry.fetch(:runtime_image_build_provenance).executor.call
+
+    expect(result.deleted_count).to eq(0)
+    expect(result.backlog).to be(false)
+    expect(candidate.reload).to have_attributes(prior_attestation: prior, triggering_attestation: triggering)
+    expect(RuntimeImageVerificationAttempt.where(id: [ prior_attempt.id, triggering_attempt.id ]).count).to eq(2)
+  end
 end

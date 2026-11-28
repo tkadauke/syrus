@@ -14,12 +14,22 @@ module RetentionPolicyExecutors
 
     def prune_verification_attempts(cutoff, batch_size, max_batches)
       RetentionPruner.call(
-        scope: RuntimeImageVerificationAttempt.prunable.where(finished_at: ..cutoff),
+        scope: prunable_verification_attempts(cutoff),
         cutoff: cutoff,
         batch_size: batch_size,
         max_batches: max_batches,
         destroy: true
       )
+    end
+
+    def prunable_verification_attempts(cutoff)
+      scope = RuntimeImageVerificationAttempt.prunable.where(finished_at: ..cutoff)
+      %i[prior_attestation_id triggering_attestation_id].reduce(scope) do |candidates, reference|
+        protected_attempt_ids = RuntimeImageVerificationAttestation
+          .where(id: RuntimeImageRevocationCandidate.select(reference))
+          .select(:runtime_image_verification_attempt_id)
+        candidates.where.not(id: protected_attempt_ids)
+      end
     end
 
     def clear_build_logs(cutoff, batch_size, max_batches)
@@ -55,7 +65,7 @@ module RetentionPolicyExecutors
     end
 
     def backlog?(cutoff)
-      RuntimeImageVerificationAttempt.prunable.where(finished_at: ..cutoff).exists? ||
+      prunable_verification_attempts(cutoff).exists? ||
         RuntimeImageBuildEvidence.retention_payload_candidates.where(finished_at: ..cutoff).exists? ||
         RuntimeImageBuildRequest.source_archive_retention_candidates.where(finished_at: ..cutoff).exists?
     end
