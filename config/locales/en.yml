@@ -46,6 +46,7 @@ en:
       other: "%{count} approval requests need your attention."
       fallback: "An agent is waiting for permission"
   coworkers:
+    environment_unavailable: "The coworker environment is unavailable or incompatible. Ask an administrator to inspect its image and runtime compatibility."
     confinement_unavailable: "No capable worker is available: verified coworker confinement is unavailable."
   hello: "Hello world"
 
