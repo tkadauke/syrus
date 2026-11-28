@@ -63,8 +63,9 @@ class ChatJobStatusQuery
     end
 
     proposal_job_ids = job_proposals.filter_map { |p| p.job&.id }.to_set
-    associated_jobs = ChatAssociatedJobs.scope(@chat_session)
-    direct_jobs = associated_jobs.where(linked_chat_id: @chat_session.id, kind: "direct")
+    # Direct Jobs linked to this chat are associated by definition, so no
+    # intersection with ChatAssociatedJobs is needed.
+    direct_jobs = Job.where(linked_chat_id: @chat_session.id, kind: "direct")
        .includes(:repository)
        .where.not(id: proposal_job_ids)
        .to_a
