@@ -19,7 +19,9 @@ RSpec.describe Mcp::Tools::RequestWorkflowOutcomeOverrideTool do
     allow(McpToolContext).to receive(:from_server_context).and_return(context)
     allow(described_class).to receive(:create_pending_action_for_current_message!).and_return(pending)
 
-    described_class.method(:call).super_method.call(job_id: 12, fingerprint_digest: "f" * 64,
+    implementation = described_class.method(:call)
+    implementation = implementation.super_method until implementation.owner == described_class.singleton_class
+    implementation.call(job_id: 12, fingerprint_digest: "f" * 64,
       reason: "Known false positive", server_context:)
 
     expect(described_class).to have_received(:create_pending_action_for_current_message!).with(
