@@ -125,43 +125,112 @@ p90 5-30 minutes when the fleet is crowded.
    WIP-repair classification stay inline: flakiness adjudication and failure
    evidence read those, not the identity summaries. Expected: 1-5 minutes off
    every test grader, including the round's long pole.
+6. **Minimum CPU grant for RSpec CI shards.** A whole-host grader's declared
+   `cpu_min` is now an admission input: a worker whose grant would fall below
+   it (too small, already booked by whole-host peers at their own minimums,
+   or memory-bound below that width) refuses the Run with the reroutable busy
+   reason, so the router moves it to a worker that can. After
+   `RunHostAdmission::CPU_MIN_PATIENCE` (10 minutes) the shard starts
+   wherever it is, so a crowded fleet is slower, never stuck.
+   `parallel_rspec.shard_cpu_min` sets the shards' minimum; this repository
+   declares 6, the width at which a shard measured ~11 minutes of test time.
+   The default (2) leaves other repositories' behaviour unchanged. Watch
+   `resource_guard_binding_terms: grader_cpu_min_unavailable` in admission
+   decisions to see it act.
+
+## Why trains need more than one round
+
+Round-one failures of the last two weeks' merge trains, classified by the
+round-one repair's diff against each member's own changes:
+
+| round-one outcome | trains | share | median rounds |
+|---|---|---|---|
+| passed | 35 | 31% of 114 | 1 |
+| interaction: the repair touched code from two or more members | 39 | 49% of failures | 3 |
+| one member's own code (the repair stayed inside one member's files) | 18 | 23% | 3 |
+| cross-member inventory specs (`spec/docs`, `spec/i18n`, host-surface and tool-catalog audits) plus a code fix | 8 | 10% | 3 |
+| repair changed nothing: inconclusive no-op or explicit flaky retry (flake / infrastructure) | 10 | 13% | 2-4 |
+| purely derived artifacts (generated docs, catalogs, locales, registries) | 3 | 4% | 4 |
+| other | 1 | 1% | 2 |
+
+- Main moving is not a cause: the base-revision retry found none of the 467
+  failed round-one graders inherited from main. Grader timeouts were 12 of 467.
+- Round-one pass rate falls with train size: 2 members 52%, 3 members 32%,
+  4 members 27%, 5 or more members 20%.
+- Almost every round-one failure is in the CI-phase suites (RSpec CI shards,
+  the serial pass, plugin CI suites, boundary and boot checks), which no
+  member runs before it joins a train: member review grades are focused. The
+  repo-wide audits (catalogs, i18n debt, host-surface inventory, Current.user
+  scope audit) appear in 65% of failed rounds, alone or beside behavioural
+  failures.
+
+What that points at, in order:
+
+1. **Smaller trains, or train composition by overlap.** Half the failures are
+   interactions, and they grow with member count. Capping a train at 2-3
+   members, or splitting members that touch the same hot files (the plugin
+   host API, tool catalogs, `config/application.rb`, `AdminPlugins.tsx`),
+   attacks the largest bucket.
+2. **Pre-train CI validation of each member.** The 23% that are one member's
+   own code would be caught by running the CI-phase suites on the member
+   before it joins, off the train's critical path.
+3. **Regenerate derived artifacts after integration.** Catalogs, generated
+   plugin docs and locale debt files are deterministic. Running their
+   generators in `merge_train_build` after the rebase would remove the
+   artifact-only failures and part of the mixed ones.
+4. **Flake handling** is the smallest bucket (13%).
 
 ## Expected effect
 
 Per round: 2-3 minutes off the fan-out, 0.3-1.5 minutes off the slowest
-grader's setup, and 1-2 minutes (up to 5) off its post-command ingestion —
-roughly **4-6 minutes per round**, so 8-12 minutes off a median two-round train
-(110 → ~100) and more on long trains. Nothing here changes which graders run or
+grader's setup, and 1-2 minutes (up to 5) off its post-command ingestion. The
+shard minimum targets the long pole directly: shards measured 15-19 minutes
+median and 35-46 p90 of test time at uneven widths, and should now run about
+10-12 minutes at six or more cores, at the cost of up to ten minutes of queue
+wait when no worker can grant six. Together that is roughly **10-15 minutes per
+round**, so a median two-round train goes from 110 to about 75-85 minutes, and a
+happy-path round from ~45 to ~25-30. Nothing here changes which graders run or
 what they check.
 
 ## Remaining gap to 15 / 45
 
-A happy-path round is still about 40 minutes against a 15-minute budget. In
-rough order of leverage:
+A happy-path round is still about 25-30 minutes against a 15-minute budget,
+and the median train still pays two rounds. In rough order of leverage:
 
-1. **Rounds.** Median two, p90 four. Every avoided round saves 30-45 minutes —
-   more than every other item combined. Repair rounds that re-run the full
-   RSpec CI suite (the repair touched a suite-wide input, so no focused
-   substitute applied) are the expensive ones.
-2. **Shard CPU grants.** Partitioning by recorded runtime assumes equal CPUs.
-   Either require a minimum grant before a shard starts, or let shards pull
-   files from a shared queue (work stealing) so a 3-CPU host simply does less.
-   With even grants the eight-shard CI suite is ~10-12 minutes.
-3. **The refresh itself.** Moving it off the grader does not make the three
-   aggregate reads cheaper; at 70-100 s each they load the database every
-   grader. They want an index-backed or incremental formulation.
-4. **Per-grader setup on crowded hosts.** Overlay mounts are unavailable in the
+1. **Rounds** (see above). Every avoided round saves 25-45 minutes, more than
+   everything else combined.
+2. **Fail-fast repair, not implemented in this pass.** A round waits for its
+   slowest grader even after a required grader has failed (one round waited 12
+   minutes after a 0.2-minute failure). Doing this correctly means
+   `grader_collect` must conclude with graders still running: the landing
+   validation manifest, the grader-conclusion cache, multisect and
+   `LandingRepairOutcome` all assume a terminal iteration today. The next
+   fan-out would also need to tell a grader still running on the superseded
+   HEAD from one that failed, and the reconciler's active-run-on-terminal-step
+   repairs would have to tolerate it. A safe design: let collect close an
+   iteration early only on a real (not infrastructure, not inherited) required
+   failure, record the still-running graders as `superseded_in_flight` in the
+   manifest (never cached, never counted as evidence for the new HEAD), and
+   have the next fan-out treat them as unresolved so they re-run against the
+   repaired HEAD. The immutable-HEAD review barrier is unaffected, because a
+   repair that advances HEAD already supersedes all earlier evidence.
+3. **Work-stealing shards.** The minimum grant evens the slow end; a fast
+   worker still finishes its static slice early. Pulling spec files from a
+   shared queue would let fast workers take more.
+4. **The identity refresh queries.** Moving them off the grader does not make
+   the three aggregate reads cheaper; at 70-100 s each they load the database
+   on every grader. They want an index-backed or incremental formulation.
+5. **Per-grader setup on crowded hosts.** Overlay mounts are unavailable in the
    pods, so every grader hard-links the full tree; enabling the overlay (or
    pruning stale refs once in the shared layer) removes most of the remaining
    setup.
-5. **Start graders as soon as their inputs exist.** Build → prepare →
-   reconcile → fan-out is serial (~6.5 min median). The reconcile review could
-   run beside the graders when it produces no commit.
-6. **Fail-fast repair.** A round waits for its slowest grader even after a
-   required grader has failed (one round waited 12 minutes after a
-   0.2-minute failure). Starting the repair on the first required failure
-   trades a fuller evidence set for a shorter round.
+6. **Serial pre-fan-out chain.** Build → prepare → reconcile → fan-out is
+   ~6.5 minutes median. The reconcile review cannot be known in advance to
+   produce no commit, so running it beside the fan-out means a speculative
+   fan-out that is discarded if reconcile commits; not done here.
 7. **Merge-train build conflicts.** The 26-51 minute builds are agent conflict
-   resolution on Epic hotspot files; preparing the build workspace's
-   dependencies before the agent starts would save its 1.5-3 minute
-   `bundle install`.
+   resolution on Epic hotspot files. The agent spends 1.5-3 minutes on
+   `bundle install` because `prepare` runs after the build; installing before
+   the agent starts is unsafe mid-rebase (lockfiles can hold conflict
+   markers), so this wants a shared dependency cache rather than a reordered
+   prepare.
