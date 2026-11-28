@@ -20,7 +20,9 @@ module RuntimeImages
         results = { "base_ancestry" => ancestry_result(image, policy) }
         return dependent_failures(results) unless results.fetch("base_ancestry").passed?
 
-        @built_images.acquire(image) do |reference|
+        # Verification path: the candidate is unverified until this suite
+        # passes, so the launch path refuses it (F155).
+        @built_images.acquire_for_verification(image) do |reference|
           metadata = inspect(reference)
           results["oci_metadata"] = metadata_result(image, metadata)
           results["runtime_abi"] = abi_result(image, metadata)

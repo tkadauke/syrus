@@ -26,8 +26,15 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
     checks.map { |key, outcome| "#{outcome} #{key}#{outcome == :fail ? ": rejected" : ""}" }.join("\n") + "\n"
   end
 
+  # As the real admission does: an unverified candidate is not pullable for
+  # launch, only for verification. Stubbing `acquire` to succeed hid that the
+  # probe asked for the launch path and was always refused (F155).
+  before do
+    allow(built_images).to receive(:acquire).with(image).and_raise(RuntimeImages::NotPullable, "runtime image is unverified")
+  end
+
   def stub_probe(metadata_result: metadata, checks: conformance, smoke_status: 0)
-    allow(built_images).to receive(:acquire).with(image).and_yield(image.locator)
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield(image.locator)
     allow(runner).to receive(:call) do |argv|
       if argv.include?("inspect") then [ JSON.generate(metadata_result), 0 ]
       elsif argv.include?("/usr/local/bin/syrus-base-probe") then [ conformance_output(checks), checks.value?(:fail) ? 1 : 0 ]
@@ -65,7 +72,7 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   it "rejects an image whose recorded base is not the pinned approved digest" do
     image.provenance["base_images"] = [ { "digest" => "sha256:#{"9" * 64}", "pinned" => true } ]
     image.save!
-    expect(built_images).not_to receive(:acquire)
+    expect(built_images).not_to receive(:acquire_for_verification)
 
     results = probe.call(image: image, build_request_id: request.id)
 
@@ -117,7 +124,7 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   end
 
   it "reports an unavailable probe when image inspection fails" do
-    allow(built_images).to receive(:acquire).with(image).and_yield(image.locator)
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield(image.locator)
     allow(runner).to receive(:call).and_return([ "inspect failed", 1 ])
 
     results = probe.call(image: image, build_request_id: request.id)
@@ -126,7 +133,7 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   end
 
   it "reports an unavailable probe when image inspection returns malformed JSON" do
-    allow(built_images).to receive(:acquire).with(image).and_yield(image.locator)
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield(image.locator)
     allow(runner).to receive(:call).and_return([ "not json", 0 ])
 
     results = probe.call(image: image, build_request_id: request.id)
@@ -135,7 +142,7 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   end
 
   it "reports an unavailable probe when execution times out" do
-    allow(built_images).to receive(:acquire).with(image).and_raise(Timeout::Error)
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_raise(Timeout::Error)
 
     results = probe.call(image: image, build_request_id: request.id)
 
@@ -143,7 +150,7 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   end
 
   it "fails closed when the probe command omits the pids limit" do
-    allow(built_images).to receive(:acquire).with(image).and_yield(image.locator)
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield(image.locator)
     allow(runner).to receive(:call).with([ "docker", "image", "inspect", "--format", "{{json .}}", image.locator ])
       .and_return([ JSON.generate(metadata), 0 ])
     allow(RuntimeImages::RuntimeAbi).to receive(:validate_for_launch!).and_return(true)
@@ -157,7 +164,7 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   it "fails closed when the pids limit consumes the image reference as its value" do
     command = [ "docker", "run", "--entrypoint", "/probe", "--pids-limit", image.locator ]
     allow(RuntimeImages::CoworkerBase).to receive(:probe_command).and_return(command)
-    allow(built_images).to receive(:acquire).with(image).and_yield(image.locator)
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield(image.locator)
     allow(runner).to receive(:call).with([ "docker", "image", "inspect", "--format", "{{json .}}", image.locator ])
       .and_return([ JSON.generate(metadata), 0 ])
     allow(RuntimeImages::RuntimeAbi).to receive(:validate_for_launch!).and_return(true)
