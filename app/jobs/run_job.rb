@@ -321,7 +321,17 @@ class RunJob < ApplicationJob
     return false if RunQueueResolver.locally_satisfied?(run: @run)
 
     Rails.logger.info("[RunJob] this worker does not satisfy Run ##{@run.id}'s placement requirements - handing it back")
-    defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
+    # No live worker satisfies it either (the last capable one failed a smoke
+    # check after the Run was enqueued): block it with the resolver's reason
+    # and a recheck, as the first enqueue does. Re-enqueueing it onto the same
+    # queue let this worker claim and hand it back every few seconds with no
+    # reason recorded (F150).
+    decision = RunQueueResolver.resolve(run: @run)
+    if decision.blocked?
+      @run.send(:block_for_missing_capable_worker!, decision)
+    else
+      defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
+    end
     true
   rescue StandardError => e
     Rails.logger.warn("[RunJob] capability check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")

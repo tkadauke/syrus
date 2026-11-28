@@ -5055,6 +5055,42 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F150. A handed-back Run no worker could take spun on its queue — fixed
+
+**Invariant.** A Run that no live worker can satisfy waits visibly: it is
+blocked with a named reason and a recheck (`no_capable_worker`,
+`worker_environment_check_failed`), never left cycling through the queue.
+
+**Counterexample.** `Run#enqueue` blocks such a Run, but main's hand-back of
+Runs a worker does not satisfy (`48e88782fb`, extended to smoke-check failures
+by `7fb08f5894`) re-enqueued it through `defer_run`, which takes the
+resolver's queue name and ignores whether the resolver blocked it. A
+macOS-only Run enqueued while the only Mac worker was healthy, after which that
+worker's heartbeat smoke check failed a check the Run needs: the worker claims
+the Run, hands it back onto the same queue five seconds later, claims it again,
+indefinitely. The Run stays queued with no `run_queue_blocked` artifact and no
+blocked WorkUnit; the same holds for Linux work once every worker on the
+shared queue fails a check.
+
+**Fix.** The hand-back resolves the Run's queue and, when the resolver blocks
+it, records the block and its recheck exactly as the first enqueue does.
+Spec first: "blocks the Run with the resolver's reason instead of
+re-enqueueing it" failed with a RunJob re-enqueued onto the Mac queue.
+
+Lead L20 (not fixed, recommendation below). The new environment-gap
+classification (`FailureProblems::Prepare`) reads some of a change's own
+mistakes in prepare as missing worker dependencies: a bare `jest: not found`
+after the change drops a devDependency, exit 127 on a bare program name, a
+`fatal error: foo.h: No such file or directory` after the change deletes its
+own header. Each becomes a retryable `worker_environment_missing` and records a
+gap on that host for the whole repository, and a gap holds every Step of every
+Job in the repository off that host until the six-hour expiry (no smoke check
+clears a gap like `missing_executable:jest`). One bad change can move its
+failure across up to three workers and then hold the repository's other work
+off them. Recommendation: record a repository-wide gap only when the same
+failure also reproduces on the default branch or in another Job, and scope it
+to the Job until then.
+
 ## F149. Re-reads after a lineage lock answered from a stale snapshot — fixed (NY45)
 
 **Invariant.** A check made under a row lock sees the row as the last
