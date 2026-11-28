@@ -40,6 +40,10 @@ module Api
                 prepared_layer_cache_default_bytes: setting.prepared_layer_cache_gb.gigabytes,
                 coding_workspace_bytes: AppSetting.chat_coding_workspace_budget_bytes,
                 prepared_layer_cache_workers: prepared_layer_cache_workers
+              },
+              coworker_environment_recovery: {
+                rollback_retention_count: setting.coworker_environment_rollback_retention_count || 2,
+                launch_failure_threshold: setting.coworker_environment_launch_failure_threshold || 3
               }
             }
           end
@@ -102,7 +106,9 @@ module Api
             permitted_settings = (definitions.map(&:setting_key) +
                                  infinite_flag_keys +
                                  definitions.filter(&:archivable).map(&:archive_setting_key) +
-                                 [ :retention_available_space_override_gb ]).uniq
+                                 [ :retention_available_space_override_gb,
+                                   :coworker_environment_rollback_retention_count,
+                                   :coworker_environment_launch_failure_threshold ]).uniq
 
             submitted = params
               .expect(retention_settings: permitted_settings)
@@ -122,7 +128,11 @@ module Api
               [ definition, submitted[value_key], submitted.key?(archive_key) ? submitted[archive_key] : :unchanged ]
             end
 
-            app_setting_attributes = submitted.slice("retention_available_space_override_gb")
+            app_setting_attributes = submitted.slice(
+              "retention_available_space_override_gb",
+              "coworker_environment_rollback_retention_count",
+              "coworker_environment_launch_failure_threshold"
+            )
             app_setting_attributes.symbolize_keys.merge(policies: policy_attributes)
           end
 

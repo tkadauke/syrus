@@ -10,11 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-# Syrus uses this dump for SQLite development and test databases. Production
-# MySQL schema authority is the migration history; do not load this SQLite
-# snapshot into MySQL.
-
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_062048) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_071426) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -278,6 +274,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_062048) do
     t.boolean "permissions_enforced", default: true, null: false
     t.text "plugin_manifest_signing_key"
     t.integer "wakeup_chain_limit", default: 100, null: false
+    t.integer "coworker_environment_rollback_retention_count", default: 2, null: false
+    t.integer "coworker_environment_launch_failure_threshold", default: 3, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1282,6 +1280,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_062048) do
     t.datetime "activated_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "launch_failure_count", default: 0, null: false
+    t.datetime "last_launch_failed_at"
     t.index ["coworker_environment_id", "activated_at"], name: "idx_coworker_env_activations_history"
     t.index ["coworker_environment_id", "source_digest"], name: "idx_coworker_env_activations_source"
     t.index ["environment_revision_id"], name: "idx_coworker_env_activations_revision"

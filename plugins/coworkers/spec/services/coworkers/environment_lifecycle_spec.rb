@@ -99,6 +99,55 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     )
   end
 
+  it "automatically rolls back after the configured repeated startup failures" do
+    prior_image = RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'1' * 64}",
+                                       platform: "linux/amd64", source_kind: "coworker_environment",
+                                       source_ref: "prior", availability: "available",
+                                       verification_state: "candidate", published_at: 1.day.ago)
+    prior_revision = Coworkers::EnvironmentRevision.create!(environment:, number: 2, state: "retired",
+                                                             source_digest: "sha256:#{'2' * 64}", runtime_image: prior_image,
+                                                             runtime_abi: 3, compat_min: 2, compat_max: 4)
+    current_revision = Coworkers::EnvironmentRevision.create!(environment:, number: 3, state: "active",
+                                                               source_digest: "sha256:#{'3' * 64}", runtime_image: image,
+                                                               runtime_abi: 3, compat_min: 2, compat_max: 4)
+    prior_attestation = accepted_attestation(prior_image)
+    current_attestation = accepted_attestation(image)
+    prior = environment.activations.create!(revision: prior_revision, runtime_image: prior_image,
+      verification_attestation: prior_attestation, source_digest: prior_revision.source_digest,
+      image_digest: prior_image.digest, authority_kind: "permission", actor: "operator", activated_at: 1.day.ago)
+    current = environment.activations.create!(revision: current_revision, runtime_image: image,
+      previous_activation: prior, verification_attestation: current_attestation,
+      source_digest: current_revision.source_digest, image_digest: image.digest,
+      authority_kind: "permission", actor: "operator", activated_at: Time.current)
+    environment.update!(state: "active", active_revision: current_revision,
+                        active_runtime_image: image, active_activation: current)
+    AppSetting.current.update!(coworker_environment_launch_failure_threshold: 2)
+
+    recovery = Coworkers::EnvironmentRecovery.new(environment)
+    recovery.record_launch_failure!(current.id, reason: "container_start_failed")
+    expect(environment.reload.active_activation_id).to eq(current.id)
+    recovery.record_launch_failure!(current.id, reason: "container_start_failed")
+
+    expect(environment.reload).to have_attributes(active_activation_id: prior.id,
+                                                   active_revision_id: prior_revision.id,
+                                                   active_runtime_image_id: prior_image.id)
+    expect(current.reload.launch_failure_count).to eq(2)
+    expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.rolled_back")).to exist
+  end
+
+  it "terminates active coworker turns for a severe revocation" do
+    allow(Syrus::Host::AgentRuntime).to receive(:terminate_chat_processes).and_return(1)
+    allow(Syrus::Host::RuntimeImages).to receive(:revoke) { |runtime_image, reason:, **| runtime_image.mark_revoked!(reason:) }
+    revision.update!(runtime_image: image)
+
+    described_class.new(environment).revoke!(revision, reason: "critical_vulnerability", severity: :severe)
+
+    expect(Syrus::Host::AgentRuntime).to have_received(:terminate_chat_processes)
+      .with(chat_session_ids: [], reason: "severe environment revocation: critical_vulnerability",
+            runtime_image_digest: image.digest)
+    expect(image.reload).to be_revoked
+  end
+
   it "fails closed when active pointers do not match the immutable activation" do
     described_class.new(environment).reconcile_build!(revision)
     accepted_attestation(image)
