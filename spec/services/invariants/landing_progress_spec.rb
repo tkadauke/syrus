@@ -99,6 +99,23 @@ RSpec.describe Invariants::LandingProgress do
     expect(described_class.call(now: later)).to be_empty
   end
 
+  # Regression (found by the simulator fuzzer): a landing held for hours by a
+  # provider outage made the next approved Job read as stranded. It waits for
+  # the landing lane, which the queue does not record as a blocker.
+  it "does not report an approved Job waiting for a landing lane another landing holds" do
+    job = approved_job
+    holder = Factories.job_record(state: "landing", repository: job.repository, user: job.user)
+    workflow = Workflow.create!(job: holder, user: holder.user, trigger_kind: "auto_merge", state: "running")
+    unit = attach_work_unit(workflow, state: "blocked", blocked_reason: "provider_availability", kind: "auto_merge")
+    unit.work_unit_locks.find_or_create_by!(lock_key: WorkDefinitions.landing_lock_key_for(job), released_at: nil)
+
+    expect(described_class.call(now: later).map(&:subject_id)).not_to include(job.id)
+
+    unit.work_unit_locks.update_all(released_at: Time.current)
+
+    expect(described_class.call(now: later).map(&:subject_id)).to include(job.id)
+  end
+
   it "evaluates only in-scope Jobs" do
     job = approved_job
 
