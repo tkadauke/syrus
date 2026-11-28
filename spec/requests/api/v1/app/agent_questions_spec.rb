@@ -24,13 +24,12 @@ RSpec.describe "workflow agent questions API", type: :request do
 
   it "answers through AgentQuestion and resumes its workflow" do
     question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Ship it?", "options" => [ "Yes", "No" ], "multiple" => false } ])
-    allow(AgentQuestions::Resume).to receive(:call)
+    expect_any_instance_of(AgentQuestions::Resume).to receive(:transition!).and_return(false)
 
     post "/api/v1/app/agent_questions/#{question.id}/answer", params: { answers: [ "Yes" ] }
 
     expect(response).to have_http_status(:ok)
     expect(question.reload.answers).to eq([ "Yes" ])
-    expect(AgentQuestions::Resume).to have_received(:call).with(question)
   end
 
   it "normalizes nested multi-select answers from form parameters" do

@@ -8,6 +8,15 @@ module AgentQuestions
     end
 
     def call
+      resumed = transition!
+      reenqueue! if resumed
+      resumed
+    end
+
+    # Moves the parked Run, Step and Workflow back to work inside the
+    # caller's transaction, so an answer that cannot resume rolls back with
+    # it. Returns whether the Run must be re-enqueued after commit.
+    def transition!
       Run.transaction do
         Lineage.lock!(@run)
         @run.reload(lock: true)
@@ -32,9 +41,10 @@ module AgentQuestions
         @run.resume_from_answer!
         step.resume_from_answer!
       end
-      @run.reenqueue!
       true
     end
+
+    def reenqueue! = @run.reenqueue!
 
     private
 
