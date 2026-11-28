@@ -52,7 +52,18 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
     },
     runtime_environment: {
       policy: {
-        builder: { max_concurrent_builds: 2, max_concurrent_per_namespace: 1, max_attempts: 3, cpus: 2, memory_bytes: 4294967296, pids: 512, storage_bytes: 10737418240, timeout_seconds: 1500, log_bytes: 5242880, max_output_bytes: 2147483648 },
+        builder: {
+          max_concurrent_builds: 2,
+          max_concurrent_per_namespace: 1,
+          max_attempts: 3,
+          cpus: 2,
+          memory_bytes: 4294967296,
+          pids: 512,
+          storage_bytes: 10737418240,
+          timeout_seconds: 1500,
+          log_bytes: 5242880,
+          max_output_bytes: 2147483648
+        },
         supply_chain: { blocked_severities: ["critical", "high"], prohibited_packages: [] },
         base_promotion: { minimum_abi: 1, maximum_abi: 1 },
         recovery: { launch_failure_threshold: 3, rollback_retention_count: 2 },
@@ -65,7 +76,14 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
       build_network_source_classes: [
         { key: "exact_domain", ecosystem_required: false, ecosystem_input_mode: "none", ecosystem_options: [], path_scoped: false, requirable: false },
         { key: "os_mirror", ecosystem_required: false, ecosystem_input_mode: "freeform", ecosystem_options: [], path_scoped: false, requirable: false },
-        { key: "language_registry", ecosystem_required: true, ecosystem_input_mode: "select", ecosystem_options: ["npm", "pypi"], path_scoped: false, requirable: false },
+        {
+          key: "language_registry",
+          ecosystem_required: true,
+          ecosystem_input_mode: "select",
+          ecosystem_options: ["npm", "pypi"],
+          path_scoped: false,
+          requirable: false
+        },
         { key: "internal_mirror", ecosystem_required: false, ecosystem_input_mode: "freeform", ecosystem_options: [], path_scoped: false, requirable: true }
       ]
     },
@@ -147,10 +165,12 @@ describe("RetentionSettings", () => {
     fireEvent.change(screen.getByLabelText("Prohibited packages (comma separated)"), { target: { value: "telnet, rsh" } })
     fireEvent.click(screen.getByRole("button", { name: "Save environment policy" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/admin/retention_settings",
-      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"max_concurrent_builds":4') })
-    ))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/retention_settings",
+        expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"max_concurrent_builds":4') })
+      )
+    )
     expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"prohibited_packages":["telnet","rsh"]')
     expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"pids":768')
   })
@@ -166,10 +186,12 @@ describe("RetentionSettings", () => {
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "packages.example.test" } })
     fireEvent.click(screen.getByRole("button", { name: "Add rule" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/admin/retention_settings/network_rules",
-      expect.objectContaining({ method: "POST", body: expect.stringContaining('"host":"packages.example.test"') })
-    ))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/retention_settings/network_rules",
+        expect.objectContaining({ method: "POST", body: expect.stringContaining('"host":"packages.example.test"') })
+      )
+    )
   })
 
   it("creates OS and required internal mirrors for a free-form ecosystem", async () => {
@@ -204,13 +226,35 @@ describe("RetentionSettings", () => {
 
   it("shows disabled and scoped network-rule details and can delete a rule", async () => {
     const base = retentionPayload()
-    const payload = retentionPayload({ runtime_environment: { ...base.runtime_environment, build_network_rules: [{
-      id: 7, source_class: "internal_mirror", host: "mirror.example.test", port: 8443,
-      path_prefix: "", ecosystem: "npm", required: true, enabled: false, note: "private mirror"
-    }, {
-      id: 8, source_class: "repository_namespace", host: "github.com", port: 443,
-      path_prefix: "/acme/", ecosystem: "", required: false, enabled: true, note: "source namespace"
-    }] } })
+    const payload = retentionPayload({
+      runtime_environment: {
+        ...base.runtime_environment,
+        build_network_rules: [
+          {
+            id: 7,
+            source_class: "internal_mirror",
+            host: "mirror.example.test",
+            port: 8443,
+            path_prefix: "",
+            ecosystem: "npm",
+            required: true,
+            enabled: false,
+            note: "private mirror"
+          },
+          {
+            id: 8,
+            source_class: "repository_namespace",
+            host: "github.com",
+            port: 443,
+            path_prefix: "/acme/",
+            ecosystem: "",
+            required: false,
+            enabled: true,
+            note: "source namespace"
+          }
+        ]
+      }
+    })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "DELETE") return Promise.resolve(jsonResponse(retentionPayload()))
       return Promise.resolve(jsonResponse(payload))
@@ -222,10 +266,9 @@ describe("RetentionSettings", () => {
     expect(screen.getByText("disabled")).toBeInTheDocument()
     expect(screen.getByText("ecosystem: npm")).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/admin/retention_settings/network_rules/7",
-      expect.objectContaining({ method: "DELETE" })
-    ))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings/network_rules/7", expect.objectContaining({ method: "DELETE" }))
+    )
   })
 
   it("sets a table to infinite retention and saves 0", async () => {
