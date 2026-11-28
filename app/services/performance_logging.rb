@@ -153,6 +153,15 @@ module PerformanceLogging
     )
   end
 
+  # Public plugin-facing view of recent slow SQL observations. Keep the
+  # filtering here so plugins do not depend on the event store implementation.
+  def recent_slow_sql(limit: 50)
+    requested = limit.to_i.clamp(1, Store::MAX_EVENTS)
+    Store.recent(limit: Store::MAX_EVENTS)
+      .select { |event| event["event"] == SLOW_SQL_EVENT }
+      .first(requested)
+  end
+
   def record_request(payload, duration_ms)
     return if suppressed?
     return if ignored_request?(payload)

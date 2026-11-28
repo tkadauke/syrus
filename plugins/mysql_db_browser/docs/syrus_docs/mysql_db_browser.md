@@ -83,9 +83,12 @@ tabs, **Query** and **Live**.
   (body `{ mysql_query: { sql } }`).
 - **Live** - the same raw-SQL endpoint with three canned, `refetchInterval:
   10_000` statements generalizing `AdminMysql.tsx`'s process-list/global-status/
-  slow-log views (built for Syrus's own database) to any connection: `SELECT
+  statement-summary views (built for Syrus's own database) to any connection: `SELECT
   * FROM information_schema.PROCESSLIST`, `SELECT ... FROM
-  performance_schema.global_status`, `SELECT ... FROM mysql.slow_log`. These
+  performance_schema.global_status`, `SELECT ... FROM
+  performance_schema.events_statements_summary_by_digest`. The statement
+  summary includes total and average latency, execution count, rows examined,
+  and normalized sample SQL. These
   are ordinary SELECTs against schemas the schema explorer already treats as
   browsable, so no bespoke diagnostics controller/service was needed.
 

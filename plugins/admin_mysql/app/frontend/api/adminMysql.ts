@@ -36,15 +36,16 @@ export type MysqlStatementDigest = {
   last_seen: string | null
 }
 
-export type MysqlSlowLogRow = {
-  start_time: string | null
-  user_host: string | null
-  query_time: string
-  lock_time: string
-  rows_sent: number
-  rows_examined: number
-  database: string | null
-  sql_text: string | null
+export type MysqlSlowSqlEvent = {
+  occurred_at: string | null
+  duration_ms: number | null
+  name?: string | null
+  phase?: string | null
+  sql?: string | null
+  fingerprint?: string | null
+  controller?: string | null
+  action?: string | null
+  job_class?: string | null
 }
 
 export type MysqlUnavailableSection = {
@@ -72,10 +73,9 @@ export type MysqlSnapshot = {
         available: true
         rows: MysqlStatementDigest[]
       }
-  slow_log: {
+  slow_sql_events: {
     available: boolean
-    config: Record<string, string | number>
-    rows: MysqlSlowLogRow[]
+    rows: MysqlSlowSqlEvent[]
     error?: {
       class?: string
       message: string
@@ -95,13 +95,12 @@ export type MysqlKillQueryResult = {
   }
 }
 
-export function fetchAdminMysql(limit = 50, includeSlowLog = false, sections = "live", includeIdle = false) {
+export function fetchAdminMysql(limit = 50, sections = "live", includeIdle = false) {
   const params = new URLSearchParams({
     limit: String(limit),
     sections,
     include_idle: String(includeIdle)
   })
-  if (includeSlowLog) params.set("include_slow_log", "true")
   return getJson<Partial<MysqlSnapshot> & Pick<MysqlSnapshot, "available" | "generated_at">>(`/api/v1/app/admin/mysql?${params.toString()}`)
 }
 

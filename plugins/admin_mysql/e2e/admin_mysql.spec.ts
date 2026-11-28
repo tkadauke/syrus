@@ -9,7 +9,7 @@ const ADMIN_PAGES_PATH = "/api/v1/app/admin/plugin_pages"
 const MYSQL_PATH = "/api/v1/app/admin/mysql"
 const KILL_PATH = "/api/v1/app/admin/mysql/kill_query"
 
-function mysqlPayload(includeSlowLog: boolean) {
+function mysqlPayload() {
   return {
     available: true,
     generated_at: "2026-09-01T12:00:00Z",
@@ -72,23 +72,18 @@ function mysqlPayload(includeSlowLog: boolean) {
         }
       ]
     },
-    slow_log: {
+    slow_sql_events: {
       available: true,
-      config: { slow_query_log: "ON", log_output: "TABLE", long_query_time: "1.000000" },
-      rows: includeSlowLog
-        ? [
-            {
-              start_time: "2026-09-01T11:59:00Z",
-              user_host: "app[app] @ 10.0.0.1",
-              query_time: "1.200000",
-              lock_time: "0.000000",
-              rows_sent: 1,
-              rows_examined: 1000,
-              database: "syrus_production",
-              sql_text: "SELECT * FROM jobs"
-            }
-          ]
-        : []
+      rows: [
+        {
+          occurred_at: "2026-09-01T11:59:00Z",
+          duration_ms: 1200,
+          controller: "Api::JobsController",
+          action: "index",
+          sql: "SELECT * FROM jobs",
+          fingerprint: "select-from-jobs"
+        }
+      ]
     }
   }
 }
@@ -96,12 +91,11 @@ function mysqlPayload(includeSlowLog: boolean) {
 // The page polls live process state and configuration/diagnostics as separate
 // requests and merges them, live last, exactly as AdminMysql::Inspector serves
 // them: each request gets only the sections it asked for. A mock returning every
-// section on every request let the live poll's empty slow log overwrite the
-// rows the diagnostics request had just loaded.
+// section on every request can overwrite the diagnostics request's data.
 const SECTION_KEYS: Record<string, string[]> = {
   live: ["connection_summary", "process_list"],
   configuration: ["adapter", "database", "variables", "status"],
-  diagnostics: ["statement_digests", "slow_log"]
+  diagnostics: ["statement_digests", "slow_sql_events"]
 }
 
 function sectionsOf(payload: Record<string, unknown>, sections: string | null) {
@@ -134,8 +128,7 @@ async function mockAdminMysql(page: Page) {
 
   await page.route((url) => url.pathname === MYSQL_PATH, async (route) => {
     const params = new URL(route.request().url()).searchParams
-    const includeSlowLog = params.get("include_slow_log") === "true"
-    await route.fulfill({ json: sectionsOf(mysqlPayload(includeSlowLog), params.get("sections")) })
+    await route.fulfill({ json: sectionsOf(mysqlPayload(), params.get("sections")) })
   })
 
   await page.route((url) => url.pathname === KILL_PATH, fulfillKillQuery)
@@ -193,9 +186,8 @@ test("Admin MySQL plugin renders live diagnostics and guarded query termination"
   await hideIdle.uncheck()
   await expect(page.getByRole("cell", { name: "Sleep", exact: true })).toBeVisible()
 
-  await page.getByRole("button", { name: "Load slow log rows" }).click()
-  const slowLogPanel = page.locator("section", { has: page.getByRole("heading", { name: "Slow log" }) })
-  await expect(slowLogPanel.getByRole("cell", { name: "SELECT * FROM jobs" })).toBeVisible()
+  const slowSqlPanel = page.locator("section", { has: page.getByRole("heading", { name: "Recent slow SQL" }) })
+  await expect(slowSqlPanel.getByRole("cell", { name: "SELECT * FROM jobs" })).toBeVisible()
 
   // The shared in-app confirm dialog, not a native one: page.on("dialog")
   // never fires for it, so the click just leaves a modal waiting.
