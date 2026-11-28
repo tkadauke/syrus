@@ -223,33 +223,43 @@ describe("landing lanes", () => {
         {
           ...payload.repositories[0],
           landing_concurrency: 1,
-          lanes: [payload.repositories[0].lanes[0], payload.repositories[0].lanes[1], {
-            number: 3,
-            empty: false,
-            draining: true,
-            anchor_job: { id: 30, slug: "JOB-30", app_path: "/jobs/30" },
-            phase: "land",
-            progress: 0.9
-          }],
-          additional_branches: [{
-            branch: "release",
-            busy_lane_count: 1,
-            lanes: [{
-              number: 1,
+          lanes: [
+            payload.repositories[0].lanes[0],
+            payload.repositories[0].lanes[1],
+            {
+              number: 3,
               empty: false,
-              draining: false,
-              anchor_job: { id: 31, slug: "JOB-31", app_path: "/jobs/31" },
-              phase: "grade",
-              progress: 0.4
-            }]
-          }]
+              draining: true,
+              anchor_job: { id: 30, slug: "JOB-30", app_path: "/jobs/30" },
+              phase: "land",
+              progress: 0.9
+            }
+          ],
+          additional_branches: [
+            {
+              branch: "release",
+              busy_lane_count: 1,
+              lanes: [
+                {
+                  number: 1,
+                  empty: false,
+                  draining: false,
+                  anchor_job: { id: 31, slug: "JOB-31", app_path: "/jobs/31" },
+                  phase: "grade",
+                  progress: 0.4
+                }
+              ]
+            }
+          ]
         },
         {
           ...payload.repositories[1],
-          lanes: [{
-            ...payload.repositories[1].lanes[0],
-            anchor_job: { id: 32, slug: "JOB-32", app_path: "/jobs/32" }
-          }]
+          lanes: [
+            {
+              ...payload.repositories[1].lanes[0],
+              anchor_job: { id: 32, slug: "JOB-32", app_path: "/jobs/32" }
+            }
+          ]
         },
         {
           ...payload.repositories[1],
