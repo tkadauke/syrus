@@ -307,8 +307,10 @@ class RetryFailedStepEnqueuer
   public
 
   def active_work_blocker
-    lock_keys_for_retry.each do |lock_key|
-      owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
+    lock_keys = lock_keys_for_retry
+    owners = WorkUnits::Ownership.active_units_for_lock_keys(lock_keys)
+    lock_keys.each do |lock_key|
+      owner = owners[lock_key]
       next unless owner
       next if same_runtime_lock_owner?(owner)
 
