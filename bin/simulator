@@ -7,9 +7,24 @@ require_relative "../lib/simulator_schema_reconciler"
 ENV["RAILS_ENV"] ||= "test"
 SimulatorTestDatabaseIdentity.ensure_env_number! if ENV["RAILS_ENV"] == "test"
 
+# The engine reads and writes $SYRUS_DATA_ROOT (clones, workspaces), which
+# falls back to the operator's real ~/.syrus. Simulated repositories reuse
+# small ids, so a scenario resolved the operator's own bare clones and shelled
+# out to git against them on every landing decision. Keep the simulator in a
+# data root of its own, outside the checkout for the reason
+# spec/support/data_root.rb gives.
+if ENV["RAILS_ENV"] == "test"
+  require "tmpdir"
+  ENV["SYRUS_DATA_ROOT"] ||= File.join(Dir.tmpdir, "syrus-simulator-data-root#{ENV['TEST_ENV_NUMBER']}")
+end
+
 require_relative "../config/environment"
 
 if Rails.env.test?
+  # Every simulated tick writes hundreds of SQL lines to log/test.log, about a
+  # tenth of the run time and gigabytes over a fuzz campaign. SIMULATOR_LOG=1
+  # keeps them for debugging.
+  Rails.logger.level = :warn unless ENV["SIMULATOR_LOG"].present?
   SimulatorSchemaReconciler.call!
   ActiveRecord::Migration.maintain_test_schema!
   %w[claude_agent codex_agent agy_agent].each do |plugin_name|
@@ -26,4 +41,6 @@ if Rails.env.test?
   Syrus::LockOrder::Checker.mode ||= :record
 end
 
+# Unbuffered, so a long fuzz campaign redirected to a file reports as it goes.
+$stdout.sync = true
 exit WorkEngine::Simulation::Cli.call(argv: ARGV)
