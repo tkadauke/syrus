@@ -305,6 +305,51 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(refs).to contain_exactly("refs/remotes/origin/HEAD", "refs/remotes/origin/main")
   end
 
+  # Regression: a prepared layer carried hundreds of leftover branches, and
+  # deleting them one `git update-ref` and one log line at a time held a
+  # production grader for over a minute before its command started.
+  it "prunes every stale remote-tracking ref in one git transaction with one log line" do
+    logs = []
+    git = GitRunner.new(workflow: workflow)
+    checkout = described_class.new(step, git: git, log: ->(message, **) { logs << message })
+    checkout.setup
+    25.times { |index| sh("git -C #{checkout.path} update-ref refs/remotes/origin/leftover-#{index} #{main_sha}") }
+    allow(git).to receive(:run).and_call_original
+    logs.clear
+
+    checkout.send(:ensure_base_ref!)
+
+    refs = sh("git -C #{checkout.path} for-each-ref --format='%(refname)' refs/remotes").lines.map(&:strip)
+    expect(refs).to contain_exactly("refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    expect(git).to have_received(:run).with("update-ref", any_args).once
+    expect(logs.grep(/stale remote-tracking/)).to eq([
+      "[immutable_source_checkout] removed 25 stale remote-tracking ref(s): " \
+      "refs/remotes/origin/leftover-0, refs/remotes/origin/leftover-1, refs/remotes/origin/leftover-10, " \
+      "refs/remotes/origin/leftover-11, refs/remotes/origin/leftover-12, ..."
+    ])
+  end
+
+  it "fetches the base ref once when setup restores from the local prepare cache" do
+    # With a workspace transport (production's git mirror) the base ref is
+    # refreshed even when the restored checkout already has one.
+    register_workspace_transport(url: "file://#{bare_remote_dir}")
+    described_class.new(step).setup
+    git = GitRunner.new(workflow: workflow)
+    base_fetches = 0
+    allow(git).to receive(:run).and_wrap_original do |original, *args, **kwargs|
+      base_fetches += 1 if args.first == "fetch" && args.any? { |arg| arg.to_s.end_with?(":refs/remotes/origin/main") }
+      original.call(*args, **kwargs)
+    end
+    second_checkout = described_class.new(second_step, run: second_run, git: git)
+
+    second_checkout.setup
+
+    expect(second_step.reload.details.dig("prepare_cache", "status")).to eq("hit")
+    expect(base_fetches).to eq(1)
+    expect(sh("git -C #{second_checkout.path} rev-parse refs/remotes/origin/main").strip).to eq(main_sha)
+    expect(sh("git -C #{second_checkout.path} rev-parse HEAD").strip).to eq(main_sha)
+  end
+
   it "resolves a deleted stacked base branch to the parent's landed commit" do
     parent = Factories.job_record(user: user, repository: repository, state: "closed", landed_sha: feature_sha)
     job.update!(parent_job: parent)
