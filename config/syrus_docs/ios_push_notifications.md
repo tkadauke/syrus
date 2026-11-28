@@ -36,3 +36,11 @@ answers `503 apns_not_configured` or `422 no_registered_device` when push cannot
 work. The test push deep-links to `/notifications` and creates no notification.
 The iOS app's **⋯ → Diagnostics** screen uses both.
 
+## Review card haptics
+
+In the iOS shell, the Review Workspace card drag requests native haptics: a light
+selection tick per distance increment crossed (either direction) and a stronger
+impact when a card commits left or right. No haptics fire during programmatic
+animation or scrolling, when the system reduced-motion preference is on, or when
+`localStorage["syrus.haptics"]` is `"off"`. The device's System Haptics setting is
+respected, and ordinary browsers do nothing.

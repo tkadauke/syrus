@@ -151,6 +151,14 @@ friendly links open the Job, its Epic, its pull request on GitHub, and the full
 diff. A dismissible gesture coach appears on first use and can be reopened from
 the Job details sheet.
 
+In the iOS app, dragging a Review card gives restrained haptic feedback: a light
+selection tick each time the drag crosses a fixed distance increment (in either
+direction), and a stronger impact when a card commits left or right. Haptics are
+skipped during programmatic animation, scrolling, and when the system's
+reduced-motion preference is on, and follow the device's System Haptics setting.
+Setting `localStorage["syrus.haptics"]` to `off` disables them. Ordinary browsers
+are unaffected.
+
 Review links are safe to bookmark. If a selected Job is no longer actionable,
 the workspace selects the first current item or shows an all-caught-up state.
 Defer is session-only; the plugin stores no read, unread, inbox, or durable
