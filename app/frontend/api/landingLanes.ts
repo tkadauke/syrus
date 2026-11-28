@@ -32,13 +32,35 @@ export type LandingLane = {
   estimate_kind?: "best_case"
 }
 
+// Lanes of one non-default landing branch (delivery track). Only branches
+// with an active landing are sent.
+export type LandingLanesBranch = {
+  branch: string
+  busy_lane_count: number
+  lanes: LandingLane[]
+}
+
 export type LandingLanesRepository = {
   id: number
   slug: string
+  default_branch: string
   landing_concurrency: number
   busy_lane_count: number
   approved_backlog: Array<LandingLaneJob & { position: number }>
+  // The default branch's lanes.
   lanes: LandingLane[]
+  additional_branches: LandingLanesBranch[]
+}
+
+export type LandingLaneSection = { branch: string | null; lanes: LandingLane[] }
+
+// The repository's lanes grouped by landing branch. A repository landing only
+// to its default branch has a single unlabelled section.
+export function landingLaneSections(repository: LandingLanesRepository): LandingLaneSection[] {
+  const additional = repository.additional_branches ?? []
+  if (additional.length === 0) return [{ branch: null, lanes: repository.lanes }]
+
+  return [{ branch: repository.default_branch, lanes: repository.lanes }, ...additional.map(({ branch, lanes }) => ({ branch, lanes }))]
 }
 
 export type LandingLanesPayload = {

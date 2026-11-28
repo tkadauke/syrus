@@ -43,6 +43,29 @@ RSpec.describe App::LandingLanesPayload do
     expect(repo.fetch(:lanes).first.dig(:anchor_job, :id)).to eq(landing.id)
   end
 
+  it "reports lanes per landing branch and omits branches without an active landing" do
+    default_landing, release_landing = approved_job(3), approved_job(2)
+    LandingQueueProcessor.call
+    release_unit = release_landing.workflows.last.work_unit
+    release_unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:%").find_each do |lock|
+      lock.update!(lock_key: "landing:repository:#{repository.id}:branch:release")
+    end
+    finished = WorkUnit.create!(kind: release_unit.kind, state: "succeeded", scope_type: release_unit.scope_type,
+      scope_id: release_unit.scope_id, work_intent: release_unit.work_intent)
+    finished.work_unit_locks.create!(lock_key: "landing:repository:#{repository.id}:branch:hotfix", released_at: Time.current)
+
+    repo = payload.fetch(:repositories).sole
+
+    expect(repo).to include(default_branch: repository.default_branch, busy_lane_count: 2)
+    expect(repo.fetch(:lanes).map { |lane| lane.fetch(:empty) }).to eq([ false, true ])
+    expect(repo.fetch(:lanes).first.dig(:anchor_job, :id)).to eq(default_landing.id)
+    expect(repo.fetch(:additional_branches).map { |section| section.fetch(:branch) }).to eq([ "release" ])
+    release = repo.fetch(:additional_branches).sole
+    expect(release).to include(busy_lane_count: 1)
+    expect(release.fetch(:lanes).map { |lane| lane.fetch(:empty) }).to eq([ false, true ])
+    expect(release.fetch(:lanes).first.dig(:anchor_job, :id)).to eq(release_landing.id)
+  end
+
   it "detects repair rounds, rebasing, and multisect sub-lanes" do
     job = approved_job(1)
     LandingQueueProcessor.call

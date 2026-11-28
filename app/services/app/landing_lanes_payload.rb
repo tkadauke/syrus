@@ -29,29 +29,35 @@ module App
 
     private
 
+    # Lanes are per landing branch: each delivery-track branch has its own
+    # lane locks and capacity. The default branch's lanes are always shown
+    # (`lanes`); another branch appears under `additional_branches` only while
+    # it has an active landing the viewer can see.
     def repository_json(repository)
-      statuses = lane_statuses(repository)
-      units = landing_units(statuses)
+      default_statuses = WorkDefinitions.landing_branch_lane_status(repository, nil)
+      branch_statuses = WorkDefinitions.active_landing_branches(repository).index_with do |branch|
+        WorkDefinitions.landing_branch_lane_status(repository, branch)
+      end
+      units = landing_units(default_statuses + branch_statuses.values.flatten)
       visible_job_ids = visible_job_ids_for(repository, units.values)
       units.select! { |_id, unit| visible_job_ids.include?(unit.workflow&.job_id) }
       prime_runtime_history(repository.id, units.values)
-      lanes = statuses.map { |status| lane_json(status, units:, visible_job_ids:) }
+      lanes = default_statuses.map { |status| lane_json(status, units:, visible_job_ids:) }
+      additional = branch_statuses.filter_map do |branch, statuses|
+        branch_lanes = statuses.map { |status| lane_json(status, units:, visible_job_ids:) }
+        busy = branch_lanes.count { |lane| !lane[:empty] }
+        { branch:, busy_lane_count: busy, lanes: branch_lanes } if busy.positive?
+      end
       {
         id: repository.id,
         slug: repository.slug,
+        default_branch: repository.default_branch,
         landing_concurrency: WorkDefinitions.landing_lane_count(repository),
-        busy_lane_count: lanes.count { |lane| !lane[:empty] },
+        busy_lane_count: lanes.count { |lane| !lane[:empty] } + additional.sum { |section| section[:busy_lane_count] },
         approved_backlog: backlog_json(repository),
-        lanes:
+        lanes:,
+        additional_branches: additional
       }
-    end
-
-    def lane_statuses(repository)
-      sample_job = @jobs.where(repository_id: repository.id).where(state: %w[approved landing]).first ||
-        @jobs.where(repository_id: repository.id).first
-      return empty_lanes(repository) unless sample_job
-
-      WorkDefinitions.landing_lane_status_for(sample_job)
     end
 
     def landing_units(statuses)
@@ -66,12 +72,6 @@ module App
         [ unit.workflow&.job_id, *unit.work_unit_members.map(&:job_id) ]
       end.compact.uniq
       @jobs.where(repository_id: repository.id, id: candidate_ids).pluck(:id).to_set
-    end
-
-    def empty_lanes(repository)
-      (1..WorkDefinitions.landing_lane_count(repository)).map do |lane|
-        { lane:, draining: false, occupied: false, work_unit_id: nil }
-      end
     end
 
     def backlog_json(repository)

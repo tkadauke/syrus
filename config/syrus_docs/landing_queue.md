@@ -239,7 +239,10 @@ With the default of 1, landing behaves exactly as it did before the setting exis
 
 When the instance-wide `landing_lanes` Labs feature is enabled, the authenticated app exposes live landing-lane status. It reports every visible repository's
 configured and busy lane counts, approved backlog, and every configured slot,
-including empty capacity. Occupied lanes link to the visible anchor Job,
+including empty capacity. Each landing branch has its own lanes: `lanes` are
+the default branch's, and another delivery-track branch appears under
+`additional_branches` (with its own busy count) only while it has an active
+landing. Occupied lanes link to the visible anchor Job,
 bundle members, and landing Workflow and report their current phase, graders,
 repair or rebase state, progress, and `best_case_remaining_seconds`. Progress
 uses recent successful runtime history for each grader and falls back to part
