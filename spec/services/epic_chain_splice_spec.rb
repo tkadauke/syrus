@@ -43,9 +43,39 @@ RSpec.describe EpicChainSplice do
       expect { described_class.plan!(epic: epic, anchor_job_id: a.id) }
         .to raise_error(described_class::Rejected, /has already started/)
     end
+
+    # A queued downstream Job with a queued Run is about to start on top of
+    # the anchor (its Run may only be waiting for a worker); re-pointing it
+    # lets it run without the inserted Jobs and beside them (F142).
+    it "rejects when the downstream Job has a queued Run" do
+      workflow = b.workflows.create!(state: "queued", trigger_kind: "initial")
+      step = workflow.steps.create!(kind: "implement", position: 0, state: "queued")
+      step.runs.create!(job: b, trigger_kind: "initial", agent_provider: "claude", state: "queued")
+
+      expect { described_class.plan!(epic: epic, anchor_job_id: a.id) }
+        .to raise_error(described_class::Rejected, /has already started/)
+    end
   end
 
   describe ".apply!" do
+    # Two splices after the same anchor each re-read the chain from a stale
+    # snapshot and both succeeded, forking it (F142). The Epic row is locked
+    # first, so a second splice waits and re-reads the chain the first left.
+    it "locks the Epic before it re-reads the chain" do
+      head = epic_job(3)
+      observed = []
+      allow(Syrus::LockOrder::Checker).to receive(:observe).and_wrap_original do |original, model_class, connection, ids: []|
+        observed << model_class.name if ids.any?
+        original.call(model_class, connection, ids: ids)
+      end
+
+      Job.transaction do
+        described_class.apply!(epic: epic, anchor_job_id: b.id, head_job: head, tail_job: head, user: user)
+      end
+
+      expect(observed.first).to eq("Epic")
+    end
+
     it "re-points the downstream edge to the new tail, preserving its satisfaction mode, and chains the head onto the anchor" do
       head = epic_job(3)
       tail = epic_job(4)

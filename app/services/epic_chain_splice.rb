@@ -24,38 +24,48 @@ class EpicChainSplice
 
   NOT_STARTED_STATES = %w[backlog needs_triage triaging blocked_by_epic queued].freeze
 
-  Plan = Struct.new(:epic, :anchor, :downstream_edge, keyword_init: true) do
-    def downstream_job = downstream_edge&.job
+  Plan = Struct.new(:epic, :anchor, :downstream_edge, :locked_downstream_job, keyword_init: true) do
+    def downstream_job = locked_downstream_job || downstream_edge&.job
   end
 
   # Resolves and validates the anchor at proposal or confirmation time.
-  def self.plan!(epic:, anchor_job_id:)
+  # `locking: true` (apply!) re-reads the chain, the downstream Job and its
+  # Runs with locking reads, which see the latest committed rows rather than
+  # the transaction's snapshot (F142).
+  def self.plan!(epic:, anchor_job_id:, locking: false)
     raise Rejected, "insert_after_job_id requires a target Epic" if epic.nil?
 
     anchor = epic.jobs.find_by(id: anchor_job_id)
     raise Rejected, "insert_after_job_id #{anchor_job_id} is not a Job in #{epic.slug}" unless anchor
 
-    edges = JobDependency.where(depends_on_job_id: anchor.id)
+    scope = JobDependency.where(depends_on_job_id: anchor.id)
                          .joins(:job)
                          .where(jobs: { epic_id: epic.id })
-                         .includes(:job)
-                         .to_a
+    edges = locking ? scope.lock.to_a : scope.includes(:job).to_a
     if edges.length > 1
       raise Rejected, "#{anchor.slug} already has more than one downstream Job in #{epic.slug}; fix the Epic's chain before inserting after it"
     end
 
-    downstream = edges.first&.job
-    if downstream && !not_started?(downstream)
+    downstream = if locking && edges.first
+      Job.lock.find(edges.first.job_id)
+    else
+      edges.first&.job
+    end
+    if downstream && !not_started?(downstream, locking: locking)
       raise Rejected,
             "Cannot insert after #{anchor.slug}: the next Job in the chain, #{downstream.slug}, has already started " \
             "(state #{downstream.state}) and would be re-parented. Insert after #{downstream.slug} or a later Job instead."
     end
 
-    Plan.new(epic: epic, anchor: anchor, downstream_edge: edges.first)
+    Plan.new(epic: epic, anchor: anchor, downstream_edge: edges.first, locked_downstream_job: (downstream if locking))
   end
 
-  def self.not_started?(job)
-    job.state.in?(NOT_STARTED_STATES) && !job.runs.where(state: "running").exists?
+  # A queued Run counts as started: it may only be waiting for a worker, and
+  # it would start on top of the anchor without the inserted Jobs (F142).
+  def self.not_started?(job, locking: false)
+    runs = job.runs.where(state: Run::ACTIVE_STATES)
+    runs = runs.lock if locking
+    job.state.in?(NOT_STARTED_STATES) && runs.none?
   end
 
   # Orders a batch of new Jobs into the chain they form among themselves.
@@ -110,8 +120,15 @@ class EpicChainSplice
   # Performs steps 2 and 3. Call inside the transaction that created the Jobs
   # and chained them among themselves. Re-validates against the live Epic so a
   # change between proposal and confirmation is caught.
+  #
+  # The Epic row is locked first (F142): two splices after the same anchor
+  # each planned from their own snapshot and both re-pointed the anchor's
+  # downstream edge, leaving the anchor with two dependents that run in
+  # parallel. Holding the Epic serializes them, and Run claims, which lock a
+  # Job's Epic first (NY40), cannot start the downstream Job meanwhile.
   def self.apply!(epic:, anchor_job_id:, head_job:, tail_job:, user:)
-    plan = plan!(epic: epic, anchor_job_id: anchor_job_id)
+    Epic.lock.where(id: epic.id).to_a
+    plan = plan!(epic: epic, anchor_job_id: anchor_job_id, locking: true)
     edge = plan.downstream_edge
     edge&.update!(depends_on_job: tail_job)
     JobDependency.create!(

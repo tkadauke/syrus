@@ -5055,6 +5055,32 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F142. Two Epic splices after the same Job could fork the chain — fixed
+
+**Invariant.** An Epic's children form one chain and never run in parallel.
+
+**Counterexample.** `EpicChainSplice.apply!` (new on main: proposals that
+insert Jobs into the middle of a chain) re-planned and rewrote the chain with
+no Epic or Job lock; its callers lock only their proposal rows. Under MySQL's
+REPEATABLE READ two confirmations inserting after the same anchor A (whose
+next Job is B) both read B→A from their snapshots. The first re-points B at
+its tail T1 and chains T1→A; the second waits on the edge row, then
+overwrites it to B→T2 and chains T2→A, and its per-edge linear-chain check
+reads the old snapshot and misses T1→A. A ends with two dependents, T1 and
+T2, which run in parallel. Separately, `not_started?` let a queued downstream
+Job with a queued Run through (one only waiting for a worker): it starts on top
+of A without the inserted Jobs, beside them.
+
+**Fix.** `apply!` locks the Epic row first, so splices of one Epic serialize
+and a Run claim (which locks the Job's Epic first) cannot start the
+downstream Job meanwhile; it re-reads the anchor's edges, the downstream Job
+and its Runs with locking reads, which see the latest committed rows. A
+downstream Job with any queued or running Run counts as started. Spec first:
+"rejects when the downstream Job has a queued Run" and "locks the Epic before
+it re-reads the chain" failed before the change. The interleaving itself
+needs MySQL; SQLite serializes the writers.
+
+
 ## F141. An answered question could resume an attempt a retry had replaced — fixed
 
 **Invariant.** A Job has at most one live implementation attempt: a Workflow
