@@ -158,7 +158,6 @@ function RuntimeEnvironmentPolicyCard({ payload, onNotice }: { payload: Retentio
       <PolicyGroup heading={t("retention_settings.environment.cache_scratch_heading")}>
         {numberField("worker_cache", "max_bytes")}
         {numberField("worker_cache", "max_concurrent_pulls", 1)}
-        {numberField("worker_cache", "bandwidth_bytes_per_second")}
         {numberField("worker_cache", "unused_retention_hours", 1)}
         <Checkbox checked={policy.scratch.enabled} label={t("retention_settings.environment.scratch_enabled")} onChange={(event) => setPolicy((current) => ({ ...current, scratch: { ...current.scratch, enabled: event.target.checked } }))} />
         {numberField("scratch", "size_bytes", 1)}

@@ -968,7 +968,6 @@
       "cache_scratch_heading": "Worker cache and executable scratch",
       "worker_cache_max_bytes": "Cache byte ceiling (0 = unlimited)",
       "worker_cache_max_concurrent_pulls": "Concurrent pulls",
-      "worker_cache_bandwidth_bytes_per_second": "Pull bandwidth bytes/second (0 = unlimited)",
       "worker_cache_unused_retention_hours": "Unused cache retention (hours)",
       "scratch_enabled": "Enable the executable /scratch profile",
       "scratch_size_bytes": "/scratch byte ceiling",

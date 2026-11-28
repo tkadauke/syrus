@@ -26,7 +26,7 @@ module RuntimeImages
     attr_reader :hostname
 
     def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: nil,
-                   max_bytes: nil, bandwidth_bytes_per_second: nil, unused_retention_hours: nil,
+                   max_bytes: nil, unused_retention_hours: nil,
                    pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
                    lease_seconds: DEFAULT_LEASE_SECONDS, claim_ttl: DEFAULT_CLAIM_TTL, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
       @engine = engine
@@ -45,7 +45,6 @@ module RuntimeImages
       @sleeper = sleeper
       max_concurrent_pulls ||= EnvironmentPolicy.value("worker_cache", "max_concurrent_pulls")
       @max_bytes = Integer(max_bytes.nil? ? EnvironmentPolicy.value("worker_cache", "max_bytes") : max_bytes)
-      @bandwidth_bytes_per_second = Integer(bandwidth_bytes_per_second.nil? ? EnvironmentPolicy.value("worker_cache", "bandwidth_bytes_per_second") : bandwidth_bytes_per_second)
       retention_hours = unused_retention_hours.nil? ? EnvironmentPolicy.value("worker_cache", "unused_retention_hours") : unused_retention_hours
       @unused_retention = Float(retention_hours).hours
       @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
@@ -295,7 +294,6 @@ module RuntimeImages
         # Provider.pull verifies the manifest hashes to the digest and the
         # locator belongs to the namespace before any bytes move.
         provider_pull.call(image)
-        pull_started = monotonic
         @engine.pull(reference_for(image), timeout: @pull_timeout, auth: auth)
         unless @engine.digests(reference_for(image)).include?(image.digest)
           @engine.remove(reference_for(image)) rescue nil
@@ -303,7 +301,6 @@ module RuntimeImages
           raise CorruptImage, "pulled content for #{image.digest} does not match the requested digest"
         end
         entry = upsert_entry(image, prefetch)
-        pace_pull(entry.size_bytes, monotonic - pull_started)
         record(image, "pulled", started, cache_hit: false, prefetch: prefetch)
         entry
       end
@@ -413,7 +410,7 @@ module RuntimeImages
       LEASE_ATTEMPTS.times do
         entry, hit = ensure_local(image, prefetch: prefetch, admission: admission, provider_pull: provider_pull)
         if lease(entry)
-          enforce_byte_ceiling!(protected_entry: entry)
+          enforce_byte_ceiling!(protected_entry: entry) unless hit
           return [entry, hit]
         end
       end
@@ -429,24 +426,18 @@ module RuntimeImages
 
     def enforce_byte_ceiling!(protected_entry: nil)
       return [] unless @max_bytes.positive?
-      return [] if cache_bytes <= @max_bytes
+      total = cache_bytes
+      return [] if total <= @max_bytes
 
       candidates = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call).includes(:runtime_image).lru.to_a
       candidates.reject! { |entry| entry.id == protected_entry&.id }
       candidates.sort_by! { |entry| entry.runtime_image.pullable? ? 1 : 0 }
       candidates.each_with_object([]) do |entry, evicted|
-        break if cache_bytes <= @max_bytes
-        evicted << entry.digest if remove_entry(entry)
+        break if total <= @max_bytes
+        next unless remove_entry(entry)
+        evicted << entry.digest
+        total -= entry.size_bytes.to_i
       end
-    end
-
-    # The CLI engine does not expose a streaming throttle. Account for the
-    # completed transfer before releasing its concurrency slot so each pull
-    # observes the configured bytes-per-second ceiling.
-    def pace_pull(size_bytes, elapsed)
-      return unless @bandwidth_bytes_per_second.positive? && size_bytes.to_i.positive?
-      remaining = (size_bytes.to_f / @bandwidth_bytes_per_second) - elapsed
-      @sleeper.call(remaining) if remaining.positive?
     end
 
     def record_failure(image, error, started, prefetch)

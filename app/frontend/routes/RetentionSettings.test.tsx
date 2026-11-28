@@ -57,7 +57,7 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
         base_promotion: { minimum_abi: 1, maximum_abi: 1 },
         recovery: { launch_failure_threshold: 3, rollback_retention_count: 2 },
         revocation: { terminate_running_turns_on_severe: true },
-        worker_cache: { max_bytes: 21474836480, max_concurrent_pulls: 2, bandwidth_bytes_per_second: 0, unused_retention_hours: 168 },
+        worker_cache: { max_bytes: 21474836480, max_concurrent_pulls: 2, unused_retention_hours: 168 },
         scratch: { enabled: false, size_bytes: 1073741824 }
       },
       oci_registry: { configured: false, credentials: {} },

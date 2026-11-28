@@ -224,6 +224,23 @@ RSpec.describe RuntimeImages::WorkerCache do
       expect(engine.removed).to eq([ first.locator ])
     end
 
+    it "uses one aggregate query while evicting multiple entries to the byte ceiling" do
+      unlimited = described_class.new(engine: engine, service: service, hostname: "w1", max_bytes: 0)
+      %w[a b c].each { |payload| unlimited.acquire(publish(payload)) { nil } }
+      bounded = described_class.new(engine: engine, service: service, hostname: "w1", max_bytes: 50)
+      sums = []
+      subscriber = lambda do |*, payload|
+        sums << payload[:sql] if payload[:sql].match?(/SUM\(.+size_bytes/i)
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        bounded.send(:enforce_byte_ceiling!)
+      end
+
+      expect(sums.size).to eq(1)
+      expect(RuntimeImageCacheEntry.count).to eq(0)
+    end
+
     it "purges entries that exceeded the unused retention window" do
       now = Time.current
       retained = described_class.new(engine: engine, service: service, hostname: "w1", unused_retention_hours: 2, clock: -> { now })
@@ -236,19 +253,6 @@ RSpec.describe RuntimeImages::WorkerCache do
 
       expect(RuntimeImageCacheEntry.pluck(:digest)).to eq([ current.digest ])
       expect(engine.removed).to eq([ stale.locator ])
-    end
-
-    it "paces completed pulls to the configured bandwidth ceiling" do
-      sleeps = []
-      limited = described_class.new(
-        engine: engine, service: service, hostname: "w1",
-        bandwidth_bytes_per_second: 50, sleeper: ->(seconds) { sleeps << seconds }
-      )
-
-      limited.acquire(publish("paced")) { nil }
-
-      expect(sleeps.one?).to be(true)
-      expect(sleeps.first).to be_between(1.9, 2.0)
     end
 
     it "evicts least recently used first and never a leased entry" do

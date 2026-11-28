@@ -21,7 +21,7 @@ module RuntimeImages
       "revocation" => { "terminate_running_turns_on_severe" => true },
       "worker_cache" => {
         "max_bytes" => 20.gigabytes, "max_concurrent_pulls" => 2,
-        "bandwidth_bytes_per_second" => 0, "unused_retention_hours" => 168
+        "unused_retention_hours" => 168
       },
       "scratch" => { "enabled" => false, "size_bytes" => 1.gigabyte }
     }.freeze
@@ -36,8 +36,7 @@ module RuntimeImages
       %w[worker_cache unused_retention_hours], %w[scratch size_bytes]
     ].freeze
     NON_NEGATIVE_KEYS = [
-      %w[recovery rollback_retention_count], %w[worker_cache max_bytes],
-      %w[worker_cache bandwidth_bytes_per_second]
+      %w[recovery rollback_retention_count], %w[worker_cache max_bytes]
     ].freeze
 
     class << self
