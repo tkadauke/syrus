@@ -19,6 +19,21 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).not_to be_timed_out
   end
 
+  it "fails closed before spawning when revocation state for a pinned image cannot be read" do
+    policy = instance_double(Execution::ChatWorkloadPolicy,
+      runtime_image_digest: "sha256:#{'a' * 64}")
+    allow(RuntimeImages::Revocation).to receive(:assert_launchable!)
+      .and_raise(ActiveRecord::ConnectionNotEstablished)
+    expect(Open3).not_to receive(:popen2e)
+
+    expect {
+      described_class.new(
+        env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir),
+        network: "agent", timeout: 5, kind: "agent", workload_policy: policy
+      ).run
+    }.to raise_error(ActiveRecord::ConnectionNotEstablished)
+  end
+
   it "terminates an agent process when its chat reaches an authorization checkpoint" do
     user = Factories.user
     chat = ChatSession.create!(user: user)

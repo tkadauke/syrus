@@ -1228,26 +1228,34 @@ class ProcessRunner
   def register_spawned_process
     return nil unless @kind
 
-    process = SpawnedProcess.create!(
-      kind: @kind,
-      command: command_string,
-      workdir: @chdir.presence,
-      hostname: Socket.gethostname,
-      started_at: Time.current,
-      wall_timeout_s: @timeout&.to_i,
-      silent_timeout_s: @silent_timeout&.to_i,
-      run: @run,
-      workflow: @workflow,
-      job: @job,
-      chat_session: @chat_session,
-      agent: @agent
-    )
+    process = SpawnedProcess.transaction do
+      RuntimeImages::Revocation.assert_launchable!(@initial_resource_attribution["runtime_image_digest"])
+      SpawnedProcess.create!(
+        kind: @kind,
+        command: command_string,
+        workdir: @chdir.presence,
+        hostname: Socket.gethostname,
+        started_at: Time.current,
+        wall_timeout_s: @timeout&.to_i,
+        silent_timeout_s: @silent_timeout&.to_i,
+        run: @run,
+        workflow: @workflow,
+        job: @job,
+        chat_session: @chat_session,
+        agent: @agent,
+        resource_attribution: @initial_resource_attribution
+      )
+    end
     attempt = Thread.current[:syrus_current_job_classification_attempt]
     attempt&.update_columns(spawned_process_id: process.id) if attempt&.spawned_process_id.blank?
     @cgroup = SpawnedProcessCgroup.new(spawned_process: process, resource_limits: @resource_limits)
     process.update_column(:resource_attribution, current_resource_attribution)
     process
   rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => error
+    # Digest-pinned execution is a security boundary, not observability. If
+    # durable revocation state cannot be checked, never launch the image.
+    raise if @initial_resource_attribution["runtime_image_digest"].present?
+
     # This row is observability: the supervisor reads it to reap strays, and
     # the UI reads it to show what is running. It is not what makes the
     # subprocess work, and a runner with no row already behaves correctly

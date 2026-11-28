@@ -80,7 +80,16 @@ module RuntimeImages
       raise ArgumentError, "severity must be standard or severe" unless severity.in?(%w[standard severe])
 
       audited("revoke", image: image, actor: actor, details: { reason: reason, severity: severity }) do
-        image.with_lock { image.mark_revoked!(reason: reason) }
+        terminated = Revocation.revoke_and_request_termination!(image, reason:, severity:)
+        if severity == "severe"
+          Telemetry.revocation_terminations(terminated)
+          Audit.record("revoke.termination", outcome: :ok, image:, actor:,
+                       details: { reason:, requested_processes: terminated,
+                                  recovery_guidance: "promote or roll back to a compatible non-revoked image before retrying the turn" })
+          OperationalLogging.ingest(level: "warn", source: "runtime_images",
+                                    message: "severe runtime image revocation requested fleet process termination",
+                                    context: { runtime_image_digest: image.digest, requested_processes: terminated })
+        end
         provider_for(image.runtime_image_namespace).revoke(
           RevokeRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform, reason: reason)
         )

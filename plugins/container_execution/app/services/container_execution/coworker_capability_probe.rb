@@ -27,6 +27,8 @@ module ContainerExecution
     BASH
 
     def self.capability_probes(env: ENV)
+      runtime_health = Syrus::Host::RuntimeImages.worker_health
+      profile = mount_profile
       [ {
         dimension: "runtime",
         token: RUNTIME_TOKEN,
@@ -36,7 +38,12 @@ module ContainerExecution
         diagnostics: {
           "confined_coworker_configuration" => configured?(env) ? "complete" : "missing",
           "confined_coworker_missing_settings" => missing_settings(env),
-          "confined_coworker_verification" => [ "per_turn_container", "read_only_root", "non_root_user", "proxy_reachability", "default_deny_direct_egress" ]
+          "confined_coworker_verification" => [ "per_turn_container", "read_only_root", "non_root_user", "proxy_reachability", "default_deny_direct_egress" ],
+          "runtime_image" => runtime_health.merge(
+            "confinement" => configured?(env),
+            "scratch_profile" => profile ? Configuration.chat_agent_mount_profile : "unknown",
+            "scratch_executable" => profile.is_a?(MountProfile::ExecutableScratch)
+          )
         }
       } ]
     end
