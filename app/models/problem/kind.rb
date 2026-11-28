@@ -101,6 +101,12 @@ class Problem
                 default_remediation: :retry_step),
       Entry.new(code: "workspace_clone_timeout", scope: :run, retryable: true,
                 default_remediation: :retry_step),
+      # The workflow's workspace directory vanished under a running step (the
+      # spawn's chdir raised ENOENT on the root). Infrastructure, not the
+      # change; a fresh workflow recreates the checkout.
+      Entry.new(code: "workspace_lost", scope: :workflow, retryable: true,
+                default_remediation: :restart_workflow,
+                label: "Workflow workspace lost"),
       Entry.new(code: "workspace_recovery_failed", scope: :workflow, retryable: true,
                 default_remediation: :restart_workflow,
                 issue_kinds: %w[workspace_missing],

@@ -50,6 +50,27 @@ RSpec.describe FailureProblems do
       expect(described_class.for_exception(other)).to be_nil
     end
 
+    describe "a missing workflow workspace" do
+      let(:data_root) { Dir.mktmpdir("syrus-data-root") }
+
+      def enoent(path) = Errno::ENOENT.new(path)
+
+      it "declares the workspace root's disappearance workspace_lost (retryable)" do
+        problem = described_class.for_exception(enoent("#{data_root}/workflows/66664"))
+
+        expect(problem).to have_attributes(code: "workspace_lost", retryable?: true)
+        expect(problem.evidence).to include(workflow_id: 66664)
+      end
+
+      it "makes no claim when the root still exists, or the missing path is inside it" do
+        FileUtils.mkdir_p("#{data_root}/workflows/66664")
+
+        expect(described_class.for_exception(enoent("#{data_root}/workflows/66664"))).to be_nil
+        expect(described_class.for_exception(enoent("#{data_root}/workflows/66665/app/models/widget.rb"))).to be_nil
+        expect(described_class.for_exception(enoent("/tmp/somewhere/else"))).to be_nil
+      end
+    end
+
     it "makes no claim about an exception with no structured cause" do
       expect(described_class.for_exception(RuntimeError.new("boom"))).to be_nil
       expect(described_class.for_exception(nil)).to be_nil
@@ -96,6 +117,22 @@ RSpec.describe FailureProblems do
       CaptureRunDiagnostic.capture(run, github_504)
 
       expect(run.reload.run_diagnostic).to have_attributes(error_class: "Octokit::ServerError", problem_code: "github_api_transient")
+    end
+
+    # Regression: a grader_collect whose workflow directory vanished raised
+    # this from ProcessRunner's spawn and was read as a timeout (by its
+    # "configured_timeout=" log), then as an unclassified final failure.
+    it "records a vanished workflow workspace as workspace_lost" do
+      missing_root = File.join(Dir.mktmpdir("syrus-data-root"), "workflows", "66664")
+      error = begin
+        Process.spawn("true", chdir: missing_root)
+      rescue Errno::ENOENT => e
+        e
+      end
+      CaptureRunDiagnostic.capture(run, error)
+
+      expect(run.reload.run_diagnostic).to have_attributes(error_class: "Errno::ENOENT", problem_code: "workspace_lost")
+      expect(RunFailureClassifier.classify(run)).to have_attributes(classification: "workspace_lost", retryable: true)
     end
 
     it "records the cause-derived code of a wrapping StepFailed" do

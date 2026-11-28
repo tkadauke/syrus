@@ -49,37 +49,35 @@
     - eb2a243e2075-5884b8b9dd6b4b8f
     - eb2a243e2075-cf1e88c70eda2beb
 
-- status: unreviewed
+- status: intentional
   to: schema_version_skew/retryable
   reason: >-
     A missing table or column ("Table '...' doesn't exist") is now retryable
     schema_version_skew: a Run still on the previous release right after a
-    deploy migrated. Matches the commit that added the classification; not
-    one of the fixes this allowlist was seeded with, so it awaits review.
+    deploy migrated.
   cases:
     - a9181beed9ea-71c550ae57be2fe3
     - c37a5c04b380-ba19ee9601db3ae7
     - cc4a0544711d-943a5f640dece12b
 
-- status: unreviewed
+- status: intentional
   to: prepare_network_transient/retryable
   reason: >-
     An immutable-source `npm ci` that failed with ECONNRESET is now a
     retryable prepare_network_transient. It used to read as
     provider_auth_or_config because "webauthn" in the install log matched a
-    bare `auth`. Matches the commits that narrowed the auth pattern and
-    called registry blips transient; awaits review.
+    bare `auth`.
   cases:
     - 8c865d05fcdf-8bca6791ea0678c5
 
-- status: unreviewed
+- status: intentional
   to: recheck:retry
   reason: >-
     AutoRetryJob's retryability recheck no longer skips a reconciler-planned
     retry of a pr_open whose PR branch diverged: that repair is a retry from
     the current branch (REPAIRED_BY_RETRY_CLASSIFICATIONS). Production
     skipped all three attempts here and the Job sat failed. This is the fix
-    for the diverged-branch regression; awaits review.
+    for the diverged-branch regression.
   cases:
     - 30c5cad992e5-451c5e655700f63a
 
@@ -99,13 +97,14 @@
     - c002d2ce511c-1bb72bbee0cf9beb
     - c002d2ce511c-457bcc3adf6da62c
 
-- status: unreviewed
-  to: application_error/final
+- status: intentional
+  to: workspace_lost/retryable
   reason: >-
-    A grader_collect whose graders ended with process_outcome=missing_exit_status
-    after their workflow directory disappeared (Errno::ENOENT) is no longer a
-    retryable timeout; it was one only because the collect log prints every
-    grader's configured_timeout. Nothing in it says it timed out, but a lost
-    workspace may deserve its own retryable classification -- review.
+    A grader_collect whose workflow workspace directory vanished (the
+    spawn's chdir raised Errno::ENOENT on the workflow root; its graders
+    ended process_outcome=missing_exit_status) is a retryable
+    workspace_lost: infrastructure, not the change. It used to be a timeout
+    only because the collect log prints every grader's configured_timeout.
+    New failures declare workspace_lost at the source.
   cases:
     - 44e11365805e-48cdad746a0b7504

@@ -15,6 +15,7 @@
 #   FailureProblems::Prepare    -- a dependency-install command's output tail
 #   FailureProblems::Git        -- a GitRunner::GitError (command, exit, stderr)
 #   FailureProblems::GithubApi  -- an Octokit error (HTTP status, class)
+#   FailureProblems::Workspace  -- an ENOENT on the workflow workspace root
 #
 # Every function returns a Problem, or nil when the evidence is not specific
 # enough to commit to an answer; nil means "fall back to inference", never
@@ -40,6 +41,7 @@ module FailureProblems
     when GitRunner::GitError then Git.for(exception)
     when Octokit::Error then GithubApi.for(exception)
     when *GithubApi::CONNECTION_ERRORS then GithubApi.for_connection(exception)
+    when Errno::ENOENT then Workspace.for_enoent(exception)
     else for_exception(exception.cause, depth: depth + 1)
     end
   rescue StandardError => e

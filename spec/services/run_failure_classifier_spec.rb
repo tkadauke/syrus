@@ -1416,6 +1416,28 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  # Regression: a grader_collect whose workflow directory vanished (the spawn's
+  # chdir raised ENOENT on the root, graders ended missing_exit_status) was a
+  # "timeout" only because its log prints configured_timeout=, and became an
+  # unretried application_error once that stopped counting. Rows recorded
+  # before the source declared workspace_lost still classify as it.
+  it "classifies a recorded ENOENT on the workflow workspace root as a retryable workspace loss" do
+    run.step.update_columns(kind: "grader_collect")
+    run.update!(state: "failed")
+    JobLog.append!(run: run, kind: "system",
+                   chunk: "[grader_collect] inconclusive grader rspec-ci-serial: configured_timeout=9000s observed_duration=nils process_outcome=missing_exit_status")
+    diagnostic("Errno::ENOENT", "No such file or directory - /syrus-home/.syrus/workflows/66664")
+
+    expect(classification).to have_attributes(classification: "workspace_lost", retryable: true)
+  end
+
+  it "does not call an ENOENT inside the workspace a workspace loss" do
+    run.update!(state: "failed")
+    diagnostic("Errno::ENOENT", "No such file or directory @ rb_sysopen - /syrus-home/.syrus/workflows/66664/config/missing.yml")
+
+    expect(classification.classification).not_to eq("workspace_lost")
+  end
+
   # Regression: once the bare word "timeout" stopped counting, a recorded
   # GitHub connection failure lost the retry it only ever got from its
   # backtrace's `Timeout.timeout` frames.

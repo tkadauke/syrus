@@ -115,6 +115,8 @@ class RunFailureClassifier
       result("prepare_network_transient", 0.90, true, "A dependency install lost its connection to the package registry; retry once the network recovers.")
     when git_transport_transient?
       result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
+    when workspace_lost?
+      result("workspace_lost", 0.95, true, "The workflow's workspace directory disappeared while the step ran; a fresh workflow recreates it.")
     when github_connection_transient?
       result("github_api_transient", 0.90, true, "The request to GitHub never got a response (connection failed, reset or timed out); retry once GitHub is reachable.")
     when source_snapshot_metadata_invalid?
@@ -603,6 +605,15 @@ class RunFailureClassifier
     # it. Reading every recent log line let an unrelated earlier fetch's
     # "couldn't find remote ref" veto a GitHub 500 on the push that failed.
     GitTransportErrors.transient?(diagnostic.error_message)
+  end
+
+  # Legacy fallback for rows recorded before FailureProblems::Workspace
+  # declared it at the source: the spawn's chdir into the workspace root
+  # raised ENOENT. Only the root itself -- ENOENT on a path inside it can be
+  # the change's own doing.
+  def workspace_lost?
+    diagnostic&.error_class.to_s == "Errno::ENOENT" &&
+      FailureProblems::Workspace.workflow_root(diagnostic.error_message).present?
   end
 
   # Legacy fallback for rows recorded before FailureProblems::GithubApi
