@@ -8976,7 +8976,11 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   severe revocation can find the process, and an unpinned turn (F161)
   registers with no digest. Holds.
 
-Checked through main `14478f0c6e`. Each loop iteration continues from there:
+- Main through `f365f19802`: the dashboard derives "landing" from active
+  landing-lane lock ownership (display only), and the MySQL inspector reads
+  statement summaries instead of the slow log. No engine invariant.
+
+Checked through main `f365f19802`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
