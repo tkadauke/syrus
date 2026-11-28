@@ -93,6 +93,8 @@
       "backlogged_jobs": "Backlog",
       "pinned": "Affixa",
       "in_progress": "In Progressu",
+      "waiting_for_answer": "Responsum Tuum Exspectat",
+      "investigations": "Investigationes",
       "paused": "Pausata",
       "queued": "In Ordine",
       "triaging": "Discernitur",

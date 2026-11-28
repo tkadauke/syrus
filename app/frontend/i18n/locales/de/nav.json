@@ -93,6 +93,8 @@
       "backlogged_jobs": "Backlog",
       "pinned": "Angeheftet",
       "in_progress": "In Bearbeitung",
+      "waiting_for_answer": "Wartet auf deine Antwort",
+      "investigations": "Untersuchungen",
       "paused": "Pausiert",
       "queued": "In Warteschlange",
       "triaging": "In Triage",
