@@ -57,6 +57,28 @@ export type CoworkerDetail = CoworkerSummary & {
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
 }
+export type CoworkerEnvironmentPayload = {
+  feature_enabled: boolean
+  source: { repository: string; branch: string; path: string }
+  environment: null | {
+    state: string
+    current_source_revision: null | { id: number; number: number; digest: string; state: string; captured_at: string }
+    build_status: null | { request_id: number; state: string; attempts: number; error_code?: string; finished_at?: string }
+    candidate_revision: null | { id: number; number: number; digest: string; state: string; captured_at: string }
+    candidate_verification_summary: Record<string, unknown> | null
+    active_digest: string | null
+    retained_rollback_digests: { digest: string; revision_id: number; revision_number: number }[]
+    compatibility: { status: string; current_runtime_abi?: number; revision_runtime_abi?: number; minimum_runtime_abi?: number; maximum_runtime_abi?: number }
+    error_code: string | null
+    updated_at: string
+    publication_state: "published" | "awaiting_publication" | "not_published"
+    verification_state: string | null
+    current_base_digest: string | null
+    latest_safe_findings: Record<string, unknown> | null
+    main_chat_path: string | null
+    revisions: { id: number; number: number; state: string; source_digest: string; image_digest?: string; base_digest?: string; runtime_abi?: number; build_state?: string; error_code?: string; rollback_eligible: boolean; created_at: string }[]
+  }
+}
 export type CoworkerConversation = {
   id: number
   title: string
@@ -257,6 +279,8 @@ export function fetchCoworkerWorkspace(id: string, search: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${search}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
+export const fetchCoworkerEnvironment = (id: string) =>
+  getJson<CoworkerEnvironmentPayload>(`/api/v1/app/coworkers/${id}/environment`)
 export function fetchCoworkerActivity(id: string, search = "", cursors?: { jobs?: string | null; sideChats?: string | null }) {
   const query = new URLSearchParams(search)
   query.delete("tab")

@@ -104,6 +104,7 @@ module Coworkers
     route :get, "/api/v1/app/coworkers/:id/conversation_index", to: "api/v1/app/coworkers#conversation_index"
     route :get, "/api/v1/app/coworkers/:id/capabilities", to: "api/v1/app/coworkers#capabilities"
     route :get, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#schedules"
+    route :get, "/api/v1/app/coworkers/:id/environment", to: "api/v1/app/coworkers#environment"
     route :patch, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#update"
     route :patch, "/api/v1/app/coworkers/:id/grants", to: "api/v1/app/coworkers#update_grant"
     route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"

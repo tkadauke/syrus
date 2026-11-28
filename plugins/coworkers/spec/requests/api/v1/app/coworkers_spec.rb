@@ -5,6 +5,31 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "shows only the owner's safe coworker environment history and gate fallback" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-environment-ui", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    environment = Coworkers::Environment.create!(coworker:, state: "draft")
+    environment.revisions.create!(number: 1, source_digest: "sha256:#{'a' * 64}")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      "feature_enabled" => false,
+      "source" => { "repository" => coworker.workspace_repo, "branch" => "coworkers/#{coworker.handle}", "path" => "environment/" }
+    )
+    expect(response.parsed_body.dig("environment", "revisions", 0)).to include(
+      "number" => 1, "source_digest" => "sha256:#{'a' * 64}", "rollback_eligible" => false
+    )
+    expect(response.parsed_body.dig("environment", "main_chat_path")).to eq("/chats/#{chat.id}")
+
+    sign_in_as(Factories.user)
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "keeps coworker provenance out of slim navigation rows" do
     chat = ChatSession.create!(
       user: owner,

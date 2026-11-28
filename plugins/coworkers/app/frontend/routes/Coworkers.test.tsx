@@ -218,6 +218,45 @@ it("shows overdue journaling with the durable failure reason", async () => {
   expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
 })
 
+it("shows environment source, distinct build and publication state, safe history, and recovery at a narrow viewport", async () => {
+  window.innerWidth = 375
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+      if (path === "/api/v1/app/coworkers/7/environment") return jsonResponse({
+        feature_enabled: false,
+        source: { repository: "https://github.com/acme/workspace.git", branch: "coworkers/maya", path: "environment/" },
+        environment: {
+          state: "candidate",
+          current_source_revision: { id: 4, number: 2, digest: `sha256:${"a".repeat(64)}`, state: "candidate", captured_at: "2026-11-28T12:00:00Z" },
+          build_status: { request_id: 8, state: "succeeded", attempts: 1 },
+          candidate_revision: { id: 4, number: 2, digest: `sha256:${"a".repeat(64)}`, state: "candidate", captured_at: "2026-11-28T12:00:00Z" },
+          candidate_verification_summary: { outcome: "succeeded", layer_count: 4 },
+          active_digest: `sha256:${"b".repeat(64)}`,
+          retained_rollback_digests: [], compatibility: { status: "compatible", current_runtime_abi: 3 }, error_code: null,
+          updated_at: "2026-11-28T12:00:00Z", publication_state: "awaiting_publication", main_chat_path: "/chats/12",
+          verification_state: "candidate", current_base_digest: `sha256:${"c".repeat(64)}`, latest_safe_findings: { outcome: "succeeded", layer_count: 4 },
+          revisions: [{ id: 4, number: 2, state: "candidate", source_digest: `sha256:${"a".repeat(64)}`, image_digest: `sha256:${"b".repeat(64)}`, build_state: "succeeded", rollback_eligible: false, created_at: "2026-11-28T12:00:00Z" }]
+        }
+      })
+      throw new Error(`Unexpected fetch ${path}`)
+    })
+  )
+
+  renderRoute("/coworkers/7?tab=environment")
+
+  expect(await screen.findByRole("heading", { name: "Environment source" })).toBeInTheDocument()
+  expect(screen.getByText("Custom environments are disabled")).toBeInTheDocument()
+  expect(screen.getAllByText("succeeded")).toHaveLength(2)
+  expect(screen.getByText("Build succeeded; awaiting publication")).toBeInTheDocument()
+  expect(screen.queryByText("Eligible for rollback")).not.toBeInTheDocument()
+  expect(screen.getByRole("table")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open source files" })).toHaveAttribute("href", "/coworkers/7?tab=workspace&path_prefix=environment")
+  expect(screen.getByRole("link", { name: "Open main chat" })).toHaveAttribute("href", "/chats/12")
+})
+
 it("tests the remote and submits appearance, upload, grants, and About", async () => {
   const requests: Array<{ path: string; init?: RequestInit }> = []
   vi.stubGlobal(
