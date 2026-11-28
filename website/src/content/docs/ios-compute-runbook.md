@@ -38,6 +38,8 @@ grade:
     destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
     derived_data_path: .syrus/DerivedData/ios
     result_bundle_path: build/syrus/ios/MobileApp.xcresult
+    compilation_cache: true
+    compilation_cache_retention_days: 21
     junit_output: build/syrus/junit/ios-tests.xml
     when_files_changed:
       - "apps/ios/**"
@@ -60,6 +62,22 @@ For common commands, enable the bundled iOS plugin and use `type: xcodebuild`
 or `type: swiftpm`. The typed graders still produce ordinary Syrus grader
 metadata with macOS/Xcode/iOS simulator capabilities, result bundle and
 artifact paths, timeouts, and optional JUnit output.
+
+Typed `xcodebuild` graders enable Xcode's native compilation cache when the
+selected Xcode and Swift compiler advertise support. Cache state survives
+ephemeral Workflow checkouts under the worker's persistent
+`/var/lib/syrus/cache/xcode-compilation` tree (or
+`SYRUS_XCODE_COMPILATION_CACHE_ROOT`). Unsupported probes and native CAS
+failures degrade to an ordinary uncached build and leave a separate diagnostic
+artifact; these results are not sccache statistics. Set
+`compilation_cache: false` to opt out or
+`compilation_cache_retention_days: 1..90` to change the default 21-day
+generation retention.
+
+This reuse is local to one Mac. Keys depend on Xcode, Swift, SDKs, build
+settings, inputs, and sometimes absolute checkout paths, so no cross-Mac reuse
+is promised. DerivedData remains isolated per grader and is never copied into
+the persistent cache.
 
 ## 2. File the Job with the right primary worker
 
