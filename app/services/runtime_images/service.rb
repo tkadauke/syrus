@@ -75,8 +75,11 @@ module RuntimeImages
 
     # Revocation is recorded before the provider is told, so a provider outage
     # can never leave a revoked image pullable.
-    def revoke(image, reason:, actor: "system")
-      audited("revoke", image: image, actor: actor, details: { reason: reason }) do
+    def revoke(image, reason:, actor: "system", severity: "standard")
+      severity = severity.to_s
+      raise ArgumentError, "severity must be standard or severe" unless severity.in?(%w[standard severe])
+
+      audited("revoke", image: image, actor: actor, details: { reason: reason, severity: severity }) do
         image.mark_revoked!(reason: reason)
         provider_for(image.runtime_image_namespace).revoke(
           RevokeRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform, reason: reason)
