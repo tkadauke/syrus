@@ -5055,6 +5055,41 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F141. An answered question could resume an attempt a retry had replaced — fixed
+
+**Invariant.** A Job has at most one live implementation attempt: a Workflow
+whose WorkUnit was retired, or whose Workflow ended, never runs again.
+
+**Counterexample.** Main made two changes that meet here. A retry of an
+agent-blocked Job retires the blocked Workflow's WorkUnit but leaves the
+Workflow `blocked` as history, an argument that relied on `blocked` only ever
+leaving to `cancelled`. Workflow questions then added `resume_from_answer`
+(blocked to running) and made a cannot-proceed block file an operator question
+on the blocked Run. The retry did not close that question. Answering it after
+the retry finished passed every check in `AgentQuestions::Resume` (Run, Step
+and Workflow all blocked), and `WorkflowLifecycle#started!` reactivated the
+cancelled WorkUnit, its intent and the job lock: the replaced attempt ran
+again, possibly after the Job had been implemented or landed. While the retry
+still ran, the same answer failed on a `LockConflict` after the answer was
+already saved. A second path reached the same state: `awaiting_answer` is
+neither active nor cancellable for Runs and Steps, so cancelling a Workflow
+left its parked Run behind with the question open, and answering it queued the
+Run again under the cancelled Workflow.
+
+**Fix.** The retry withdraws the blocked Workflow's open questions when it
+retires its unit, and `Resume` resumes only a live attempt: a parked Run only
+while its Workflow is not terminal, and never under a terminal WorkUnit.
+Spec first: "closes the blocked Workflow's open question so a later answer
+cannot resume it" (the replaced Workflow came back running) and "does not
+resume a Run whose Workflow was cancelled while it awaited the answer" (the
+Run was queued again) both failed before the change.
+
+Lead L17 (not fixed). A Run or Step parked in `awaiting_answer` under a
+Workflow that is cancelled stays parked, and its question stays open in the
+inbox; answering it is now refused. Whether cancellation should withdraw the
+question and close the parked Run is a design choice of the questions feature.
+
+
 ## F140. The starved-grader repair could cancel a grader a worker had just claimed — fixed
 
 **Invariant.** `CancelStarvedGrader` cancels only a grader Run that never
