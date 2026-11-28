@@ -132,6 +132,8 @@
   "live_process_list": "Index Processuum",
   "live_global_status": "Status Universalis",
   "live_statement_digests": "Summaria sententiarum",
+  "live_statement_digests_unavailable": "Summaria sententiarum huic nexui praesto non sunt.",
+  "live_statement_digests_unavailable_hint": "Performance Schema fortasse inactiva est, aut usor MySQL potestatem summaria sententiarum legendi non habet.",
   "live_auto_refresh": "Quoque 10 secundis renovatur",
   "foreign_keys_heading": "Claves Alienae",
   "no_foreign_keys": "Nullae claves alienae.",
