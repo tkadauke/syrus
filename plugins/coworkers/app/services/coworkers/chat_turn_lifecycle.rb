@@ -25,7 +25,7 @@ class Coworkers::ChatTurnLifecycle
   end
 
   def turn_started!
-    @environment_resolver&.persist!(chat_session: @chat_session)
+    @environment_resolver&.persist!(chat_session: @chat_session) if @environment_selection
   end
 
   def execution_workload_policy(policy)
