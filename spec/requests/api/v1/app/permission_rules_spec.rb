@@ -317,6 +317,53 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(states.fetch("interactive_chat")).to eq("scoped")
   end
 
+  # Regression: the matrix explains every descriptor for every subject role,
+  # and each explanation read the settings row and the owner's leases -- over
+  # a thousand queries per request, which made the onboarding page's
+  # permission panel take seconds to load.
+  it "builds the matrix in a bounded number of queries however large the catalog" do
+    get "/api/v1/app/permission_rules"
+    expect(response).to have_http_status(:ok)
+
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+    end
+    begin
+      get "/api/v1/app/permission_rules"
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(Permissions::Catalog.descriptors.size).to be > 100
+    expect(queries.count { |sql| sql.include?("permission_leases") }).to eq(1)
+    expect(queries.count { |sql| sql.include?("app_settings") }).to be <= 3
+    expect(queries.size).to be < 40
+  end
+
+  it "reflects a live lease in the matrix state it preloads" do
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.resource_scope.type == :none && candidate.defaults.values.none?(:allow) &&
+        candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER) &&
+        candidate.authority_durations.include?(:permanent) &&
+        !Permissions::Catalog.essential_for?(candidate.operation, role: AgentRole::CHAT_PLANNER)
+    end
+    get "/api/v1/app/permission_rules"
+    before = JSON.parse(response.body).dig("matrix_states", "#{descriptor.capability}|#{descriptor.operation}", "interactive_chat")
+
+    Permissions::AuthorityGrant.issue!(
+      duration: :permanent, descriptor:, owner: user, actor: user, role: AgentRole::CHAT_PLANNER,
+      subject_selector_type: "interactive_chat", subject_selector_id: nil, subject_repository: nil,
+      resource_scope: {}, arguments: {}, context: { user:, subject_selector_type: "interactive_chat" }
+    )
+    get "/api/v1/app/permission_rules"
+    after = JSON.parse(response.body).dig("matrix_states", "#{descriptor.capability}|#{descriptor.operation}", "interactive_chat")
+
+    expect(before).not_to eq("allow")
+    expect(after).to eq("allow")
+  end
+
   it "creates a permanent allow rule for an eligible capability" do
     descriptor = Permissions::Catalog.descriptors.find do |candidate|
       candidate.authority_durations.include?(:permanent) && candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER)

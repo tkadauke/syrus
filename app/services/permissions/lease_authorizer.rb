@@ -24,7 +24,14 @@ module Permissions
     def self.call(...) = new(...).call
     def self.explain(...) = new(...).explain
 
-    def initialize(descriptor:, owner:, role:, resource_scope:, rules: [], context: {}, arguments: {})
+    # `leases:` is the owner's live (unrevoked, unexpired, uses-remaining)
+    # leases, read once by a caller that explains many descriptors in a row --
+    # the permission hub's matrix explains every descriptor for every subject,
+    # and one query per cell made that payload over a thousand queries. Only
+    # #explain reads it: #call always takes the leases it may consume under a
+    # row lock.
+    def initialize(descriptor:, owner:, role:, resource_scope:, rules: [], context: {}, arguments: {}, leases: nil)
+      @preloaded_leases = leases
       @descriptor = descriptor
       @owner = owner
       @role = role
@@ -51,13 +58,25 @@ module Permissions
     def explain
       return Result.new(decision: evaluate([]), lease: nil) if @descriptor.essential?
 
-      leases = PermissionLease.for_invocation(owner: @owner, capability: @descriptor.capability,
-        operation: classification.operation).to_a
-      decision, lease = decision_and_lease(leases)
+      decision, lease = decision_and_lease(explain_leases)
       Result.new(decision:, lease:)
     end
 
     private
+
+    # The same candidates PermissionLease.for_invocation selects, filtered from
+    # the preloaded set when the caller supplied one.
+    def explain_leases
+      operation = classification.operation
+      unless @preloaded_leases
+        return PermissionLease.for_invocation(owner: @owner, capability: @descriptor.capability, operation:).to_a
+      end
+
+      @preloaded_leases.select do |lease|
+        lease.owner_user_id == @owner.id && lease.capability == @descriptor.capability &&
+          (lease.operation.nil? || lease.operation == operation)
+      end
+    end
 
     def classification
       @classification ||= InvocationClassifier.call(descriptor: @descriptor, arguments: @arguments)

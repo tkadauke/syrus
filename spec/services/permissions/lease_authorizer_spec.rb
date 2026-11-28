@@ -61,6 +61,32 @@ RSpec.describe Permissions::LeaseAuthorizer do
     expect(lease.reload.used_count).to eq(0)
   end
 
+  it "explains from preloaded leases without querying, keeping only the owner's matching ones" do
+    lease = issue(:invocation)
+    other_owner_lease = lease.dup.tap { |copy| copy.owner_user = Factories.user }
+    other_capability_lease = lease.dup.tap { |copy| copy.capability = "syrus.other@v1" }
+    explain = lambda do |leases|
+      described_class.explain(descriptor:, owner:, role: "implementer",
+        resource_scope: { repository_id: repository.id }, context:, arguments: { job_id: job.id }, leases:)
+    end
+
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      queries << payload[:sql] if payload[:sql].include?("permission_leases")
+    end
+    begin
+      preloaded = explain.call([ other_owner_lease, other_capability_lease, lease ])
+      without_match = explain.call([ other_owner_lease, other_capability_lease ])
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    expect(queries).to be_empty
+    expect(preloaded).to be_authorized
+    expect(preloaded.lease).to eq(lease)
+    expect(without_match).not_to be_authorized
+  end
+
   it "ends chat-session and Job leases with their owning lifecycle" do
     chat_lease = issue(:chat_session, chat_session:)
     job_lease = issue(:job, job:)
