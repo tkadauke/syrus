@@ -5055,6 +5055,42 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F155. The candidate probe asked for a launch-only image and was always refused — fixed
+
+**Invariant.** A verification check can reach the image it verifies.
+
+**Counterexample.** `Verifications::CandidateProbe` acquired the candidate
+through `BuiltImages#acquire`, whose admission is `pullable?` (verification
+state `candidate`), right after `create_attempt` set the image to
+`unverified`. The worker cache refused it with `NotPullable`, every probe
+check came back `infrastructure`, and every extension build with a base digest
+and a smoke test ended `blocked` and retryable, forever. The spec stubbed
+`acquire` to succeed. The two scanners already use `acquire_for_verification`.
+
+**Fix.** The probe uses `acquire_for_verification` (it runs its own ABI
+check). Spec first: the probe spec now stubs acquisition as the real admission
+behaves (launch path refused for an unverified image); six examples failed
+before the change.
+
+## F154. A verification attempt could be accepted without a required check, or decide after being reaped — fixed
+
+**Invariant.** An image becomes a candidate only when every required check of
+its policy snapshot passed, decided by a live attempt.
+
+**Counterexample.** `Verifications::Orchestrator#finish` judged only the check
+rows that exist. When a required check's insert failed (deadlock, lost
+connection), `run_check`'s rescue had no row to update, so no row recorded the
+check and the attempt was accepted with it never run. `finish` also never
+re-checked that the attempt was still running, so an attempt the re-evaluator
+reaped as abandoned (after an hour; scanner timeouts alone allow about 70
+minutes) later set the image to candidate and issued an attestation.
+
+**Fix.** Under the image lock `finish` re-reads the attempt with a locking
+read and stops unless it is running, and blocks it (`check_missing`) when a
+required check of the snapshot has no row. Spec first: "does not accept an
+attempt missing a required check's row" and "does not let an attempt reaped
+while it ran decide the image's state" failed before the change.
+
 ## F153. Runtime image re-evaluation re-verified an invalidated attestation — fixed
 
 **Invariant.** A revoked or superseded attestation is never re-verified into

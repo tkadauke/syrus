@@ -76,9 +76,24 @@ module RuntimeImages
       end
 
       def finish(attempt, now)
-        failure = attempt.checks.where(required: true).where.not(state: "passed").order(:position).first
         image = attempt.runtime_image
         image.with_lock do
+          # Fenced (F154): an attempt the re-evaluator reaped as abandoned
+          # while its checks still ran no longer decides anything.
+          attempt.reload(lock: true)
+          next unless attempt.state == "running"
+
+          failure = attempt.checks.where(required: true).where.not(state: "passed").order(:position).first
+          # Every required check of the snapshot needs a row: one whose insert
+          # failed (a deadlock, a lost connection) never ran, and judging only
+          # the rows that exist accepted it (F154).
+          if failure.nil? && (missing = missing_required_check(attempt))
+            attempt.update!(state: "blocked", decision: "blocked", failure_class: "infrastructure",
+                            failure_code: "check_missing", message: "required check #{missing} has no recorded result", finished_at: now)
+            image.update!(verification_state: "blocked") if image.runtime_image_verification_attempts.maximum(:number) == attempt.number
+            next
+          end
+
           if failure
             blocked = %w[infrastructure evidence verifier].include?(failure.failure_class)
             state = blocked ? "blocked" : "rejected"
@@ -96,6 +111,20 @@ module RuntimeImages
           Attestor.new.issue!(attempt, current: current, now: now)
         end
         attempt
+      end
+
+      # The key of the first required check in the attempt's snapshot that
+      # has no recorded row, or nil.
+      def missing_required_check(attempt)
+        checks = Array(attempt.policy_snapshot["checks"])
+        checks = [ { "key" => "policy_checks_missing", "required" => true } ] if checks.empty?
+        recorded = attempt.checks.pluck(:position).to_set
+        checks.each_with_index do |definition, position|
+          definition = Hash(definition).stringify_keys
+          next unless definition.fetch("required", true)
+          return definition["key"] unless recorded.include?(position)
+        end
+        nil
       end
     end
   end

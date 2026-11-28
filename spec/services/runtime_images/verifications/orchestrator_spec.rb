@@ -35,6 +35,41 @@ RSpec.describe RuntimeImages::Verifications::Orchestrator do
     expect(image.reload).to be_candidate
   end
 
+  # A required check whose row could not be written (a deadlock or lost
+  # connection on the insert) left no row, and finish judged only the rows
+  # that exist: the attempt was accepted and the image became pullable with
+  # the check never run (F154).
+  it "does not accept an attempt missing a required check's row" do
+    registry.register("sbom", ->(**) { result })
+    registry.register("vulnerability", ->(**) { result })
+    allow_any_instance_of(RuntimeImageVerificationCheck).to receive(:save!).and_wrap_original do |original, *args, **kwargs|
+      raise ActiveRecord::Deadlocked, "deadlock" if original.receiver.new_record? && original.receiver.verifier_key == "vulnerability"
+
+      original.call(*args, **kwargs)
+    end
+    policy = { "checks" => [ { "key" => "sbom", "required" => true }, { "key" => "vulnerability", "required" => true } ] }
+
+    attempt = orchestrator.verify(image, policy: policy)
+
+    expect(attempt).not_to be_accepted
+    expect(attempt.state).to eq("blocked")
+    expect(image.reload).not_to be_pullable
+  end
+
+  # An attempt the re-evaluator reaped as abandoned while its checks still ran
+  # later finished as if it were live and set the image's state (F154).
+  it "does not let an attempt reaped while it ran decide the image's state" do
+    registry.register("sbom", lambda { |attempt:, **|
+      RuntimeImageVerificationAttempt.where(id: attempt.id).update_all(state: "blocked", decision: "blocked", failure_code: "verification_interrupted")
+      result
+    })
+
+    attempt = orchestrator.verify(image, policy: { "checks" => [ { "key" => "sbom", "required" => true } ] })
+
+    expect(RuntimeImageVerificationAttempt.find(attempt.id)).to have_attributes(state: "blocked", failure_code: "verification_interrupted")
+    expect(image.reload).not_to be_pullable
+  end
+
   it "bounds retries when an attempt number keeps colliding" do
     allow(RuntimeImageVerificationAttempt).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
 
