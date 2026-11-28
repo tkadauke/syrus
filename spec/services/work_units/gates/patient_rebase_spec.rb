@@ -72,6 +72,42 @@ RSpec.describe WorkUnits::Gates::PatientRebase do
     }.to have_enqueued_job(RunJob)
   end
 
+  # Regression, found by the simulator fuzzer: CI failed on a stack member
+  # while an epic-wide rebase was queued. The member's repair was held back
+  # by the epic-wide rebase, and the rebase waited patiently for the repair,
+  # so each waited on the other forever.
+  it "does not wait on a member workflow that is held back behind this rebase" do
+    feedback, feedback_unit = attach_active_feedback
+    feedback.update_columns(state: "queued", started_at: nil)
+    feedback_unit.update_columns(state: "queued")
+    rebase = RebaseWorkflowSelector.instantiate(job: job, artifacts: { "repair_reason" => "base recovered" })
+    StepDispatcher.record_start_blocked!(
+      feedback.reload,
+      StepDispatcher::EPIC_WIDE_BLOCK_REASON,
+      backoff: StepDispatcher::START_BLOCKED_BACKOFF,
+      details: { "blocking_workflow_id" => rebase.id, "blocking_trigger_kind" => rebase.trigger_kind }
+    )
+
+    expect(described_class.call(rebase.work_unit)).to be_pass
+  end
+
+  it "still waits on a member workflow held back behind a different workflow" do
+    feedback, feedback_unit = attach_active_feedback
+    feedback.update_columns(state: "queued", started_at: nil)
+    feedback_unit.update_columns(state: "queued")
+    rebase = RebaseWorkflowSelector.instantiate(job: job, artifacts: { "repair_reason" => "base recovered" })
+    StepDispatcher.record_start_blocked!(
+      feedback.reload,
+      StepDispatcher::EPIC_WIDE_BLOCK_REASON,
+      backoff: StepDispatcher::START_BLOCKED_BACKOFF,
+      details: { "blocking_workflow_id" => rebase.id + 1000 }
+    )
+
+    result = described_class.call(rebase.work_unit)
+    expect(result).not_to be_pass
+    expect(result.reason).to eq(described_class::REASON)
+  end
+
   it "lets an explicitly requested rebase start without waiting" do
     feedback, = attach_active_feedback
     rebase = RebaseWorkflowSelector.instantiate(job: job, requested_by: "user")
