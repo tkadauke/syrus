@@ -17,6 +17,7 @@ de:
       other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
       fallback: "Ein Agent wartet auf eine Berechtigung"
   coworkers:
+    environment_unavailable: "Die Coworker-Umgebung ist nicht verfügbar oder inkompatibel. Bitte einen Administrator, das Image und seine Runtime-Kompatibilität zu prüfen."
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
     detach_job:

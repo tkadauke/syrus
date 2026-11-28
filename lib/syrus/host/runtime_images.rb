@@ -13,6 +13,8 @@ module Syrus
 
       def self.active_base(**) = ::RuntimeImages::BuildRequests.new.active_base(**)
 
+      def self.base_launch(**) = ::RuntimeImages::BuildRequests.new.base_launch(**)
+
       def self.request_build(**) = ::RuntimeImages::BuildRequests.new.submit(**)
 
       # Returns the newest unexpired accepted attestation only when it covers

@@ -13,8 +13,19 @@ class Coworkers::ChatTurnLifecycle
   def admission
     result = Coworkers::PrivilegedGrantGate.turn_admission(coworker)
     result[:message] ||= I18n.t("coworkers.confinement_unavailable", locale: @chat_session.user.locale) if result[:outcome].present?
-    @environment_selection = resolve_environment_selection unless result[:outcome].present?
+    unless result[:outcome].present?
+      @environment_resolver = Coworkers::TurnEnvironmentSelection.new(coworker:, user_message: @user_message)
+      @environment_selection = @environment_resolver.resolve
+    end
     result
+  rescue Coworkers::TurnEnvironmentSelection::Unavailable => error
+    Rails.logger.warn("[Coworkers::ChatTurnLifecycle] environment admission blocked: #{error.message}")
+    { outcome: "environment_incompatible",
+      message: I18n.t("coworkers.environment_unavailable", locale: @chat_session.user.locale) }
+  end
+
+  def turn_started!
+    @environment_resolver&.persist!(chat_session: @chat_session)
   end
 
   def execution_workload_policy(policy)
@@ -55,11 +66,4 @@ class Coworkers::ChatTurnLifecycle
   private
 
   def coworker = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: @chat_session.id).coworker
-
-  def resolve_environment_selection
-    return unless Feature.coworker_custom_environments_enabled?
-    return unless coworker.environment
-
-    Coworkers::EnvironmentActiveSelection.resolve(coworker.environment)
-  end
 end
