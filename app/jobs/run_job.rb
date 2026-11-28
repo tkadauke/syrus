@@ -829,7 +829,9 @@ class RunJob < ApplicationJob
       # created two Runs for the next Step. A locking read sees the first
       # success (see #reload_lineage_for_update!).
       @step = Step.lock.find(@step.id)
-      next unless Run.where(id: @run.id).pick(:state) == expected_run_state
+      # A locking read: a plain one answers from the snapshot Lineage.lock!
+      # took before waiting on a concurrent cancel's locks (F152).
+      next unless Run.lock.where(id: @run.id).pick(:state) == expected_run_state
       # A cancel of the Step wins too; another Run of the same Step having
       # succeeded it does not -- this Run still records its own success.
       next if @step.cancelled? && expected_step_state != "cancelled"

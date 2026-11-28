@@ -68,6 +68,38 @@ RSpec.describe RunJob, "recording a successful step" do
     expect(Steps::LifecyclePropagation).not_to have_received(:succeeded!)
   end
 
+  # Terminal cleanup cancels a Run before its Step, outside one transaction.
+  # Under MySQL's REPEATABLE READ the guard's plain re-read of the Run state
+  # answered from the snapshot Lineage.lock! took before waiting on the cancel,
+  # so it still read "running" and the success went ahead over the committed
+  # cancel (F152). Plain reads of the Run state are staged to answer from that
+  # snapshot; a locking read sees the row.
+  it "keeps a Run cancel that committed while the success waited, even when plain reads are stale" do
+    allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+      result = original.call(record)
+      Run.where(id: run.id).update_all(state: "cancelled", finished_at: Time.current) if record.is_a?(Run)
+      result
+    end
+    allow_any_instance_of(ActiveRecord::Relation).to receive(:pick).and_wrap_original do |original, *columns|
+      relation = original.receiver
+      if relation.klass == Run && columns == [ :state ] && !relation.lock_value
+        "running"
+      else
+        original.call(*columns)
+      end
+    end
+
+    run_job = described_class.new
+    run_job.instance_variable_set(:@run, run)
+    run_job.instance_variable_set(:@step, step)
+    run_job.instance_variable_set(:@workflow, workflow)
+    run_job.send(:record_successful_step!)
+
+    expect(Run.find(run.id)).to be_cancelled
+    expect(Step.find(step.id)).not_to be_succeeded
+    expect(Steps::LifecyclePropagation).not_to have_received(:succeeded!)
+  end
+
   it "clears a stale worker_died outcome when the Run succeeds" do
     run.update_columns(agent_outcome: "worker_died")
 
