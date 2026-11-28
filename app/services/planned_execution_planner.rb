@@ -22,7 +22,12 @@ class PlannedExecutionPlanner
   end
 
   def call
-    existing = PlannedExecutionRequirement.from_record(job)
+    # The stored requirement is read, not freshly declared: a Job planned
+    # before only `os` was permitted can still carry `arch`, and the strict
+    # reader raised on it -- a bulk dashboard action that relaunched one such
+    # Job returned 500 for the whole batch. The lenient reader drops the
+    # retired keys, and assign_to then saves the cleaned requirement.
+    existing = PlannedExecutionRequirement.from_stored_record(job)
     # Anything already carrying a non-default source was declared by someone --
     # the agent, an operator, or repository configuration -- and is authoritative.
     return existing unless existing.source == "defaulted"

@@ -76,6 +76,20 @@ RSpec.describe PlannedExecutionRequirement do
     }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: arch/)
   end
 
+  # Regression: relaunching such a Job planned its next workflow through the
+  # strict reader, and a bulk dashboard action that included it returned 500
+  # for the whole batch.
+  it "plans new work for a legacy Job and saves the cleaned requirement" do
+    job = Factories.job_record(state: "implemented")
+    job.update_columns(planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+                       planned_execution_source: "explicit")
+
+    requirement = nil
+    expect { requirement = job.reload.ensure_planned_execution_requirements! }.not_to raise_error
+    expect(requirement.capabilities).to eq("os" => [ "macos" ])
+    expect(job.reload.planned_execution_capabilities).to eq("os" => [ "macos" ])
+  end
+
   it "prevents unsupported capability labels from being persisted on Jobs" do
     user = Factories.user
     repository = Factories.repository(user: user)
