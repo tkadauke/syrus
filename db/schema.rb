@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_041716) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_041857) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3723,6 +3723,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_041716) do
     t.integer "landing_concurrency", default: 1, null: false
     t.string "question_eagerness"
     t.integer "question_answer_timeout_seconds"
+    t.json "worker_environment_requirements"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

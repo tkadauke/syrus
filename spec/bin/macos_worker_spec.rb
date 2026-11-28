@@ -485,6 +485,39 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  # The worker environment smoke checks the worker runs at boot: an essential
+  # failure fails the host check, the rest only warn because the worker keeps
+  # taking the work that does not need them.
+  it "folds the worker environment smoke checks into the host check" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir)
+      write_stub(File.join(bin_dir, "ruby"), <<~BASH)
+        #!/usr/bin/env bash
+        if [[ "$1" == *worker-environment-smoke ]]; then
+          echo "OK   git: git version 2.54.0"
+          echo "WARN mysql_client: no mysql_config found (work that needs it is routed elsewhere)"
+          echo "FAIL workflow_data_root: flock failed on /var/lib/syrus/workflows/.locks: ENOTSUP"
+          exit 1
+        fi
+        #{fake_ruby_body(pinned_ruby).lines.drop(1).join}
+      BASH
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
+        "bash", check, "--env-file", env_file,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("OK   environment git: git version 2.54.0")
+      expect(stdout).to include("WARN environment mysql_client: no mysql_config found")
+      expect(stdout).to include("FAIL environment workflow_data_root: flock failed on /var/lib/syrus/workflows/.locks: ENOTSUP")
+      expect(stdout).to include("macos-worker-check: 1 failure(s)")
+    end
+  end
+
   it "fails validation when only Command Line Tools are selected" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")

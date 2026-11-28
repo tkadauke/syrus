@@ -35,6 +35,9 @@ it, see [macOS host pitfalls](../pitfalls/macos-hosts.md).
 | `app/services/macos_worker_rollout.rb`, `app/models/macos_worker_drain.rb` | Manual drain-aware updates | `spec/services/macos_worker_rollout_spec.rb` |
 | `app/jobs/run_job.rb` (`defer_for_macos_version_skew?`) | Hands a claimed Run back from a skewed Mac | RunJob specs |
 | `app/services/run_queue_resolver.rb` (`macos_version_skewed?`) | Excludes skewed or draining Macs from capacity | RunQueueResolver specs |
+| `app/services/worker_environment_smoke.rb`, `app/services/worker_environment_smoke/` | Boot-time toolchain smoke checks published in capability diagnostics; `Requirements` says which checks a step needs, `RepositoryNeeds` records a repository's prepare needs | `spec/services/worker_environment_smoke*` |
+| `app/services/run_queue_resolver.rb` (`environment_check_failures`) | Keeps a worker off steps whose required smoke checks it failed (`worker_environment_check_failed`); `locally_satisfied?` makes RunJob hand such a Run back | `spec/services/run_queue_resolver_environment_smoke_spec.rb` |
+| `bin/worker-environment-smoke`, `lib/tasks/worker_environment_smoke.rake` | On-demand smoke checks, without Rails (core checks) or with it (plugin checks too); `bin/macos-worker-check` folds the former in | `spec/bin/macos_worker_spec.rb` |
 | `lib/tasks/macos_worker_token.rake` | `syrus:macos_worker_token`, the scoped updater token | — |
 | `config/queue.compute.yml` | The queues a Mac consumes | — |
 

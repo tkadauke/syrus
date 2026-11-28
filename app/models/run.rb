@@ -504,6 +504,9 @@ class Run < ApplicationRecord
   # silently stalling.
   def block_for_missing_capable_worker!(decision)
     message = "no live worker can satisfy Run queue requirements for #{decision.queue_name}: #{decision.requirements.inspect}"
+    if (summary = decision.environment_check_summary)
+      message += "; worker environment checks failed: #{summary}"
+    end
     Rails.logger.warn("[Run##{id}] #{message}")
     details = decision.details.merge(
       "reason" => decision.blocked_reason,

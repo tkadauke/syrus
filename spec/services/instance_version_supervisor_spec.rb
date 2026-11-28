@@ -60,6 +60,30 @@ RSpec.describe InstanceVersionSupervisor do
       expect(WorkerHostHealthSampler).to have_received(:record!).with(instance: sp, observed_at: kind_of(Time), data_root_snapshot: snapshot, capability_snapshot: capability_snapshot)
     end
 
+    # A worker whose toolchain was repaired takes work again without a restart.
+    it "refreshes a worker's environment smoke report before publishing its capabilities" do
+      allow(WorkerEnvironmentSmoke).to receive(:publishable?).and_return(true)
+      allow(WorkerEnvironmentSmoke).to receive(:refresh_if_stale!)
+      sp = InstanceVersion.create!(hostname: "syrus-worker-smoke", role: "worker", version: "abc",
+                                    started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
+
+      described_class.heartbeat(sp)
+
+      expect(WorkerEnvironmentSmoke).to have_received(:refresh_if_stale!).ordered
+      expect(WorkerCapabilities).to have_received(:current).ordered
+    end
+
+    it "keeps heartbeating when the environment smoke refresh raises" do
+      allow(WorkerEnvironmentSmoke).to receive(:publishable?).and_return(true)
+      allow(WorkerEnvironmentSmoke).to receive(:refresh_if_stale!).and_raise(Errno::EIO)
+      sp = InstanceVersion.create!(hostname: "syrus-worker-smoke", role: "worker", version: "abc",
+                                    started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
+
+      described_class.heartbeat(sp)
+
+      expect(sp.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)
+    end
+
     it "does not measure disk on a web pod" do
       allow(SyrusVersion).to receive(:role).and_return("web")
       expect(DataRootDiskUsage).not_to receive(:read)

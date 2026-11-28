@@ -1,0 +1,54 @@
+# A worker whose environment smoke check failed must stop claiming the work
+# that needs the check, instead of starting it and failing.
+#
+# The shape that motivated it: a worker's MySQL client libraries went missing
+# in an environment change, and every Job for a repository whose Gemfile has
+# mysql2 started on that worker and failed in `bundle install`, hours before
+# anyone looked. The repository's recorded prepare needs include
+# `mysql_client`, and the only live worker reports that check as failed, so
+# the Job's first step is start-blocked (`no_capable_worker`, reason
+# `worker_environment_check_failed`) rather than run. Nothing fails; once the
+# worker's toolchain is repaired and its next report passes, the deferred
+# phase starts and the Job completes normally.
+name: worker environment check failure waits for repair
+repository:
+  owner: simulation
+  name: worker-environment-check-failure
+  worker_environment_requirements:
+    - mysql_client
+runtime:
+  workers:
+    - simulation-worker
+  worker_environment:
+    simulation-worker:
+      failed:
+        - mysql_client
+jobs:
+  needs_mysql:
+    title: Job for a repository that builds mysql2
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: repair the worker once the Job is blocked on its environment
+    once: true
+    when:
+      workflow:
+        job: needs_mysql
+        start_blocked: no_capable_worker
+    do:
+      repair_worker_environment: simulation-worker
+      resume_deferred_phase:
+        job: needs_mysql
+outcomes:
+  default: success
+success_states:
+  needs_mysql:
+    - implemented
+expect:
+  events:
+    - repaired worker environment on simulation-worker
+  jobs:
+    needs_mysql:
+      - implemented

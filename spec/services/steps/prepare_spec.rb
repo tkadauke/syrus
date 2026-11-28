@@ -193,6 +193,55 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(chunks).to include("[stub-ran] bundle install")
   end
 
+  describe "worker environment checks" do
+    before do
+      File.write(@ws_path.join(".syrus.yml"), "prepare:\n  - bundle install\n")
+      File.write(@ws_path.join("Gemfile.lock"), "GEM\n  specs:\n    mysql2 (0.5.7)\n")
+    end
+
+    def local_smoke(failed)
+      allow(WorkerCapabilities).to receive(:current).and_return(
+        capabilities: { "os" => [ "linux" ] },
+        diagnostics: { "environment_smoke" => {
+          "failed" => failed,
+          "checks" => failed.to_h { |name| [ name, { "status" => "failed", "reason" => "no mysql_config found" } ] }
+        } }
+      )
+    end
+
+    it "records what the repository's prepare plan needs from a worker" do
+      local_smoke([])
+      allow(handler).to receive(:run_shell).and_return(true)
+
+      handler.call
+
+      expect(job.repository.reload.worker_environment_requirements).to eq(%w[bundler c_compiler mysql_client ruby])
+    end
+
+    # Regression: `bundle install` failed to build mysql2 on a worker whose
+    # MySQL client libraries had gone, which read like a broken lockfile.
+    it "stops before running the plan, naming the failed check, when this worker cannot run it" do
+      local_smoke([ "mysql_client" ])
+      expect(handler).not_to receive(:run_shell)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /cannot run this repository's prepare plan; failed environment checks: mysql_client: no mysql_config found/)
+      expect(workflow.reload.artifact("prepare_failure")).to include(
+        "environment_check_failures" => { "mysql_client" => "no mysql_config found" }
+      )
+      expect(job.repository.reload.worker_environment_requirements).to include("mysql_client")
+    end
+
+    it "only warns for a guessed plan" do
+      File.delete(@ws_path.join(".syrus.yml"))
+      File.write(@ws_path.join("Gemfile"), "")
+      local_smoke([ "mysql_client" ])
+      allow(handler).to receive(:run_shell).and_return(true)
+
+      expect { handler.call }.not_to raise_error
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("warning: this worker failed environment checks the guessed plan needs")
+    end
+  end
+
   # `bundle install --jobs 4` can start building a native extension before the
   # gem that extension needs *at build time* has finished installing. The same
   # command then succeeds, because the first attempt left the missing gem

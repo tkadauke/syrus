@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs the worker environment smoke checks (WorkerEnvironmentSmoke) on this
+# host without booting Rails, so it works before a worker process starts: an
+# operator checking a host, `bin/macos-worker-check`, a release cutover.
+#
+# Covers the core checks (workflow data root, temp space, git, Ruby/Bundler,
+# Node/npm, gh, a C extension build, the MySQL client mysql2 builds against).
+# Checks contributed by plugins (agent CLIs, the browser tools) need the plugin
+# registry; `bin/rails syrus:worker_environment_smoke` runs those too, and a
+# running worker publishes the full report on its heartbeat.
+#
+# Exit status: 0 when every check passed, 1 when any failed, 2 on bad usage.
+
+require "json"
+require "open3"
+require_relative "../app/services/worker_environment_smoke"
+
+# Inside Rails, checks run through ProcessRunner exactly like a prepare
+# command. Without Rails there is no ProcessRunner, so this runs them the
+# closest way it can: the forwarded environment only, in its own process
+# group, killed at the timeout.
+class OpenShell
+  Result = WorkerEnvironmentSmoke::Shell::Result
+
+  def run(argv, env: {}, chdir: nil, timeout: 10)
+    options = { unsetenv_others: true, pgroup: true }
+    options[:chdir] = chdir if chdir
+    Open3.popen2e(env, *argv, **options) do |stdin, output, wait|
+      stdin.close
+      reader = Thread.new { output.read.to_s }
+      unless wait.join(timeout)
+        begin
+          Process.kill("KILL", -wait.pid)
+        rescue Errno::ESRCH, Errno::EPERM
+          nil
+        end
+        wait.join
+        return Result.new(status: "timed_out", output: "", exit_status: nil)
+      end
+
+      exit_status = wait.value.exitstatus
+      status = exit_status&.zero? ? "ok" : WorkerEnvironmentSmoke::Shell.failure_status(timed_out: false, exit_status: exit_status)
+      Result.new(status: status, output: reader.value, exit_status: exit_status)
+    end
+  rescue Errno::ENOENT
+    Result.new(status: "not_found", output: "", exit_status: 127)
+  rescue Errno::EACCES
+    Result.new(status: "not_executable", output: "", exit_status: 126)
+  end
+end
+
+json = false
+ARGV.each do |arg|
+  case arg
+  when "--json" then json = true
+  when "--help", "-h"
+    puts "Usage: bin/worker-environment-smoke [--json]"
+    exit 0
+  else
+    warn "worker-environment-smoke: unknown argument #{arg}"
+    exit 2
+  end
+end
+
+report = WorkerEnvironmentSmoke.new(
+  checks: WorkerEnvironmentSmoke::Checks.core(data_root: WorkerEnvironmentSmoke.data_root), shell: OpenShell.new
+).call
+if json
+  puts JSON.pretty_generate(report)
+else
+  puts WorkerEnvironmentSmoke::Formatter.lines(report)
+end
+exit(report["failed"].empty? ? 0 : 1)

@@ -8,6 +8,8 @@ module AgentProviders
     DEFAULT_MODEL = "claude-sonnet-4-6".freeze
 
     def self.provider_key = "claude"
+    # Every agentic step on this provider spawns the `claude` CLI.
+    def self.worker_environment_check = %w[claude --version]
     def self.display_name = "Claude Code"
     def self.available?   = true
 

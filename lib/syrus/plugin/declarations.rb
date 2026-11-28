@@ -51,6 +51,7 @@ module Syrus
         resource_profile_step_kinds resource_profile_grader_name_key resource_profile_fallback_step_kinds
         resource_profile_default_overrides waits_for_terminal_step_kind review_gate panel_capable
         reviewer_target_required runtime_inserted outcome_override_collector_kind placement_policy
+        worker_checks
       ].freeze
       STEP_REQUIRED = %i[kind handler label style agentic].freeze
       JOB_KEYS = %i[kind infrastructure issueless investigable classifiable].freeze

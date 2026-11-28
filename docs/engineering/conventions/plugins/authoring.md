@@ -2254,6 +2254,18 @@ module MyPlugin
 end
 ```
 
+A step kind that shells out to a tool of the plugin's own declares it as
+`worker_checks: [ { name: "my_tool", command: %w[my-tool --version] } ]`.
+Every worker runs the command at boot as part of its environment smoke checks
+(`WorkerEnvironmentSmoke`), and a worker where it fails is not chosen for the
+step kind -- the step waits for a worker that passes instead of failing on one
+that lacks the tool. The command must exit promptly and change nothing; it runs
+like a prepare command, with the prepare environment. The Browser plugin's
+visual review steps declare `playwright-mcp --version` this way. An agent
+provider names its CLI the same way through the optional
+`.worker_environment_check` class method (`%w[claude --version]`), which makes
+every agentic step on that provider require the check `agent_cli_<provider_key>`.
+
 A plugin-owned `WorkDefinition` subclasses `WorkDefinitions::Base` and sets
 `self.plugin` to the plugin name. Naming it here is both what autoloads it into
 `WorkDefinitions.registry` and what takes it back out when the plugin is

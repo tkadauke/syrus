@@ -123,6 +123,69 @@ Solid Queue state instead of assuming every wait is worker saturation:
 - **Unknown** is the safe fallback when Solid Queue state is unavailable or
   inconsistent. It deliberately does not claim that the worker pool is busy.
 
+## Worker environment smoke checks
+
+Capabilities say what a worker is; the environment smoke checks prove its
+toolchain actually works for the work Syrus routes to it. Every worker runs
+them when it starts (including after a macOS worker self-update) and again
+about every 15 minutes, and publishes the result with its capabilities. Checks
+run the way a prepare command runs, with the same forwarded environment, and
+finish in a few seconds. They are side-effect free: compiles happen in a
+private temporary directory, and the data-root check removes its own scratch
+files.
+
+| Check | What it proves |
+| --- | --- |
+| `workflow_data_root` | `SYRUS_DATA_ROOT` exists and is writable; `flock`, hardlinks and rename work in `workflows/.locks`; at least 5 GiB is free (`SYRUS_WORKER_SMOKE_MIN_FREE_BYTES` overrides) |
+| `tmp` | the temporary directory is writable |
+| `git`, `ruby`, `bundler`, `node`, `npm`, `gh` | the CLI is on `PATH` and `--version` succeeds |
+| `c_compiler` | the `ruby` on `PATH` can compile and link a trivial C program through `mkmf`, as every native gem's build does |
+| `mysql_client` | mysql2 would find a MySQL client (its build flag, `mysql_config` on `PATH`, or mysql2's default locations), and `mysql.h` compiles, the client library links, and a program linked against it starts |
+| `browser` | `playwright-mcp --version` succeeds (declared by the Browser plugin's visual review steps) |
+| `agent_cli_<provider>` | the agent provider's CLI starts, e.g. `claude --version`, `codex --version` |
+
+A failed check fails closed for the work that needs it, and only that work:
+
+- every step needs `workflow_data_root`, `tmp`, and `git`;
+- an agentic step needs its agent provider's CLI, and `gh` when the workflow
+  was granted break-glass GitHub access;
+- visual review and visual diff steps need `browser`;
+- a repository's steps need what its prepare plan was last seen to use:
+  `bundle install` needs `ruby`, `bundler`, and `c_compiler`; npm, yarn and
+  pnpm commands need `node` (and `npm`); a `Gemfile.lock` that contains mysql2
+  adds `mysql_client`. Syrus records this when a workspace for the repository
+  is prepared, so the repository's first workflow routes on the base checks
+  only.
+
+A worker that failed a check a step needs is not chosen for that step, and if
+it already holds the Run it hands the Run back to the queue instead of starting
+it. When no live worker that could run the step passes, the Workflow waits with
+`no_capable_worker` and the reason `worker_environment_check_failed`; the
+admission details list each worker's failed checks with their reasons. Nothing
+fails, and the step starts once a worker's next report passes. A worker that
+has not published a report, or does not report a check, is treated as unknown
+rather than failed. An explicit `.syrus.yml` prepare plan that reaches a
+worker that already failed one of its checks stops immediately with the failed
+check named, instead of failing later in `bundle install`.
+
+Worker health shows each failed check with its reason: a warning when it only
+keeps the worker off the work that needs it, critical when every Run needs it.
+`gh` is advisory: the Linux worker image leaves it out on purpose, so its
+failure gates break-glass GitHub access without raising worker health. The
+admin version endpoint reports each worker's `environment_smoke` status and
+failed checks.
+
+To run the checks on demand on a worker host:
+
+- `bin/rails syrus:worker_environment_smoke` runs every check, including the
+  ones plugins contribute (`JSON=1` prints the full report);
+- `bin/worker-environment-smoke` runs the core checks without booting Rails;
+  `bin/macos-worker-check` includes it, failing on a check every Run needs and
+  warning on the others.
+
+Set `SYRUS_WORKER_ENVIRONMENT_SMOKE=0` on a worker to stop it publishing a
+report, which makes every check read as unknown again.
+
 ## Global agent-concurrency cap
 
 `JOB_CONCURRENCY` caps agent Runs **per pod**, so total agent concurrency scales

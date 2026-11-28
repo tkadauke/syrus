@@ -41,6 +41,25 @@ setting when measured or command-attributed demand is genuinely close to the
 limit; repeated bounded-fallback decisions indicate that more command profile
 samples would improve the estimate.
 
+## A Workflow waits with `worker_environment_check_failed`
+
+Every worker checks at startup, and about every 15 minutes after, that its
+toolchain works: the workflow data root supports `flock`, hardlinks and rename
+and has free space, temp space is writable, `git` and the CLIs a step needs
+start, a C extension compiles, mysql2 can find a usable MySQL client, and the
+browser tools and agent CLIs start. A worker that failed a check stops taking
+the steps that need it instead of starting them and failing; a repository whose
+`Gemfile.lock` has mysql2, for example, is kept off a worker without a working
+MySQL client. When no live worker passes, the Workflow waits with
+`no_capable_worker` and the reason `worker_environment_check_failed`, and
+starts on its own once a worker's next check passes.
+
+The admission details and worker health name each failed check with its
+reason. Fix the toolchain on the worker, then run
+`bin/rails syrus:worker_environment_smoke` there (or
+`bin/worker-environment-smoke` without Rails) to confirm before waiting for the
+next periodic check.
+
 ## A chat turn remains active after a worker dies
 
 Syrus reconciles chat turns whose worker process disappears. A turn lost when

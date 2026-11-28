@@ -44,6 +44,7 @@ class InstanceVersionSupervisor
       end
 
       data_root_snapshot = data_root_usage_snapshot
+      refresh_environment_smoke
       capability_snapshot = WorkerCapabilities.current
       attrs = { last_heartbeat_at: now }.merge(plugin_set_attrs).merge(data_root_usage_attrs(data_root_snapshot)).merge(capability_attrs(capability_snapshot))
       rows = heartbeat_scope(instance, now: now).update_all(attrs)
@@ -83,6 +84,16 @@ class InstanceVersionSupervisor
         data_root_total_bytes: snapshot.total_bytes,
         data_root_path: snapshot.path
       }
+    end
+
+    # The smoke report is computed once at boot; re-running it on the heartbeat
+    # (at most every WorkerEnvironmentSmoke::REFRESH_INTERVAL_SECONDS) lets a
+    # worker whose environment was repaired take work again without a
+    # restart, and one that broke under it stop.
+    def refresh_environment_smoke
+      WorkerEnvironmentSmoke.refresh_if_stale! if WorkerEnvironmentSmoke.publishable?
+    rescue StandardError => e
+      Rails.logger.warn("[InstanceVersionSupervisor] environment smoke refresh failed: #{e.class}: #{e.message}")
     end
 
     def capability_attrs(snapshot)

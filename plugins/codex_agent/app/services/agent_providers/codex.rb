@@ -3,6 +3,8 @@ module AgentProviders
     include Syrus::Host::AgentProvider
 
     def self.provider_key = "codex"
+    # Every agentic step on this provider spawns the `codex` CLI.
+    def self.worker_environment_check = %w[codex --version]
     def self.display_name = "Codex"
     def self.available?   = true
 

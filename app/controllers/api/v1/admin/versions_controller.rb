@@ -43,9 +43,25 @@ module Api
             data_root_usage: instance.data_root_usage_json,
             capabilities: instance.capabilities || {},
             capability_diagnostics: instance.capability_diagnostics || {},
+            environment_smoke: environment_smoke_summary(instance),
             plugin_set_revision: instance.plugin_set_revision,
             plugin_set_digest: instance.plugin_set_digest,
             plugin_set_details: instance.plugin_set_details || {}
+          }
+        end
+
+        # The worker's environment smoke verdict (WorkerEnvironmentSmoke), with
+        # each failed check's reason: the answer to "why is this worker not
+        # taking that work" without digging through capability_diagnostics.
+        def environment_smoke_summary(instance)
+          diagnostics = instance.capability_diagnostics
+          report = diagnostics.is_a?(Hash) ? diagnostics[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY] : nil
+          return nil unless report.is_a?(Hash)
+
+          {
+            status: report["status"],
+            observed_at: report["observed_at"],
+            failed_checks: WorkerEnvironmentSmoke.failure_reasons(report, WorkerEnvironmentSmoke.failed_checks(report))
           }
         end
       end

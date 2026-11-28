@@ -41,6 +41,16 @@ RSpec.describe Syrus::Plugin::Declarations do
       expect(entry[:step_kinds].first).to be_frozen
     end
 
+    it "accepts the worker environment checks a step kind needs" do
+      checks = [ { name: "acme_cli", command: %w[acme --version] } ]
+
+      entry = normalize(:workflow_kinds, step_kinds: [ step(worker_checks: checks) ])
+
+      expect(entry[:step_kinds].first).to include(worker_checks: checks)
+      expect(Step::Kind::Entry.new(**entry[:step_kinds].first).worker_checks)
+        .to eq([ { "name" => "acme_cli", "command" => %w[acme --version] } ])
+    end
+
     it "rejects a malformed kind with the plugin and field named" do
       expect { normalize(:workflow_kinds, trigger_kinds: [ trigger(kind: "Bad Kind") ]) }
         .to raise_error(described_class::InvalidDeclaration, /acme: trigger_kinds entry kind must be a lowercase identifier/)

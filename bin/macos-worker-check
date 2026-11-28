@@ -264,6 +264,22 @@ else
   fail "SYRUS_WORKER_CAPABILITIES should include os:macos"
 fi
 
+# The same checks the worker runs at boot to decide which work it claims
+# (WorkerEnvironmentSmoke): the toolchain actually builds and runs, not just
+# exists -- a C extension compiles, mysql2 finds a usable MySQL client, and the
+# data root supports flock, hardlinks and rename. A failed check every Run needs
+# fails this check; any other only warns, because the worker keeps taking the
+# work that does not need it.
+if [[ -x "$ROOT/bin/worker-environment-smoke" ]] && have_command ruby; then
+  while IFS= read -r line; do
+    case "$line" in
+      "OK   "*) ok "environment ${line#OK   }" ;;
+      "WARN "*) warn "environment ${line#WARN }" ;;
+      "FAIL "*) fail "environment ${line#FAIL }" ;;
+    esac
+  done < <(ruby "$ROOT/bin/worker-environment-smoke" 2>&1 || true)
+fi
+
 if [[ "$FAILURES" -gt 0 ]]; then
   echo "macos-worker-check: $FAILURES failure(s)"
   exit 1

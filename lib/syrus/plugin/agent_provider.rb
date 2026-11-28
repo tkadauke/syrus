@@ -29,6 +29,14 @@ module Syrus
         def mcp_tool_name(_tool_name, server_name:)
         end
 
+        # The argv that proves this provider's CLI starts on a worker, e.g.
+        # `%w[claude --version]`, or nil when the provider shells out to
+        # nothing. Workers run it at boot (WorkerEnvironmentSmoke) as the
+        # check `agent_cli_<provider_key>`, and agentic steps on this provider
+        # are kept off a worker where it fails.
+        def worker_environment_check
+        end
+
         def evidence_reset_at(_evidence)
         end
 

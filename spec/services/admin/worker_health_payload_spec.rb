@@ -122,4 +122,44 @@ RSpec.describe Admin::WorkerHealthPayload do
       expect(host).to include(key: "legacy-worker", worker_storage_key: "legacy-worker", hostname: "legacy-worker")
     end
   end
+
+  describe "environment smoke failures" do
+    def report(checks)
+      {
+        "environment_smoke" => {
+          "status" => "degraded", "failed" => checks.keys,
+          "checks" => checks.transform_values { |attrs| { "status" => "failed" }.merge(attrs) }
+        }
+      }
+    end
+
+    def current_health(diagnostics)
+      now = Time.zone.parse("2026-09-18 16:00:00 UTC")
+      travel_to(now) do
+        InstanceVersion.create!(hostname: "mac-mini-a", role: "worker", version: "abc123", started_at: now - 5.minutes,
+          last_heartbeat_at: now, capability_diagnostics: diagnostics)
+        sample(hostname: "mac-mini-a", worker_storage_key: "storage-a", observed_at: now - 1.minute, cpu: 20.0)
+        described_class.new(since: (now - 1.hour).iso8601, until_time: now.iso8601).as_json.dig(:current, 0, :health)
+      end
+    end
+
+    it "warns with the reason when a check that keeps the worker off some work failed" do
+      health = current_health(report("mysql_client" => { "reason" => "no mysql_config found", "essential" => false }))
+
+      expect(health).to include(level: "warning")
+      expect(health.fetch(:reasons)).to include("environment check mysql_client failed: no mysql_config found")
+    end
+
+    it "is critical when a check every Run needs failed" do
+      health = current_health(report("workflow_data_root" => { "reason" => "flock failed", "essential" => true }))
+
+      expect(health).to include(level: "critical")
+    end
+
+    it "does not raise the level for an advisory check" do
+      health = current_health(report("gh" => { "reason" => "`gh` is not on PATH", "advisory" => true }))
+
+      expect(health.fetch(:reasons).grep(/environment check/)).to be_empty
+    end
+  end
 end

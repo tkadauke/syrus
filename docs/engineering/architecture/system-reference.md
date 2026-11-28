@@ -1204,6 +1204,27 @@ metadata, local probes (for example Xcode, iOS simulators, and Docker),
 and `SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new
 capacity.
 
+Capabilities are positive claims; `WorkerEnvironmentSmoke` is the negative
+evidence beside them. Each worker runs fast, side-effect-free toolchain checks
+at boot and on the heartbeat (data-root flock/hardlink/rename and free space,
+temp space, CLIs, a C extension build, the MySQL client mysql2 builds against,
+plus checks plugins contribute through step kinds' `worker_checks` and agent
+providers' `worker_environment_check`) through ProcessRunner, exactly like a
+prepare command, and publishes the report under
+`capability_diagnostics["environment_smoke"]`. It is deliberately not a
+capability dimension: requirements never name it, so an older worker without
+a report stays eligible and nothing about existing placement changes.
+`WorkerEnvironmentSmoke::Requirements` derives the checks a step needs (base
+checks for every Run, the agent CLI and break-glass `gh` for agentic steps,
+step-kind declarations, and the repository's recorded prepare needs from
+`WorkerEnvironmentSmoke::RepositoryNeeds`). `RunQueueResolver` treats a
+worker that failed one of those as ineligible, blocks with
+`worker_environment_check_failed` when every otherwise-eligible worker failed
+(on the shared Linux queue only when all of them report the failure), and
+`locally_satisfied?` lets RunJob hand a claimed Run back. Failing closed is per
+check: a worker that failed the MySQL client check keeps taking everything
+that does not need it.
+
 Before execution begins, operators can replace a Job's planned placement
 with a named `ExecutionPlacementProfile`. `PlannedExecutionOverrides::Operation`
 permits this only for triaging/backlog Jobs with no execution history or a

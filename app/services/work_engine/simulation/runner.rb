@@ -135,6 +135,7 @@ module WorkEngine
         with_simulated_repository_revisions do
           with_simulated_workspaces do
             with_stubbed_judgment_runner do
+              seed_worker_environments!
               max_ticks.times do |tick|
                 before = fingerprint
                 apply_scenario_events!(tick)
@@ -339,6 +340,7 @@ module WorkEngine
           when "wake_provider_admission" then wake_provider_admission!(value)
           when "resume_deferred_phase" then resume_deferred_phase!(value)
           when "lose_worker" then lose_worker!(value)
+          when "repair_worker_environment" then repair_worker_environment!(value)
           when "lose_storage" then lose_storage!(value)
           when "cycle_queued_run_job" then cycle_queued_run_job!(value)
           when "reroute_host_rejected_run" then reroute_host_rejected_run!(value)
@@ -596,6 +598,44 @@ module WorkEngine
         repository.update!(grader_health: "healthy", ci_health: "healthy", landing_paused: false)
         resumed = resume_blocked_workflows!("main_branch_health")
         events << "healed main branch health, #{resumed} deferred phases resumed"
+      end
+
+      # `runtime.worker_environment` seeds live workers with an environment
+      # smoke report (WorkerEnvironmentSmoke) before the first tick, so the
+      # real RunQueueResolver sees which checks each worker fails:
+      #
+      #   runtime:
+      #     worker_environment:
+      #       simulation-worker:
+      #         failed: [mysql_client]
+      def seed_worker_environments!
+        runtime.fetch("worker_environment", {}).to_h.each do |hostname, config|
+          hostname = hostname.to_s
+          ensure_worker_live!(hostname, worker_storage_key_for(hostname, nil))
+          record_worker_environment!(hostname, Array(config.to_h["failed"]).map(&:to_s))
+        end
+      end
+
+      # The operator fixing a worker's toolchain: its next smoke report passes.
+      # Takes a hostname or `{ hostname: }`.
+      def repair_worker_environment!(value)
+        hostname = (value.is_a?(Hash) ? value.fetch("hostname") : value).to_s
+        record_worker_environment!(hostname, [])
+        events << "repaired worker environment on #{hostname}"
+      end
+
+      def record_worker_environment!(hostname, failed)
+        report = {
+          "version" => WorkerEnvironmentSmoke::REPORT_VERSION,
+          "status" => failed.empty? ? WorkerEnvironmentSmoke::PASSED : WorkerEnvironmentSmoke::DEGRADED,
+          "observed_at" => Time.current.utc.iso8601,
+          "failed" => failed.sort,
+          "checks" => failed.to_h { |name| [ name, { "status" => WorkerEnvironmentSmoke::FAILED, "reason" => "simulated #{name} failure", "essential" => false } ] }
+        }
+        InstanceVersion.where(hostname: hostname, role: "worker").find_each do |instance|
+          diagnostics = instance.capability_diagnostics.is_a?(Hash) ? instance.capability_diagnostics : {}
+          instance.update!(capability_diagnostics: diagnostics.merge(WorkerEnvironmentSmoke::DIAGNOSTIC_KEY => report))
+        end
       end
 
       def lose_worker!(value)

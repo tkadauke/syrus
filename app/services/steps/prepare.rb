@@ -100,6 +100,7 @@ module Steps
       log("[prepare] source: #{plan.source}")
       log("[prepare] note: #{plan.note}") if plan.note
       fail_on_plan_error!(plan) if plan.error?
+      check_worker_environment!(plan)
 
       if plan.commands.empty?
         log("[prepare] no commands to run; skipping")
@@ -280,6 +281,43 @@ module Steps
       log("[prepare] failure: #{prepare_failure_message(failure)}")
     end
 
+    # Records what this repository's prepare plan needs from a worker, so
+    # routing keeps the repository's later work off workers that fail those
+    # checks (WorkerEnvironmentSmoke::Requirements). When this worker's own
+    # smoke report already says it cannot run the plan, an explicit plan stops
+    # here naming the failed check -- instead of `bundle install` failing
+    # minutes later with a compiler error that reads like a broken lockfile.
+    # A guessed plan only warns: its commands soft-fail anyway.
+    def check_worker_environment!(plan)
+      needs = WorkerEnvironmentSmoke::RepositoryNeeds.detect(workspace.path, commands: plan.commands)
+      WorkerEnvironmentSmoke::RepositoryNeeds.record!(repository, needs)
+      report = WorkerCapabilities.current.fetch(:diagnostics, {})[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY]
+      failures = WorkerEnvironmentSmoke.blocking_failures(report, needs)
+      return if failures.empty?
+
+      reasons = WorkerEnvironmentSmoke.failure_reasons(report, failures)
+      summary = reasons.map { |name, reason| reason.present? ? "#{name}: #{reason}" : name }.join("; ")
+      if plan.guessed?
+        log("[prepare] warning: this worker failed environment checks the guessed plan needs (#{summary})")
+        return
+      end
+
+      failure = {
+        "command" => plan.source,
+        "workdir" => workspace.path.to_s,
+        "exit_status" => nil,
+        "timed_out" => false,
+        "stopped" => false,
+        "operator_killed" => false,
+        "aliveness_failed" => false,
+        "worker_hostname" => SyrusVersion.hostname,
+        "environment_check_failures" => reasons,
+        "message" => summary
+      }
+      record_prepare_failure!(failure)
+      raise StepFailed, prepare_failure_message(failure)
+    end
+
     def fail_on_plan_error!(plan)
       failure = {
         "command" => plan.source,
@@ -310,6 +348,10 @@ module Steps
     def prepare_failure_message(failure)
       if failure["configuration_error"]
         return "invalid prepare configuration in #{failure["command"]} at #{failure["workdir"]}: #{failure["message"]}"
+      end
+      if failure["environment_check_failures"].present?
+        return "worker #{failure["worker_hostname"]} cannot run this repository's prepare plan; " \
+          "failed environment checks: #{failure["message"]}"
       end
 
       status = if failure["timed_out"]

@@ -33,6 +33,10 @@ module SyrusBrowser
           agent_role: "workflow:visual_reviewer",
           required_mcp_tools: %w[submit_visual_review],
           resource_profile_fallback_step_kinds: %w[implement],
+          # Workers prove playwright-mcp starts before claiming visual review
+          # (@playwright/mcp's CLI answers --version and exits; the check is
+          # bounded by a timeout should a future release not).
+          worker_checks: [ { name: "browser", command: %w[playwright-mcp --version] } ],
           review_gate: {
             artifact_key: "visual_review_iterations",
             exit_verdicts: %w[approved skipped],
@@ -42,7 +46,8 @@ module SyrusBrowser
         {
           kind: "visual_diff", handler: "SyrusBrowser::VisualDiffStep",
           label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
-          required_mcp_tools: %w[submit_visual_artifact]
+          required_mcp_tools: %w[submit_visual_artifact],
+          worker_checks: [ { name: "browser", command: %w[playwright-mcp --version] } ]
         }
       ]
     )
