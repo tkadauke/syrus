@@ -803,7 +803,13 @@ type JobAutonomyLimits = {
   allow_sensitive_changes: boolean
   mode: "shadow" | "enabled"
 }
-const DEFAULT_JOB_LIMITS: JobAutonomyLimits = { max_open_jobs: 3, max_self_approvals_per_day: 5, max_feedback_rounds_per_job: 3, allow_sensitive_changes: false, mode: "shadow" }
+const DEFAULT_JOB_LIMITS: JobAutonomyLimits = {
+  max_open_jobs: 3,
+  max_self_approvals_per_day: 5,
+  max_feedback_rounds_per_job: 3,
+  allow_sensitive_changes: false,
+  mode: "shadow"
+}
 
 function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
@@ -899,8 +905,8 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
       next.max_open_jobs > current.max_open_jobs ||
       next.max_self_approvals_per_day > current.max_self_approvals_per_day ||
       next.max_feedback_rounds_per_job > current.max_feedback_rounds_per_job ||
-      (next.allow_sensitive_changes && !current.allow_sensitive_changes)
-      || (next.mode === "enabled" && current.mode !== "enabled")
+      (next.allow_sensitive_changes && !current.allow_sensitive_changes) ||
+      (next.mode === "enabled" && current.mode !== "enabled")
     if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
     mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: escalation })
   }

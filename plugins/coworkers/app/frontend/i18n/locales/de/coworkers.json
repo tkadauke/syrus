@@ -259,7 +259,13 @@
     "autonomy_mode": "Autonomiemodus",
     "modes": { "shadow": "Schatten — nur aufzeichnen", "enabled": "Aktiv — autonom handeln" },
     "shadow_agreement": "Übereinstimmung im Schattenmodus",
-    "actions": { "propose_job": "Job anlegen", "approve_job": "Freigeben", "submit_chat_feedback": "Feedback senden", "cancel_job": "Abbrechen", "retry_job": "Wiederholen" },
+    "actions": {
+      "propose_job": "Job anlegen",
+      "approve_job": "Freigeben",
+      "submit_chat_feedback": "Feedback senden",
+      "cancel_job": "Abbrechen",
+      "retry_job": "Wiederholen"
+    },
     "agreement_result": "{{agreed}} von {{paired}} stimmten überein ({{rate}} %) ",
     "no_paired_decisions": "Noch keine Operatorentscheidung zugeordnet ({{count}} Schattenentscheidungen).",
     "disagreements": "Abweichungen",

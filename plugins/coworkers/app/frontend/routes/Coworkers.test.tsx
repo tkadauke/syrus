@@ -833,7 +833,9 @@ it("surfaces and saves Job autonomy budgets and the sensitive-change carve-out",
       ],
       job_autonomy_comparison: {
         actions: { approve_job: { shadow_decisions: 3, paired: 2, agreed: 1, disagreed: 1, agreement_rate: 0.5 } },
-        disagreements: [{ id: 9, action: "approve_job", job_id: 44, predicted_decision: "act", operator_decision: "abstain", created_at: "2026-11-28T10:00:00Z" }]
+        disagreements: [
+          { id: 9, action: "approve_job", job_id: 44, predicted_decision: "act", operator_decision: "abstain", created_at: "2026-11-28T10:00:00Z" }
+        ]
       },
       grant_catalog: [
         ...detailPayload.coworker.grant_catalog,
