@@ -298,7 +298,10 @@ function EnabledLandingLanesStrip({ prefix = "" }: { prefix?: string }) {
                 <div className="space-y-1" key={section.branch ?? ""}>
                   {section.branch ? <div className="text-xs text-muted">{t("landing_lanes.branch", { branch: section.branch })}</div> : null}
                   {section.lanes.map((lane) => (
-                    <div className="grid grid-cols-[4rem_minmax(6rem,1fr)_minmax(5rem,auto)_minmax(5rem,1fr)_auto] items-center gap-2 text-xs" key={lane.number}>
+                    <div
+                      className="grid grid-cols-[4rem_minmax(6rem,1fr)_minmax(5rem,auto)_minmax(5rem,1fr)_auto] items-center gap-2 text-xs"
+                      key={lane.number}
+                    >
                       <span>{t("landing_lanes.lane", { number: lane.number })}</span>
                       <span className="truncate font-medium">{lane.anchor_job ? <JobLink job={lane.anchor_job} /> : null}</span>
                       <span className="truncate text-muted">{phaseLabel(lane, t)}</span>
