@@ -4016,7 +4016,7 @@
         "C. Gate the whole per-turn pinning behind the custom-environments flag until a base is promoted."
       ],
       "recommendation": "A if a base can be built and promoted before the deploy; otherwise B, so a deploy does not stop every coworker chat.",
-      "decision": null
+      "decision": "B (2026-11-28, operator): while no coworker base has ever been promoted and custom environments are off, coworker turns run unpinned as before; a revoked base still blocks. Implemented as F160."
     }
   ]
 }

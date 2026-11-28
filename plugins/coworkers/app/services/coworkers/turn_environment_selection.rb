@@ -22,6 +22,7 @@ module Coworkers
 
       gate_enabled = Feature.coworker_custom_environments_enabled?
       base_launch = Syrus::Host::RuntimeImages.base_launch
+      return unpinned if !gate_enabled && base_launch.state.to_s == "no_active_base"
       unavailable!(base_launch.message || base_launch.code) unless base_launch.ready?
 
       if gate_enabled && coworker.environment&.active_activation
@@ -101,6 +102,16 @@ module Coworkers
         image_digest: binding.image_digest, base_digest: binding.base_digest, runtime_abi: binding.runtime_abi,
         revocation_state: binding.runtime_image.availability, runtime_image: binding.runtime_image
       )
+    end
+
+    # NY48 (B): no coworker base has ever been promoted for the platform and
+    # custom environments are off, so the turn runs as it did before per-turn
+    # pinning, with no image recorded. A base that was promoted and then
+    # revoked still blocks (fail closed); pinning applies from the first
+    # promotion on.
+    def unpinned
+      Rails.logger.info("[Coworkers::TurnEnvironmentSelection] no coworker base promoted; coworker #{coworker.id} runs this turn unpinned")
+      @selection = nil
     end
 
     def unavailable!(reason)

@@ -13,6 +13,40 @@ RSpec.describe Coworkers::TurnEnvironmentSelection do
                                 workspace_repo: repository.remote_url)
   end
 
+  # NY48 (B): per-turn pinning refused every coworker turn while no base had
+  # ever been promoted, which is how production stands, so a deploy would have
+  # stopped every coworker chat (F160). Until a base is promoted, and while
+  # custom environments are off, the turn runs as it did before pinning.
+  describe "with no coworker base ever promoted" do
+    def custom_environments(enabled)
+      Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x",
+                      enabled: enabled, experimental: true)
+    end
+
+    it "runs the turn unpinned while custom environments are off" do
+      custom_environments(false)
+      resolver = described_class.new(coworker:, user_message: message)
+
+      expect(resolver.resolve).to be_nil
+      expect(Coworkers::TurnEnvironmentBinding.where(user_message_id: message.id)).to be_empty
+    end
+
+    it "still refuses the turn while custom environments are on" do
+      custom_environments(true)
+
+      expect { described_class.new(coworker:, user_message: message).resolve }
+        .to raise_error(described_class::Unavailable, /no coworker base has been promoted/)
+    end
+
+    it "still refuses the turn once a promoted base was revoked" do
+      custom_environments(false)
+      base_releases.revoke!(active_base, reason: "bad", actor: "test")
+
+      expect { described_class.new(coworker:, user_message: message).resolve }
+        .to raise_error(described_class::Unavailable, /revoked/)
+    end
+  end
+
   it "uses and records the standard base while the feature gate is disabled" do
     release = active_base
     Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x",

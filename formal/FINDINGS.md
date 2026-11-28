@@ -5111,6 +5111,28 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
+## F160. Per-turn image pinning would have stopped every coworker turn in production — fixed (NY48: B)
+
+**Invariant.** A deploy does not take away a working feature: coworker turns
+keep running across the introduction of per-turn image pinning.
+
+**Counterexample.** Main's `3ae428d135` (Epic #577) made
+`Coworkers::TurnEnvironmentSelection` refuse every coworker turn unless a
+coworker base is promoted and launch-ready, whatever the custom-environments
+flag says. Production (read-only check) has no base promoted on any platform,
+so deploying main would have refused every coworker chat turn; main's own
+`chat_surface_spec` was red for this reason.
+
+**Fix.** While no base has ever been promoted for the platform
+(`no_active_base`) and custom environments are off, the selection is empty and
+the turn runs as it did before pinning (the lifecycle already treats a missing
+selection as unpinned: no workload policy override, no binding, no launch
+failure tracking). A promoted base that is revoked still blocks
+(`base_revoked`), and with custom environments on the turn is still refused.
+Spec first: "runs the turn unpinned while custom environments are off" failed
+before the change; the refusal cases pass both before and after. Public and
+operator docs describe the rule.
+
 ## F159. A severe coworker base revocation stopped nothing that ran on it — fixed (NY47: A)
 
 **Invariant.** A severe revocation means the revoked bits are unsafe: nothing

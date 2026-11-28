@@ -61,6 +61,15 @@ requires every bundled `*_agent` provider plugin to appear in `abi.yml`,
 The build also runs the probe once (without the confinement checks) as the final
 non-root user, so a broken provider binary fails the build.
 
+## Before the first promotion
+
+Coworker turns pin an execution image at admission
+(`Coworkers::TurnEnvironmentSelection`). While no base has ever been promoted
+for the platform (`launch_state` `no_active_base`) and
+`coworker_custom_environments` is off, a turn runs unpinned, as before pinning
+existed (NY48). A promoted base that is later revoked still blocks turns
+(`base_revoked`) until another is promoted or rolled back to.
+
 ## Runtime ABI
 
 `images/coworker-base/abi.yml` is the versioned runtime ABI: entrypoint and
