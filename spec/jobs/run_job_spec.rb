@@ -1482,6 +1482,7 @@ RSpec.describe RunJob, :ci_only do
     # Regression: cancelling a workflow killed its running graders, and each
     # was recorded as a failed run with no exit status.
     it "records a run killed by its workflow's cancellation as cancelled, not failed" do
+      allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "os" => [ "linux" ] }, diagnostics: {})
       job
       wf = job.workflows.last
       run = wf.first_step.runs.first
@@ -1502,6 +1503,35 @@ RSpec.describe RunJob, :ci_only do
 
       expect(run.reload).to be_cancelled
       expect(wf.reload).to be_cancelled
+    end
+
+    # Regression: a Step cancelled on its own while it ran -- review evidence
+    # superseded by a new implementation HEAD cancels the running review with
+    # its cascade suppressed and leaves the Workflow running -- had its killed
+    # Run cancelled with the normal cascade, which cancelled the whole Workflow.
+    [ true, false ].each do |run_already_cancelled|
+      it "cancels a run whose step alone was cancelled without cancelling its workflow (run already cancelled: #{run_already_cancelled})" do
+        allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "os" => [ "linux" ] }, diagnostics: {})
+        job
+        wf = job.workflows.last
+        run = wf.first_step.runs.first
+        step = run.step
+        handler = Class.new do
+          define_method(:initialize) { |_run| }
+          define_method(:call) do
+            step.update_columns(state: "cancelled", finished_at: Time.current)
+            ::Run.find(run.id).cancel_without_step_cascade! if run_already_cancelled
+            raise Steps::Base::StepFailed, "grader frontend-lint failed (exit )"
+          end
+        end
+        allow(Steps).to receive(:handler_for).and_call_original
+        allow(Steps).to receive(:handler_for).with(step.kind).and_return(handler)
+        allow(RunHostAdmission).to receive(:call).and_return(RunHostAdmission::Decision.new(action: "admit", reason: nil, delay: nil, details: {}))
+
+        RunJob.perform_now(run.id)
+
+        expect([ run.reload.state, step.reload.state, wf.reload.state ]).to eq(%w[cancelled cancelled running])
+      end
     end
 
     # Regression: after a worker restart lost the workspace, a retried

@@ -1185,10 +1185,23 @@ class RunJob < ApplicationJob
     @step&.reload&.cancelled? || @workflow&.reload&.cancelled?
   end
 
+  # Only a cancelled Workflow takes the normal cancel cascade (a no-op by then).
+  # A Step cancelled on its own -- review evidence superseded by a new HEAD,
+  # say -- was cancelled with its cascade suppressed so the Workflow goes on;
+  # cascading this Run's cancel would cancel that Workflow after all. The
+  # canceller may also have cancelled the Run already, which the in-memory
+  # copy does not show.
   def cancel_run_after_external_cancellation!
     log("step #{@step&.kind} ended because its #{@step&.cancelled? ? "step" : "workflow"} was cancelled", kind: "system")
-    @run.cancel!
-    @run.save!
+    @run.reload
+    return if @run.terminal?
+
+    if @workflow&.cancelled?
+      @run.cancel!
+      @run.save!
+    else
+      @run.cancel_without_step_cascade!
+    end
   end
 
   # A duplicate run_diagnostics.run_id insert (an unsaved diagnostic left
