@@ -3978,6 +3978,19 @@
       ],
       "recommendation": "A, keeping F149's locking reads as belt and braces. READ COMMITTED is the usual setting for Rails on MySQL, and it removes the whole class instead of one site at a time.",
       "decision": "Yes (2026-11-28, operator): the primary and cache MySQL connections run at READ COMMITTED, as queue and cable already did; F149's locking reads stay as belt and braces."
+    },
+    {
+      "id": "NY46",
+      "item": "runtime-image-verification",
+      "title": "Should runtime images published before verification existed stay pullable without being verified?",
+      "context": "The verification Epic's migration adds runtime_images.verification_state with default 'candidate', so every image that existed before it became pullable with no verification attempt and no attestation; with no attestation it is never picked for re-evaluation either. New images start 'unverified' and only become candidates after every required check passes. Pulls look only at verification_state, never at an attestation's expiry.",
+      "options": [
+        "A. Verify them: a one-off backfill marks pre-existing images 'unverified' and queues a verification attempt for each, so they become candidates only by passing the same checks as new images. In-use images may be briefly unpullable until their verification finishes.",
+        "B. Grandfather them deliberately: keep them candidates, record a synthetic 'legacy' attestation that expires on a fixed date, and let normal re-evaluation verify them before it expires. No interruption, and they enter the same lifecycle.",
+        "C. Keep them as they are (pullable, never re-evaluated) and document the exception."
+      ],
+      "recommendation": "B. It keeps running work unaffected while putting every image under the same verification lifecycle within a bounded time; A is the stricter choice if no image is in use.",
+      "decision": null
     }
   ]
 }

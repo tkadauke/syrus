@@ -5097,6 +5097,21 @@ reading the failure as answered.
 (stuck before) and `spec/services/work_engine/cancel_superseded_ci_repair_behind_base_spec.rb`.
 
 ---
+## M82. Runtime image verification Epic — fixed F153 to F156; leads and NY46
+
+Beside F153 to F156, the sweep of the Epic found: one of its migrations
+(`create_runtime_image_policy_evidences`) was not idempotent, now
+`if_not_exists` with an architecture spec for every `create_table` from this
+work on; Lead L21, an unreadable `SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY`
+makes `Policy.current` raise before the re-evaluation job looks at any image,
+so nothing is re-evaluated and candidates stay pullable past their
+attestations' expiry (pulls never look at expiry; the job's error is the only
+signal); Lead L22, `CandidateProbe#ancestry_result` accepts the approved base
+in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
+image passes `base_ancestry`; and NY46, images that predate verification
+default to `candidate` with no attestation and are never verified.
+
+
 ## F156. Every runtime image re-evaluation of a built image failed — fixed
 
 **Invariant.** An accepted image stays usable across re-evaluation as long as
