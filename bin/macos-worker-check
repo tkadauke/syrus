@@ -172,17 +172,20 @@ require_command codex Codex
 require_command claude Claude
 require_command xcodegen XcodeGen
 
-# The browser tools and visual review spawn `playwright-mcp` with the
-# release's pinned Chromium (bin/macos-runtime-env). Not run with --version:
-# a playwright-mcp that did not take the flag would start a server and hang.
-if have_command playwright-mcp; then
-  ok "Playwright MCP: $(command -v playwright-mcp)"
-else
-  fail "Playwright MCP: playwright-mcp not found on PATH"
-fi
 if [[ -f "$ROOT/bin/macos-runtime-env" ]]; then
   # shellcheck source=bin/macos-runtime-env
   source "$ROOT/bin/macos-runtime-env"
+  playwright="$(syrus_macos_toolchain_value "$ROOT" PLAYWRIGHT_VERSION 2>/dev/null || true)"
+  playwright_mcp="$(syrus_macos_toolchain_value "$ROOT" PLAYWRIGHT_MCP_VERSION 2>/dev/null || true)"
+  browser_tools_prefix="$(syrus_macos_browser_tools_prefix "$playwright" "$playwright_mcp")"
+  # Validate the release-pinned installation, not an unrelated executable
+  # inherited from the host. Not run with --version: an older MCP binary that
+  # does not accept the flag would start a server and hang.
+  if [[ -x "$browser_tools_prefix/bin/playwright-mcp" ]]; then
+    ok "Playwright MCP: $browser_tools_prefix/bin/playwright-mcp"
+  else
+    fail "Playwright MCP: playwright-mcp not found on PATH"
+  fi
   browser_executable="$(syrus_macos_browser_env "$ROOT" 2>/dev/null | sed -n 's/^SYRUS_BROWSER_EXECUTABLE_PATH=//p')"
   if [[ -n "$browser_executable" && -x "$browser_executable" ]]; then
     ok "browser Chromium: $browser_executable"
