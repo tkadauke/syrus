@@ -43,16 +43,16 @@ module Coworkers
     def budget_refusal(name, repository, job, limits)
       if name == "propose_job"
         count = Syrus::Host::Jobs.where(filed_by_coworker_id: coworker.id, repository_id: repository.id, state: OPEN_STATES).count
-        return "Open self-filed Job budget reached (#{limits.fetch('max_open_jobs')})." if count >= limits.fetch("max_open_jobs")
+        "Open self-filed Job budget reached (#{limits.fetch('max_open_jobs')})." if count >= limits.fetch("max_open_jobs")
       elsif name == "approve_job"
         count = Permissions::CoworkerAudit.events_for(coworker, since: Time.current.beginning_of_day).count do |event|
           event.params["repository_id"] == repository.id &&
             event.params["autonomous_action"] == "approve_job"
         end
-        return "Daily self-approval budget reached (#{limits.fetch('max_self_approvals_per_day')})." if count >= limits.fetch("max_self_approvals_per_day")
+        "Daily self-approval budget reached (#{limits.fetch('max_self_approvals_per_day')})." if count >= limits.fetch("max_self_approvals_per_day")
       elsif name == "submit_chat_feedback"
         count = job.workflows.where(trigger_kind: ::Workflow::TriggerKind.feedback_values).count
-        return "Feedback-round budget reached for this Job (#{limits.fetch('max_feedback_rounds_per_job')})." if count >= limits.fetch("max_feedback_rounds_per_job")
+        "Feedback-round budget reached for this Job (#{limits.fetch('max_feedback_rounds_per_job')})." if count >= limits.fetch("max_feedback_rounds_per_job")
       end
     end
 
@@ -65,7 +65,7 @@ module Coworkers
         return "Sensitive change requires operator approval: #{classification.reasons.join(', ')}." if classification.sensitive?
       end
       if job.bug_fix? && !Coworkers::RegressionProof.call(job).proven?
-        return "Bug-fix self-approval requires a new regression spec that fails on the base revision and passes on the branch."
+        "Bug-fix self-approval requires a new regression spec that fails on the base revision and passes on the branch."
       end
     end
 
