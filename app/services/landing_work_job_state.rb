@@ -15,7 +15,12 @@ class LandingWorkJobState
     return false unless landing_workflow?
 
     StateTransition.with_source("system", reason: reason, metadata: metadata) do
-      job.with_lock do
+      # Parents before children (NY40): moving the Job to landing rolls its
+      # state up into its Epic, which locks the Epic before the Job row is
+      # written. Taking the Job's lock first (with_lock) and the Epic's
+      # second inverted the global order.
+      Job.transaction do
+        Lineage.lock!(job)
         job.reload
         return true if job.landing?
         return false unless repairable?

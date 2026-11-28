@@ -172,57 +172,6 @@ module WorkEngine
         end
       end
 
-      # The row-lock order (Syrus::LockOrder) is checked by the test suite
-      # only, so a perturbation that drives a service into taking locks out
-      # of order -- the precondition for a production deadlock -- would pass
-      # bin/simulator silently. The fuzzer installs the checker in record mode
-      # and treats a new inversion as a failure. Under rspec, where the suite
-      # already runs the checker in raise mode, this stays out of the way.
-      class LockOrderWatch
-        def initialize
-          @known = Set.new
-          @learning = false
-        end
-
-        def watch
-          return [ yield, [] ] unless enabled?
-
-          Syrus::LockOrder::Checker.reset!
-          result = yield
-          found = Syrus::LockOrder::Checker.violations.uniq { |violation| key(violation) }
-          Syrus::LockOrder::Checker.reset!
-          if @learning
-            @known.merge(found.map { |violation| key(violation) })
-            return [ result, [] ]
-          end
-          [ result, found.reject { |violation| @known.include?(key(violation)) } ]
-        end
-
-        def learning
-          @learning = true
-          yield
-        ensure
-          @learning = false
-        end
-
-        private
-
-        def key(violation) = [ violation.held, violation.taking, violation.site, violation.held_site ]
-
-        def enabled?
-          return @enabled unless @enabled.nil?
-
-          require Rails.root.join("lib/syrus/lock_order").to_s
-          checker = Syrus::LockOrder::Checker
-          if checker.mode.nil?
-            ENV["SYRUS_LOCK_ORDER_WRITES"] ||= "1"
-            checker.install!
-            checker.mode = :record
-          end
-          @enabled = checker.mode == :record
-        end
-      end
-
       Iteration = Data.define(:index, :seed, :path, :events, :result, :signature)
       Failure = Data.define(:iteration, :minimized_events, :repro_path, :reproduced)
 
@@ -240,7 +189,6 @@ module WorkEngine
           @output_dir = Pathname(output_dir)
           @out = out
           @runner = runner || method(:run_scenario_file)
-          @lock_order = LockOrderWatch.new
           @baselines = {}
         end
 
@@ -300,13 +248,9 @@ module WorkEngine
           false
         end
 
-        # A seed's own lock-order inversions are pre-existing, not something a
-        # perturbation caused: they are learned here and ignored afterwards.
         def baseline(path)
-          @baselines[path.to_s] ||= lock_order.learning { run(load(path), []) }
+          @baselines[path.to_s] ||= run(load(path), [])
         end
-
-        attr_reader :lock_order
 
         def run_iteration(index, eligible)
           path, data, events = plan(index, eligible)
@@ -391,17 +335,7 @@ module WorkEngine
         end
 
         def run_scenario_file(file)
-          result, violations = lock_order.watch { ScenarioExecution.call(path: file) }
-          return result if violations.empty?
-
-          lines = violations.map do |violation|
-            "invariant lock_order: took #{violation.taking} at #{violation.site} while holding #{violation.held} from #{violation.held_site}"
-          end
-          result.with(
-            status: "violated",
-            invariant_violations: result.invariant_violations + lines,
-            stuck_reasons: [ "scenario otherwise ended #{result.status}", *lines, *result.stuck_reasons ]
-          )
+          ScenarioExecution.call(path: file)
         rescue => e
           Result.new(
             scenario: file.basename.to_s, ticks: 0, status: "error", events: [],

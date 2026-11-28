@@ -108,6 +108,36 @@ RSpec.describe WorkEngine::Simulation::Runner do
       expect(result.invariant_violations).to be_empty
     end
 
+    # The checker raises in the suite, but a raise inside the engine is often
+    # rescued and logged; the runner records instead, so an inversion fails
+    # the scenario even where the code under test swallows the error.
+    it "fails a scenario that takes row locks out of order, even when the inversion is rescued" do
+      allow(JobManualPause).to receive(:pause!).and_wrap_original do |original, *args, **kwargs|
+        begin
+          Syrus::LockOrder::Checker.send(:report, Syrus::LockOrder::Violation.new(held: "WorkUnit", taking: "Job", site: "spec", held_site: "spec"))
+        rescue Syrus::LockOrder::Error
+          nil
+        end
+        original.call(*args, **kwargs)
+      end
+
+      result = run(SINGLE_JOB + <<~YAML)
+        events:
+          - name: operator pauses
+            once: true
+            when: { tick: 2 }
+            do: { pause_work: job }
+          - name: operator unpauses
+            once: true
+            when: { tick: 4 }
+            do: { unpause_work: job }
+      YAML
+
+      expect(result.status).to eq("violated")
+      expect(result.invariant_violations).to include("invariant lock_order: took Job at spec while holding WorkUnit from spec")
+      expect(Syrus::LockOrder::Checker.mode).to eq(:raise)
+    end
+
     it "can be switched off by the caller" do
       path = @dir.join("blocker.yml")
       path.write(FAILED_BLOCKER)

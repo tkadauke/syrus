@@ -18,6 +18,12 @@ if Rails.env.test?
   end
   Syrus::PluginRegistry.clear_plugin_record_cache!
   WorkEngine::Simulation::SolidQueueBootstrap.clear!
+  # Scenarios assert the row-lock order like the test suite does; the
+  # runner records inversions and fails the scenario on them.
+  require_relative "../lib/syrus/lock_order"
+  ENV["SYRUS_LOCK_ORDER_WRITES"] ||= "1"
+  Syrus::LockOrder::Checker.install!
+  Syrus::LockOrder::Checker.mode ||= :record
 end
 
 exit WorkEngine::Simulation::Cli.call(argv: ARGV)

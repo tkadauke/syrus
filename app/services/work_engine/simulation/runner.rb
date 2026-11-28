@@ -141,6 +141,10 @@ module WorkEngine
       end
 
       def call
+        with_lock_order_recording { run_ticks }
+      end
+
+      def run_ticks
         with_simulated_repository_revisions do
           with_simulated_workspaces do
             with_stubbed_judgment_runner do
@@ -2164,10 +2168,42 @@ module WorkEngine
         @invariant_assertions.observe!(tick)
       end
 
+      # The row-lock order (Syrus::LockOrder) is part of what a scenario
+      # asserts. Where the checker is installed -- the test suite, and
+      # bin/simulator -- the run records inversions instead of raising them:
+      # a raise inside the engine is often rescued and logged, which hid an
+      # inversion the simulation had driven a service into. Recorded ones fail
+      # the scenario like an invariant violation.
+      def with_lock_order_recording
+        checker = defined?(Syrus::LockOrder::Checker) ? Syrus::LockOrder::Checker : nil
+        return yield if @invariant_assertions.nil? || checker.nil? || checker.mode.nil?
+
+        previous_mode = checker.mode
+        previous_violations = checker.violations.dup
+        checker.violations.clear
+        checker.mode = :record
+        @lock_order_checker = checker
+        yield
+      ensure
+        if @lock_order_checker
+          checker.violations.replace(previous_violations)
+          checker.mode = previous_mode
+          @lock_order_checker = nil
+        end
+      end
+
+      def lock_order_failures
+        return [] unless @lock_order_checker
+
+        @lock_order_checker.violations.uniq.map do |violation|
+          "invariant lock_order: took #{violation.taking} at #{violation.site} while holding #{violation.held} from #{violation.held_site}"
+        end
+      end
+
       def finish(result, quiescent:)
         return result unless @invariant_assertions
 
-        failures = @invariant_assertions.finish!([ result.ticks - 1, 0 ].max, quiescent: quiescent)
+        failures = lock_order_failures + @invariant_assertions.finish!([ result.ticks - 1, 0 ].max, quiescent: quiescent)
         return result if failures.empty?
 
         violated(result.ticks, failures, ended_as: result.status)

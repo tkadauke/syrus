@@ -322,6 +322,15 @@ invariants:
       reason: the scenario models a failed dependency holding its dependent
 ```
 
+## Row-lock order
+
+Every scenario also asserts the global row-lock order (`Syrus::LockOrder`,
+parents before children). Where the checker is installed -- the test suite
+and `bin/simulator` -- the runner records inversions for the duration of the
+scenario instead of raising them, because a raise inside the engine is often
+rescued and logged, and fails the scenario (status `violated`, as
+`invariant lock_order`) on any it recorded.
+
 ## Perturbation events
 
 These exist mainly for the fuzzer but work in any scenario. `when: { tick: 7 }`
@@ -360,9 +369,7 @@ An iteration fails when an invariant is violated, or when the world stops
 without reaching the seed's expected status and some Job is left in a state
 that does not say why it stopped (anything but implemented, approved,
 landing, closed, failed, or no_change_needed, or held by an operator pause),
-or when a run takes row locks out of the global order (`Syrus::LockOrder`,
-recorded the way the test suite checks it; inversions a seed's own baseline
-already takes are ignored). A failure is printed with its
+or when a run takes row locks out of the global order (see below). A failure is printed with its
 replay command and injected events, shrunk by dropping injected events while
 the same failure persists, and written to
 `tmp/simulator_fuzz/<seed>__seed<N>_iter<I>.yml`. The file carries a `fuzz:`
