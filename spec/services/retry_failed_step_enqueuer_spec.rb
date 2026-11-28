@@ -812,6 +812,28 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(failed_step.runs).to be_empty
   end
 
+  it "loads lock owners in one query for a multi-member retry preflight" do
+    job = Factories.job_record(state: "failed")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    unit = workflow.work_unit
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.work_unit_locks.active.find_each(&:release!)
+    3.times do |index|
+      member = Factories.job_record(user: job.user, repository: job.repository, issue_number: 990 + index)
+      unit.work_unit_members.create!(job: member, role: "member")
+    end
+
+    statements = []
+    subscriber = ->(*, payload) { statements << payload[:sql] unless payload[:name] == "SCHEMA" }
+    blocker = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      described_class.preflight(workflow: workflow)
+    end
+
+    lock_owner_queries = statements.grep(/FROM ["`]?work_unit_locks["`]?/i)
+    expect(blocker).to be_nil
+    expect(lock_owner_queries.size).to eq(1)
+  end
 
   it "reports an implementing Epic sibling through the same preflight used by execution" do
     job = Factories.job_record(state: "failed")
