@@ -51,7 +51,8 @@ RSpec.describe BaseRevisionRetry do
 
   around do |example|
     Dir.mktmpdir("syrus-brr-spec-workspace") do |dir|
-      @workspace_path = Pathname.new(dir)
+      @workspace_path = Pathname.new(dir).join("immutable-checkouts/steps/1")
+      FileUtils.mkdir_p(@workspace_path)
       example.run
     end
   end
@@ -111,6 +112,23 @@ RSpec.describe BaseRevisionRetry do
 
       expect(git).to have_received(:run).with("checkout", "--detach", "main123", hash_including(:chdir))
       expect(git).not_to have_received(:run).with("worktree", "add", any_args)
+    end
+
+    # Hard links cannot cross filesystems, and the system temp directory is a
+    # different one from the workflow scratch volume on production workers.
+    it "builds the base checkout beside the prepared checkout, on the same filesystem" do
+      check = retry_check
+      checkout = nil
+      allow(check).to receive(:run_command) do |_command, chdir, output|
+        checkout = chdir
+        output << "ran"
+        nil
+      end
+
+      check.call
+
+      expect(checkout.to_s).to start_with("#{@workspace_path.dirname}/syrus-brr-")
+      expect(checkout).not_to exist
     end
 
     it "falls back to a worktree when the prepared checkout cannot be linked" do
