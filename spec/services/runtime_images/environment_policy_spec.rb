@@ -20,4 +20,26 @@ RSpec.describe RuntimeImages::EnvironmentPolicy do
 
     expect { described_class.new(value) }.to raise_error(described_class::Invalid, /ABI window/)
   end
+
+  it "uses the newly shipped ABI contract when a saved window belongs to an older release" do
+    AppSetting.current.update!(
+      runtime_environment_policy: { "base" => { "supported_abi_min" => 1, "supported_abi_max" => 1 } }
+    )
+    allow(RuntimeImages::RuntimeAbi).to receive(:compatibility).and_return({ "min" => 2, "max" => 3 })
+
+    policy = described_class.current
+
+    expect(policy.fetch("base", "supported_abi_min")).to eq(2)
+    expect(policy.fetch("base", "supported_abi_max")).to eq(3)
+    expect(policy.override("base", "supported_abi_min")).to be_nil
+  end
+
+  it "fails closed for malformed saved ABI values" do
+    AppSetting.current.update_column(
+      :runtime_environment_policy,
+      { "base" => { "supported_abi_min" => "bad", "supported_abi_max" => 1 } }
+    )
+
+    expect { described_class.current }.to raise_error(described_class::Invalid, /ABI window/)
+  end
 end

@@ -19,11 +19,37 @@ module RuntimeImages
 
     class Invalid < RuntimeImages::Error; end
 
-    def self.current
-      value = AppSetting.current.has_attribute?(:runtime_environment_policy) ? AppSetting.current.runtime_environment_policy : nil
-      overrides = value.to_h.deep_stringify_keys
-      new(DEFAULTS.deep_merge(overrides), overrides: overrides)
+    def self.defaults
+      contract = RuntimeAbi.compatibility
+      DEFAULTS.deep_merge(
+        "base" => { "supported_abi_min" => contract.fetch("min"),
+                    "supported_abi_max" => contract.fetch("max") }
+      )
     end
+
+    def self.current
+      setting = AppSetting.current
+      value = setting.has_attribute?(:runtime_environment_policy) ? setting.runtime_environment_policy : nil
+      overrides = value.to_h.deep_stringify_keys
+      normalize_stale_abi_override!(overrides)
+      new(defaults.deep_merge(overrides), overrides: overrides)
+    end
+
+    def self.normalize_stale_abi_override!(overrides)
+      base = overrides["base"]
+      return unless base.is_a?(Hash) && base.key?("supported_abi_min") && base.key?("supported_abi_max")
+
+      minimum = Integer(base["supported_abi_min"], exception: false)
+      maximum = Integer(base["supported_abi_max"], exception: false)
+      return unless minimum && maximum && minimum <= maximum
+
+      contract = RuntimeAbi.compatibility
+      return if minimum >= contract.fetch("min") && maximum <= contract.fetch("max")
+
+      base.delete("supported_abi_min")
+      base.delete("supported_abi_max")
+    end
+    private_class_method :normalize_stale_abi_override!
 
     def initialize(value, overrides: value)
       @value = value

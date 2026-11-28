@@ -46,7 +46,7 @@ module Api
             end
             policy = submitted["policy"]
             registry[:runtime_environment_policy] = RuntimeImages::EnvironmentPolicy.new(
-              RuntimeImages::EnvironmentPolicy::DEFAULTS.deep_merge(policy.to_h.deep_stringify_keys)
+              RuntimeImages::EnvironmentPolicy.defaults.deep_merge(policy.to_h.deep_stringify_keys)
             ).to_h if policy
             registry
           end

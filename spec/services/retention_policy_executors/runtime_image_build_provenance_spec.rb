@@ -46,4 +46,31 @@ RSpec.describe RetentionPolicyExecutors::RuntimeImageBuildProvenance do
     expect(request.reload.source_archive).to be_attached
     expect(evidence.reload.log).to eq("recent")
   end
+
+  it "prunes only superseded verification attempts outside the retention window" do
+    RetentionPolicySetting.for(RetentionPolicyRegistry.fetch(:runtime_image_build_provenance))
+      .update!(retention_seconds: 180.days.to_i)
+    image = RuntimeImage.create!(
+      runtime_image_namespace: namespace, digest: digest, source_kind: "test", source_ref: "retention"
+    )
+    old = image.runtime_image_verification_attempts.create!(
+      number: 1, image_digest: digest, policy_digest: digest, state: "rejected",
+      started_at: 200.days.ago, finished_at: 200.days.ago
+    )
+    recent = image.runtime_image_verification_attempts.create!(
+      number: 2, image_digest: digest, policy_digest: digest, state: "rejected",
+      started_at: 10.days.ago, finished_at: 10.days.ago
+    )
+    latest = image.runtime_image_verification_attempts.create!(
+      number: 3, image_digest: digest, policy_digest: digest, state: "accepted",
+      started_at: 200.days.ago, finished_at: 200.days.ago
+    )
+
+    result = RetentionPolicyRegistry.fetch(:runtime_image_build_provenance).executor.call
+
+    expect(result.deleted_count).to eq(1)
+    expect(RuntimeImageVerificationAttempt.exists?(old.id)).to be(false)
+    expect(RuntimeImageVerificationAttempt.exists?(recent.id)).to be(true)
+    expect(RuntimeImageVerificationAttempt.exists?(latest.id)).to be(true)
+  end
 end

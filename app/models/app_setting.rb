@@ -360,7 +360,7 @@ class AppSetting < ApplicationRecord
   def runtime_environment_policy_is_valid
     return unless has_attribute?(:runtime_environment_policy) && runtime_environment_policy.present?
 
-    RuntimeImages::EnvironmentPolicy.new(RuntimeImages::EnvironmentPolicy::DEFAULTS.deep_merge(runtime_environment_policy.deep_stringify_keys))
+    RuntimeImages::EnvironmentPolicy.new(RuntimeImages::EnvironmentPolicy.defaults.deep_merge(runtime_environment_policy.deep_stringify_keys))
   rescue RuntimeImages::EnvironmentPolicy::Invalid => error
     errors.add(:runtime_environment_policy, error.message)
   end

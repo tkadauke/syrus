@@ -14,7 +14,7 @@ module RetentionPolicyExecutors
 
     def prune_verification_attempts(cutoff, batch_size, max_batches)
       RetentionPruner.call(
-        scope: RuntimeImageVerificationAttempt.prunable,
+        scope: RuntimeImageVerificationAttempt.prunable.where(finished_at: ..cutoff),
         cutoff: cutoff,
         batch_size: batch_size,
         max_batches: max_batches

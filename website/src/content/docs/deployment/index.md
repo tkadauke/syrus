@@ -10,7 +10,7 @@ paths. Start with the prebuilt Docker Compose install; move down the
 list only when you need source changes, custom packages, or cluster
 operations.
 
-Instances using coworker-built execution environments provision an external OCI registry, then manage its scoped identities and build, verification, network, cache, revocation, ABI, and executable-scratch policy from **Admin → Environment Policy**. The administrator ABI window may narrow, but cannot widen, the compatibility range shipped with Syrus. Runtime-image, build-source, sanitized-log, build-provenance, exact-security-evidence, pull-log, and audit retention are managed from **Admin → Retention Settings**.
+Instances using coworker-built execution environments provision an external OCI registry, then manage its scoped identities and build, verification, network, cache, revocation, ABI, and executable-scratch policy from **Admin → Environment Policy**. The administrator ABI window may narrow, but cannot widen, the compatibility range shipped with Syrus. If an upgrade makes a previously valid saved window fall outside the newly shipped range, Syrus uses that new range. Runtime-image, build-source, sanitized-log, build-provenance, exact-security-evidence, pull-log, and audit retention are managed from **Admin → Retention Settings**.
 
 | Path | Audience | Setup time | Use case |
 | --- | --- | --- | --- |
