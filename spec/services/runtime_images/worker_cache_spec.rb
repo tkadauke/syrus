@@ -97,6 +97,48 @@ RSpec.describe RuntimeImages::WorkerCache do
     it "does not apply to images that are not the standard base" do
       expect(cache.acquire(publish("plain")).cache_hit).to be(false)
     end
+
+    it "validates a requested custom runtime image for the selected provider" do
+      engine.image_labels = RuntimeImages::RuntimeAbi.labels
+      image = service.publish(
+        namespace: namespace, source_kind: "coworker_environment", source_ref: "custom",
+        platform: "linux/amd64", source_digest: source_digest, payload: "custom",
+        verification_state: "candidate", provenance: {
+          "recipe_digest" => recipe_digest,
+          RuntimeImages::RuntimeAbi::ATTESTATION_KEY =>
+            RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest)
+        }
+      )
+
+      expect { cache.acquire(image, provider: "unknown", validate_runtime_abi: true) }
+        .to raise_error(RuntimeImages::RuntimeAbi::Incompatible, /provider_unsupported|provider/)
+      expect(RuntimeImageCacheEntry.find_by!(runtime_image: image).lease_count).to eq(0)
+    end
+  end
+
+  it "rechecks local integrity immediately before handing an image to the launcher" do
+    image = publish("a")
+    allow(engine).to receive(:digests).with(image.locator)
+      .and_return([ image.digest ], [ "sha256:#{"f" * 64}" ])
+
+    expect { cache.acquire(image) { raise "launched" } }
+      .to raise_error(RuntimeImages::WorkerCache::CorruptImage, /changed before launch/)
+    expect(engine.removed).to eq([ image.locator ])
+    expect(RuntimeImageCacheEntry.where(runtime_image: image)).to be_empty
+  end
+
+  it "rechecks revocation immediately before handing an image to the launcher" do
+    image = publish("a")
+    reloads = 0
+    allow(image).to receive(:reload).and_wrap_original do |original|
+      reloads += 1
+      image.update_columns(availability: "revoked", revoked_at: Time.current) if reloads == 3
+      original.call
+    end
+
+    expect { cache.acquire(image) { raise "launched" } }
+      .to raise_error(RuntimeImages::WorkerCache::Revoked, /revoked before launch/)
+    expect(RuntimeImageCacheEntry.find_by!(runtime_image: image).lease_count).to eq(0)
   end
 
   it "does not touch worker capabilities or identity records" do
