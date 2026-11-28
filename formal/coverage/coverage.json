@@ -3991,6 +3991,19 @@
       ],
       "recommendation": "B. It keeps running work unaffected while putting every image under the same verification lifecycle within a bounded time; A is the stricter choice if no image is in use.",
       "decision": null
+    },
+    {
+      "id": "NY47",
+      "item": "runtime-image-verification",
+      "title": "What should a severe coworker base revocation stop?",
+      "context": "BaseReleases#revoke! records severity and documents that a severe revocation 'becomes a termination signal for running turns (see BaseRevocation)', but nothing consumes BaseRevocation: running turns on the revoked base are never stopped. Coworker environment images built from that base are not revoked either; environment selection, publish and rollback check only the derived image's own state and the active base's ABI, so turns on derived environments keep launching and rollback can activate an image built from the revoked base. A severe revocation of an environment image itself does stop new launches and terminate its turns (Epic #576).",
+      "options": [
+        "A. Full cascade: a severe base revocation severely revokes every environment image built from that base (by provenance base digest) and terminates running turns pinned to the base or to those images, through the same termination path environment revocation uses.",
+        "B. Terminate only: consume BaseRevocation in the turn runtimes so running turns on the revoked base stop, and block launch of derived environment images whose provenance names a severely revoked base, without revoking them (a later base fix can clear them).",
+        "C. Keep severity informational for bases and remove the termination promise from the code and docs."
+      ],
+      "recommendation": "A. A severe revocation means the bits are unsafe; an image built on top of them carries them, so it should be withdrawn the same way and its running turns stopped.",
+      "decision": null
     }
   ]
 }

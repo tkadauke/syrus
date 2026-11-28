@@ -5111,6 +5111,37 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
+## M83. Coworker environment Epic (#576) — F157; NY47 and leads
+
+Swept read-only and re-checked. Holds: publication is atomic (activation and
+pointer swap in one transaction under the environment lock, re-authorized
+inside it; a failed retain rolls the publish back); rollback never activates a
+revoked, rejected or unverified image (re-checked under the image and
+attestation locks); a severe revocation of an environment image stops new
+launches (the pointer is cleared under the lock and the worker cache re-checks
+`pullable?`) and terminates its turns; publication fails closed while a
+re-evaluation is running; RunJob's inline failure recovery only adds reloads.
+
+NY47: a severe coworker *base* revocation stops nothing that is running and
+nothing built on it (no consumer of `BaseRevocation`).
+
+Leads (L23, not fixed):
+- inherited publication authority (`EnvironmentPublicationAuthority`) allows a
+  publish when any earlier activation shared the source digest, before any
+  deny or ask rule and regardless of a later revocation or of new base,
+  dependency or network deltas; latent, since no controller, tool or pending
+  action calls publish, rollback or the authority yet, and the `rollback`,
+  `revoke` and `terminate_executions` capabilities are not enforced anywhere;
+- rollback only considers activations whose pinned attestation is still
+  valid, and attestations expire after a day or on the next re-evaluation, so
+  an environment older than that has no rollback target (fails closed);
+- launch-failure attribution counts any exception in a turn, including one
+  after the agent spawned or a container backend outage, so three such turns
+  roll a healthy environment back;
+- `revoke!` returns early for an already standard-revoked revision, so a later
+  severe revocation of it terminates nothing; a turn that passed `acquire`
+  before the revoke but spawns after the termination sweep is not killed.
+
 ## F157. Coworker environment locks re-read with plain reads — fixed
 
 **Invariant.** As F149: a decision made under a row lock reads the locked rows
@@ -8859,7 +8890,9 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   i18n, permission matrix batching, simulator scenarios) carries no engine
   invariant.
 
-Checked through main `905d1b175c`. Each loop iteration continues from there:
+- Main through `871e9bb8c3`: the coworker environment Epic (#576), M83.
+
+Checked through main `871e9bb8c3`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
