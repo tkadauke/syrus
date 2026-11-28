@@ -1750,6 +1750,57 @@ RSpec.describe MainHealthChangedService, :ci_only do
         )
       end
 
+      # Regression: main health flapping on one commit re-ran this sweep every
+      # few minutes, and a Job already up to date with that commit got a no-op
+      # rebase each time -- no push, so its checks never re-ran and it stayed
+      # eligible for the next sweep.
+      describe "a Job whose last rebase was already a no-op" do
+        let(:main_sha) { "a" * 40 }
+        let!(:noop_job) do
+          Factories.job_record(
+            repository: repository,
+            state: "implemented",
+            branch_name: "syrus/issue-noop",
+            pr_number: 13,
+            pr_checks_state: "failing"
+          )
+        end
+
+        before do
+          Workflow.create!(
+            job: noop_job,
+            user: user,
+            trigger_kind: "rebase",
+            agent_provider: "claude",
+            state: "succeeded"
+          ).set_artifact!("auto_rebase_result", {
+            "succeeded" => true, "reason" => "rebased", "changed" => false,
+            "pre_sha" => "b" * 40, "post_sha" => "b" * 40, "base_sha" => main_sha
+          })
+          allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
+          allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
+        end
+
+        it "is not rebased again onto the same main commit" do
+          repository.update!(last_health_checked_sha: main_sha)
+
+          described_class.recovered!(repository)
+
+          expect(RebaseWorkflowSelector).not_to have_received(:instantiate)
+        end
+
+        it "is rebased once main has moved past that commit" do
+          repository.update!(last_health_checked_sha: "c" * 40)
+
+          described_class.recovered!(repository)
+
+          expect(RebaseWorkflowSelector).to have_received(:instantiate).with(
+            job: noop_job,
+            artifacts: hash_including("repair_reason")
+          )
+        end
+      end
+
       it "does not rebase Jobs whose pr_checks_state is not failing" do
         Factories.job_record(
           repository: repository,
