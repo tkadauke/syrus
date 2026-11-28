@@ -8935,7 +8935,19 @@ Later commits, checked through main `cb5b006575` (two merge trains):
 
 - Main through `5d07eeea1b`: desktop update recovery only; no engine invariant.
 
-Checked through main `5d07eeea1b`. Each loop iteration continues from there:
+- Main through `efbf32da60` (Epic #577: per-turn image pinning, severe image
+  revocation termination, launch races, compatibility upgrades). Main now
+  terminates turns on a severely revoked digest itself and requests
+  compatibility rebuilds of environments on a revoked base; F159's subscriber
+  keeps only the cascade to derived environments (immediate severe revocation,
+  per NY47), so main's rebuild finds no active pointer for those and the owner
+  republishes. Main merged with its own guards red; fixed here: a plain
+  re-read in `EnvironmentCompatibilityRebuild`, the plugin purge table list
+  (new `coworker_turn_environment_bindings`), the coworkers lifecycle contract
+  and the surface catalogs (with F159). NY48: per-turn pinning refuses every
+  coworker turn while no base is promoted, and production has none.
+
+Checked through main `efbf32da60`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

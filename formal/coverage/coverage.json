@@ -4004,6 +4004,19 @@
       ],
       "recommendation": "A. A severe revocation means the bits are unsafe; an image built on top of them carries them, so it should be withdrawn the same way and its running turns stopped.",
       "decision": "A (2026-11-28, operator): a severe base revocation severely revokes every coworker environment built on the base and terminates turns on the base and on those images. Implemented as F159."
+    },
+    {
+      "id": "NY48",
+      "item": "runtime-image-verification",
+      "title": "Deploy hazard: should coworker turns run while no coworker base is promoted?",
+      "context": "Since main's 3ae428d135 (Epic #577, not yet deployed) every coworker turn pins an execution image at admission (TurnEnvironmentSelection), and refuses the turn unless a coworker base is promoted and launch-ready for the platform, whatever the custom-environments flag says. Production (read-only check, 2026-11-28) has no coworker base promoted on linux/amd64 or linux/arm64 and no candidates. Deploying current main would therefore refuse every coworker chat turn with 'no coworker base has been promoted'. Main's own CI is red on chat_surface_spec for the same reason.",
+      "options": [
+        "A. Keep it fail-closed and promote a coworker base in production before the next deploy (build, verify and promote one per platform first).",
+        "B. Fall back to the pre-Epic execution path when no coworker base is promoted and custom environments are off: the turn runs as before, recorded as unpinned; once a base is promoted, pinning applies.",
+        "C. Gate the whole per-turn pinning behind the custom-environments flag until a base is promoted."
+      ],
+      "recommendation": "A if a base can be built and promoted before the deploy; otherwise B, so a deploy does not stop every coworker chat.",
+      "decision": null
     }
   ]
 }
