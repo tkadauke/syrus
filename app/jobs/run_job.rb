@@ -101,6 +101,13 @@ class RunJob < ApplicationJob
   # A workspace in these states existed; its absence means it was lost.
   WORKSPACE_EXPECTED_LIFECYCLE_STATES = %w[created reconstructed storage_lost].freeze
   WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
+  # Row-lock contention on the ancestry while claiming a Run. A grader
+  # fan-out starts a few dozen Runs of one Workflow at once, and each claim
+  # locks the same Workflow and Job rows; the losers used to exhaust their
+  # in-process retries and fail the grader before it ran a command. The
+  # claim rolls back, so the Run is still queued: deliver it again a little
+  # later, jittered so the herd does not re-collide.
+  ACQUIRE_CONTENTION_RETRY_DELAY = 10.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
   MACOS_VERSION_SKEW_RETRY_DELAY = 1.minute
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
@@ -945,6 +952,14 @@ class RunJob < ApplicationJob
       "deferring Run ##{@run.id} by #{WORK_UNIT_LOCK_RETRY_DELAY.inspect}"
     )
     defer_run(@run.id, WORK_UNIT_LOCK_RETRY_DELAY)
+    false
+  rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
+    raise unless ::Run.where(id: @run.id).pick(:state) == "queued"
+
+    Rails.logger.info(
+      "[RunJob] claiming Run ##{@run.id} stayed contended (#{e.class}); deferring it"
+    )
+    defer_run(@run.id, ACQUIRE_CONTENTION_RETRY_DELAY + rand(0.0..ACQUIRE_CONTENTION_RETRY_DELAY.to_f).seconds)
     false
   end
 
