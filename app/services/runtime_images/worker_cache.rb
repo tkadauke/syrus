@@ -56,10 +56,12 @@ module RuntimeImages
     # or under-confined image raises RuntimeAbi::Incompatible and is never
     # returned to a launcher. +provider+ narrows the check to the provider
     # the turn will run; +confinement_policy+ is what the worker enforces.
-    def acquire(image, prefetch: false, provider: nil, confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION)
+    def acquire(image, prefetch: false, provider: nil, confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION,
+                validate_runtime_abi: nil)
+      validate_runtime_abi = image.source_kind == CoworkerBase::SOURCE_KIND if validate_runtime_abi.nil?
       arguments = { prefetch: prefetch, admission: ->(candidate) { candidate.pullable? },
                     provider_pull: ->(candidate) { @service.pull(candidate) }, provider: provider,
-                    confinement_policy: confinement_policy, validate_abi: true }
+                    confinement_policy: confinement_policy, validate_abi: validate_runtime_abi }
       return acquire_image(image, **arguments) unless block_given?
 
       acquire_image(image, **arguments) { |reference| yield reference }
@@ -87,6 +89,7 @@ module RuntimeImages
       entry, hit = lease_local(image, prefetch, admission, provider_pull)
       begin
         validate_abi!(image, provider: provider, confinement_policy: confinement_policy) if validate_abi
+        validate_launchable!(image, admission: admission, prefetch: prefetch)
       rescue StandardError
         # Any failure (an incompatible ABI, or the engine failing to read the
         # labels) hands nothing out, so it must not keep the lease either.
@@ -185,8 +188,25 @@ module RuntimeImages
     private
 
     def validate_abi!(image, provider:, confinement_policy:)
-      return unless image.source_kind == CoworkerBase::SOURCE_KIND
       RuntimeAbi.validate_for_launch!(image: image, labels: @engine.labels(reference_for(image)), provider: provider, confinement_policy: confinement_policy)
+    end
+
+    # Pulling and ABI inspection leave a small revocation race. Re-read the
+    # durable state and local digest after leasing, immediately before the
+    # immutable reference is handed to a launcher.
+    def validate_launchable!(image, admission:, prefetch:)
+      unless admission.call(image.reload)
+        error = Revoked.new("runtime image #{image.digest} was revoked before launch")
+        record_failure(image, error, monotonic, prefetch)
+        raise error
+      end
+      return if @engine.digests(reference_for(image)).include?(image.digest)
+
+      @engine.remove(reference_for(image)) rescue nil
+      drop_entry(image)
+      error = CorruptImage.new("local content for #{image.digest} changed before launch")
+      record_failure(image, error, monotonic, prefetch)
+      raise error
     end
 
     def cache_bytes = RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes)

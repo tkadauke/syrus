@@ -48,8 +48,8 @@ module RuntimeImages
     # Makes the image local (pulling by digest when this worker lacks it),
     # leases it for the duration of the block, and yields the immutable
     # reference to run.
-    def acquire(image, &block)
-      worker_cache.acquire(image, &block)
+    def acquire(image, **options, &block)
+      worker_cache.acquire(image, **options, &block)
     end
 
     # Supplies an available image to verification before it is eligible for
