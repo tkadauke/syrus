@@ -1112,6 +1112,7 @@
   "recovery_title_restart_from_base": "Nova implementatio requiritur",
   "recovery_measured_failures": "Defectiones mensuratae quae consilium statuerunt",
   "recovery_excluded_failures": "Defectiones infrastructurae a consilio exclusae",
+  "recovery_unnamed_infrastructure_failure": "Defectio exsecutionis infrastructurae",
   "recovery_attempt_timeline": "Series conatuum",
   "recovery_original_execution": "Executio originalis · Workflow {{workflow}}",
   "recovery_terminal_decision": "Consilium: {{decision}}",

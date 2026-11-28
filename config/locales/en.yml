@@ -163,6 +163,30 @@ en:
         terminal_states_mutually_exclusive: "an override cannot be both consumed and invalidated"
 
   services:
+    recovery_decision:
+      no_progress:
+        headline: "Repair stopped without progress"
+        explanation: "The grader loop stopped because measured failures did not improve."
+        guidance: "Diagnose the repeated measured failures and give the repair agent specific corrective guidance."
+      workspace_unavailable:
+        headline: "Recovery workspace is unavailable"
+        explanation: "The failed workflow workspace is unavailable, so work cannot safely resume in place."
+      fresh_implementation:
+        headline: "A fresh implementation is required"
+        explanation: "The failed workflow cannot be repaired safely in place; restart implementation from the effective base."
+      infrastructure_only:
+        headline: "Infrastructure produced no verdict"
+        explanation: "Execution ended without a trustworthy implementation or test verdict."
+      interrupted_resumable:
+        headline: "Interrupted work can resume"
+        explanation: "The work was interrupted and retains resumable execution state."
+      measured_failure:
+        headline: "A measured failure needs repair"
+        explanation: "Execution produced a measured implementation or test failure."
+        guidance: "Repair the measured failure; an unchanged rerun is not expected to change the verdict."
+      restart_from_base:
+        headline: "Restart from the effective base"
+        explanation: "No trustworthy resumable recovery target remains; restart from the effective base."
     workflow_outcome_overrides:
       telemetry:
         message: "Workflow outcome failed, overridden"

@@ -1112,6 +1112,7 @@
   "recovery_title_restart_from_base": "A fresh implementation is required",
   "recovery_measured_failures": "Measured failures that determined this outcome",
   "recovery_excluded_failures": "Infrastructure failures excluded from the decision",
+  "recovery_unnamed_infrastructure_failure": "Infrastructure execution failure",
   "recovery_attempt_timeline": "Attempt timeline",
   "recovery_original_execution": "Original execution · Workflow {{workflow}}",
   "recovery_terminal_decision": "Decision: {{decision}}",

@@ -61,6 +61,9 @@ class RecoveryDecision
       private
 
       attr_reader :context
+      # Operator-facing copy follows the request locale (Rails I18n).
+      def copy(policy, field) = I18n.t("services.recovery_decision.#{policy}.#{field}")
+
       def result(kind:, outcome:, headline:, action:, mode:, explanation:, guidance: nil, evidence: {})
         Decision.new(kind:, outcome:, headline:, recommended_action: action, mode:, explanation:, guidance:,
           evidence: context.evidence.merge(evidence))
@@ -71,10 +74,10 @@ class RecoveryDecision
       def match? = context.stop.present? || context.workflow&.failure_reason == GraderLoopProgress::NO_PROGRESS_REASON
       def decision
         stop = context.stop
-        result(kind: "grader_loop_no_progress", outcome: "measured_failure", headline: "Repair stopped without progress",
+        result(kind: "grader_loop_no_progress", outcome: "measured_failure", headline: copy("no_progress", "headline"),
           action: "repair_with_guidance", mode: "failed_step",
-          explanation: stop["explanation"].presence || "The grader loop stopped because measured failures did not improve.",
-          guidance: "Diagnose the repeated measured failures and give the repair agent specific corrective guidance.",
+          explanation: stop["explanation"].presence || copy("no_progress", "explanation"),
+          guidance: copy("no_progress", "guidance"),
           evidence: { compared_iterations: stop.slice("previous_iteration", "current_iteration", "repeated_iteration"),
             measured_failure_identities: stop["failing_set"], rounds: stop["rounds"] })
       end
@@ -83,18 +86,18 @@ class RecoveryDecision
     class WorkspaceUnavailable < Base
       def match? = context.workflow.present? && !context.retry_available?
       def decision
-        result(kind: "workspace_unavailable", outcome: "restart_required", headline: "Recovery workspace is unavailable",
+        result(kind: "workspace_unavailable", outcome: "restart_required", headline: copy("workspace_unavailable", "headline"),
           action: "fresh_implementation", mode: "implementation",
-          explanation: "The failed workflow workspace is unavailable, so work cannot safely resume in place.")
+          explanation: copy("workspace_unavailable", "explanation"))
       end
     end
 
     class FreshImplementation < Base
       def match? = context.fresh_workflow_required?
       def decision
-        result(kind: "restart_from_base", outcome: "restart_required", headline: "A fresh implementation is required",
+        result(kind: "restart_from_base", outcome: "restart_required", headline: copy("fresh_implementation", "headline"),
           action: "fresh_implementation", mode: "implementation",
-          explanation: "The failed workflow cannot be repaired safely in place; restart implementation from the effective base.")
+          explanation: copy("fresh_implementation", "explanation"))
       end
     end
 
@@ -104,9 +107,9 @@ class RecoveryDecision
           Array(context.workflow&.artifact(GraderLoopProgress::ARTIFACT_KEY)).last.to_h["transient_only"] == true
       end
       def decision
-        result(kind: "infrastructure_only", outcome: "no_verdict", headline: "Infrastructure produced no verdict",
+        result(kind: "infrastructure_only", outcome: "no_verdict", headline: copy("infrastructure_only", "headline"),
           action: "rerun_unchanged", mode: "failed_step",
-          explanation: "Execution ended without a trustworthy implementation or test verdict.")
+          explanation: copy("infrastructure_only", "explanation"))
       end
     end
 
@@ -114,28 +117,28 @@ class RecoveryDecision
       INTERRUPTED_CLASSIFICATIONS = %w[agent_interrupted agent_resume_unavailable].freeze
       def match? = INTERRUPTED_CLASSIFICATIONS.include?(context.classification)
       def decision
-        result(kind: "interrupted_resumable", outcome: "interrupted", headline: "Interrupted work can resume",
+        result(kind: "interrupted_resumable", outcome: "interrupted", headline: copy("interrupted_resumable", "headline"),
           action: "resume", mode: "failed_step",
-          explanation: "The work was interrupted and retains resumable execution state.")
+          explanation: copy("interrupted_resumable", "explanation"))
       end
     end
 
     class MeasuredFailure < Base
       def match? = context.failed_step.present? && context.retry_available?
       def decision
-        result(kind: "measured_failure", outcome: "measured_failure", headline: "A measured failure needs repair",
+        result(kind: "measured_failure", outcome: "measured_failure", headline: copy("measured_failure", "headline"),
           action: "repair_with_guidance", mode: "failed_step",
-          explanation: "Execution produced a measured implementation or test failure.",
-          guidance: "Repair the measured failure; an unchanged rerun is not expected to change the verdict.")
+          explanation: copy("measured_failure", "explanation"),
+          guidance: copy("measured_failure", "guidance"))
       end
     end
 
     class RestartFromBase < Base
       def match? = true
       def decision
-        result(kind: "restart_from_base", outcome: "restart_required", headline: "Restart from the effective base",
+        result(kind: "restart_from_base", outcome: "restart_required", headline: copy("restart_from_base", "headline"),
           action: "restart", mode: "restart",
-          explanation: "No trustworthy resumable recovery target remains; restart from the effective base.")
+          explanation: copy("restart_from_base", "explanation"))
       end
     end
   end

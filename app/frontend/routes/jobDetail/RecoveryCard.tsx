@@ -21,7 +21,7 @@ export function RecoveryCard({ command, payload }: { command: ReturnType<typeof 
   const action = decision.mode === "failed_step" ? payload.actions.retry_failed_step_action : payload.actions.retry_implementation_action
   const failures = decision.measured_failures ?? []
   const inconclusive = (decision.inconclusive_infrastructure_failures ?? []).map(
-    (failure) => failure.name || failure.classification || "Infrastructure execution failure"
+    (failure) => failure.name || failure.classification || t("recovery_unnamed_infrastructure_failure")
   )
   const timeline = payload.actions.recovery_timeline ?? []
   const required = decision.kind === "grader_loop_no_progress"

@@ -133,6 +133,30 @@ de:
         terminal_states_mutually_exclusive: "Eine Außerkraftsetzung kann nicht zugleich verbraucht und ungültig gemacht sein"
 
   services:
+    recovery_decision:
+      no_progress:
+        headline: "Reparatur ohne Fortschritt beendet"
+        explanation: "Die Grader-Schleife wurde beendet, weil sich die gemessenen Fehler nicht verbessert haben."
+        guidance: "Analysiere die wiederholten gemessenen Fehler und gib dem Reparatur-Agenten konkrete Hinweise zur Korrektur."
+      workspace_unavailable:
+        headline: "Wiederherstellungs-Arbeitsbereich ist nicht verfügbar"
+        explanation: "Der Arbeitsbereich des fehlgeschlagenen Workflows ist nicht verfügbar, daher kann die Arbeit nicht sicher an Ort und Stelle fortgesetzt werden."
+      fresh_implementation:
+        headline: "Eine neue Implementierung ist erforderlich"
+        explanation: "Der fehlgeschlagene Workflow kann nicht sicher an Ort und Stelle repariert werden; starte die Implementierung neu von der effektiven Basis."
+      infrastructure_only:
+        headline: "Die Infrastruktur hat kein Urteil geliefert"
+        explanation: "Die Ausführung endete ohne verlässliches Implementierungs- oder Testurteil."
+      interrupted_resumable:
+        headline: "Unterbrochene Arbeit kann fortgesetzt werden"
+        explanation: "Die Arbeit wurde unterbrochen und hat einen fortsetzbaren Ausführungszustand behalten."
+      measured_failure:
+        headline: "Ein gemessener Fehler muss repariert werden"
+        explanation: "Die Ausführung hat einen gemessenen Implementierungs- oder Testfehler ergeben."
+        guidance: "Repariere den gemessenen Fehler; ein unveränderter erneuter Lauf wird das Urteil voraussichtlich nicht ändern."
+      restart_from_base:
+        headline: "Neustart von der effektiven Basis"
+        explanation: "Es gibt kein verlässliches fortsetzbares Wiederherstellungsziel mehr; starte neu von der effektiven Basis."
     workflow_outcome_overrides:
       telemetry:
         message: "Workflow-Ergebnis fehlgeschlagen, übersteuert"

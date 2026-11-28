@@ -16,6 +16,21 @@ RSpec.describe RecoveryDecision do
     step
   end
 
+  it "localizes operator-facing copy through Rails I18n" do
+    job, workflow = failed_workflow
+    add_failed_step(workflow)
+
+    english = described_class.for(job:, workflow:)
+    german = I18n.with_locale(:de) { described_class.for(job:, workflow:) }
+
+    expect(english).to have_attributes(kind: "measured_failure",
+      explanation: "Execution produced a measured implementation or test failure.")
+    expect(german.kind).to eq("measured_failure")
+    expect(german.explanation).to eq(I18n.t("services.recovery_decision.measured_failure.explanation", locale: :de))
+    expect(german.explanation).not_to eq(english.explanation)
+    expect(german.guidance).not_to eq(english.guidance)
+  end
+
   it "recommends guided repair and retains measured no-progress evidence" do
     job, workflow = failed_workflow
     workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {

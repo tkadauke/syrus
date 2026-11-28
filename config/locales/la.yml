@@ -133,6 +133,30 @@ la:
         terminal_states_mutually_exclusive: "exceptio simul consumpta et infirmata esse non potest"
 
   services:
+    recovery_decision:
+      no_progress:
+        headline: "Reparatio sine progressu cessavit"
+        explanation: "Circulus aestimatorum cessavit, quia errores mensi non meliores facti sunt."
+        guidance: "Errores mensos iteratos examina et agenti reparanti certa consilia corrigendi da."
+      workspace_unavailable:
+        headline: "Spatium restitutionis non praesto est"
+        explanation: "Spatium operis Workflow deficientis non praesto est, itaque opus in loco tuto resumi non potest."
+      fresh_implementation:
+        headline: "Nova exsecutio requiritur"
+        explanation: "Workflow deficiens in loco tuto reparari non potest; exsecutionem a basi efficaci denuo incipe."
+      infrastructure_only:
+        headline: "Infrastructura nullum iudicium dedit"
+        explanation: "Exsecutio sine certo iudicio exsecutionis aut probationis finita est."
+      interrupted_resumable:
+        headline: "Opus interruptum resumi potest"
+        explanation: "Opus interruptum est et statum exsecutionis resumendum servat."
+      measured_failure:
+        headline: "Error mensus reparationem requirit"
+        explanation: "Exsecutio errorem mensum exsecutionis aut probationis protulit."
+        guidance: "Errorem mensum repara; cursus iteratus immutatus iudicium mutare non exspectatur."
+      restart_from_base:
+        headline: "Denuo incipe a basi efficaci"
+        explanation: "Nullum certum restitutionis propositum resumendum manet; a basi efficaci denuo incipe."
     workflow_outcome_overrides:
       telemetry:
         message: "Exitus Workflow defecit, superatus"
