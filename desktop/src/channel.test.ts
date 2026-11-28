@@ -14,10 +14,11 @@ describe("resolveChannel", () => {
   })
 
   it("backstops via version shape when the product name is not forked", () => {
-    // -test.N packaged build, and the 0.0.0 dev sentinel, both resolve to test
+    // -test.N packaged builds and 0.0.x local builds resolve to test
     // even if getName() returned the plain name.
     expect(resolveChannel({ productName: "Syrus", version: "0.1.5-test.3" })).toBe("test")
     expect(resolveChannel({ productName: "syrus-desktop", version: "0.0.0" })).toBe("test")
+    expect(resolveChannel({ productName: "syrus-desktop", version: "0.0.1" })).toBe("test")
   })
 
   it("resolves a clean release to stable", () => {
