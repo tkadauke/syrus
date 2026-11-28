@@ -26,14 +26,15 @@ import { AdminSpaLoader } from "./AdminSpaLoader"
 function snapshot(state = "queued") {
   return {
     warmup: {
-      entries: [{ id: "chat-route", group: "routes", priority: 1, state, source: null, startedAt: null, durationMs: null }],
+      entries: [{ id: "chat-route", group: "routes", priority: 1, state, source: null, startedAt: null, durationMs: null, manifestKey: "app/frontend/routes/Chat.tsx", size: 8192 }],
       queue: state === "queued" ? ["chat-route"] : [], loading: state === "loading" ? "chat-route" : null,
       paused: true, pauseReasons: ["hidden_tab"], stoppedAfterFailure: false
     },
     startup: {
       milestones: [{ name: "shell_loaded", at_ms: 4 }],
-      assets: [{ path: "/assets/spa.js", bytes: 1024, size: 1024, wire_size: 512, source: "service_worker", timing: null }],
-      progress_samples: [], progress: null, events: [{ kind: "auto_retry", at_ms: 9000, attempt: 1 }],
+      assets: [{ path: "/assets/spa.js", bytes: 1024, size: 1024, wire_size: 512, budget_size: 600, source: "service_worker", timing: null }],
+      progress_samples: [], progress: null, events: [{ kind: "auto_retry", at_ms: 9000, attempt: 1 }, { kind: "stale_chunk_failure", at_ms: 9100, outcome: "reload", revision: "new" }],
+      lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
       revision: { page: "new", previous: "old", changed: true },
       service_worker: { present: true, controlled: true, registration: { installing: null, waiting: null, active: "activated" }, worker_revision: "new", counted_requests: ["/assets/spa.js"] }, auto_retry_attempt: 1
     }
@@ -55,6 +56,8 @@ describe("AdminSpaLoader", () => {
     expect(screen.getByText("shell_loaded")).toBeInTheDocument()
     expect(screen.getByText("/assets/spa.js", { selector: "dt" })).toBeInTheDocument()
     expect(screen.getByText("auto_retry")).toBeInTheDocument()
+    expect(screen.getByText(/Reloaded page.*new.*9100 ms/)).toBeInTheDocument()
+    expect(screen.getByText("8 KB")).toBeInTheDocument()
     expect(screen.getByText("new / new")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Warm everything now" }))
     fireEvent.click(screen.getByRole("button", { name: "Clear warm-up state" }))

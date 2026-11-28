@@ -36,12 +36,16 @@ RSpec.describe Syrus::StartupAssets do
         "/assets/spa-vendor.digested.css" => 50,
         "/assets/tailwind-74e6a7ef.css" => 700
       )
+      expect(result.lazy_chunks).to eq(
+        "app/frontend/routes/Search.tsx" => { "file" => "spa-Search.digested.js", "size" => 9999 }
+      )
       # No published variants: everything travels as it is.
       expect(result.for_request("gzip, deflate, br")).to eq(
         "total" => 5350,
         "budget" => { "kind" => "startup_gzip", "bytes" => 480_000 },
         "estimated" => false,
-        "assets" => result.sizes.transform_values { |size| { "size" => size, "wire" => size } }
+        "assets" => result.sizes.to_h { |path, size| [ path, { "size" => size, "wire" => size }.tap { |asset| asset["budget"] = size if path.end_with?(".js") } ] },
+        "lazy_chunks" => result.lazy_chunks
       )
     end
   end
@@ -96,7 +100,7 @@ RSpec.describe Syrus::StartupAssets do
         )
         expect(result.for_request("br;q=0, gzip").fetch("total")).to eq(1100 + 600 + 40)
         expect(result.for_request("gzip, br").fetch("estimated")).to be(false)
-        expect(result.for_request("gzip, br").fetch("assets").fetch("/assets/spa-entry-main.digested.js")).to eq("size" => 4000, "wire" => 900)
+        expect(result.for_request("gzip, br").fetch("assets").fetch("/assets/spa-entry-main.digested.js")).to eq("size" => 4000, "wire" => 900, "budget" => 1100)
       end
     end
 
@@ -117,8 +121,8 @@ RSpec.describe Syrus::StartupAssets do
     allow(Rails.root).to receive(:join).and_call_original
     fake_manifest = instance_double(Pathname, file?: true, mtime: Time.at(100))
     allow(Rails.root).to receive(:join).with(Syrus::ViteEntrypoint::MANIFEST_PATH).and_return(fake_manifest)
-    first = described_class::Result.new(sizes: { "/assets/a.js" => 1 }, variants: {})
-    second = described_class::Result.new(sizes: { "/assets/b.js" => 2 }, variants: {})
+    first = described_class::Result.new(sizes: { "/assets/a.js" => 1 }, variants: {}, lazy_chunks: {})
+    second = described_class::Result.new(sizes: { "/assets/b.js" => 2 }, variants: {}, lazy_chunks: {})
     instances = [ instance_double(described_class, result: first), instance_double(described_class, result: second) ]
     allow(described_class).to receive(:new) { instances.shift }
 

@@ -193,6 +193,20 @@ describe("ChunkWarmupQueue", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
+  it("does not relabel a connection stop as a failure when the connection improves", () => {
+    const connection = { effectiveType: "2g" }
+    const env = fakeEnvironment({ connection })
+    const queue = new ChunkWarmupQueue(env.environment)
+    queue.register("chat", async () => ({}), { priority: 0 })
+    queue.subscribe(() => {})
+
+    queue.start()
+    connection.effectiveType = "4g"
+
+    expect(queue.snapshot().stoppedAfterFailure).toBe(false)
+    expect(queue.snapshot()).toMatchObject({ paused: true, pauseReasons: ["slow_connection"] })
+  })
+
   it("waits while the tab is hidden and resumes when it becomes visible", async () => {
     const env = fakeEnvironment({ hidden: true })
     const queue = new ChunkWarmupQueue(env.environment)

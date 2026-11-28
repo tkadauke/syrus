@@ -60,9 +60,9 @@ export function AdminSpaLoader() {
         <Section.Body className="space-y-4">
           <FilterBar buildLink={filterLink} filter={filterTree} filterSchema={schema} pathname={pathname} search={search} />
           <DataTable.Root density="compact">
-            <DataTable.Header><DataTable.Row>{["id", "group", "priority", "state", "source", "started", "duration"].map((key) => <DataTable.HeadCell key={key}>{t(`spa_loader.${key}`)}</DataTable.HeadCell>)}</DataTable.Row></DataTable.Header>
+            <DataTable.Header><DataTable.Row>{["id", "group", "priority", "state", "size", "source", "started", "duration"].map((key) => <DataTable.HeadCell key={key}>{t(`spa_loader.${key}`)}</DataTable.HeadCell>)}</DataTable.Row></DataTable.Header>
             <DataTable.Body>{entries.map((entry) => <DataTable.Row key={entry.id}>
-              <DataTable.Cell className="font-mono">{entry.id}</DataTable.Cell><DataTable.Cell>{entry.group ?? "—"}</DataTable.Cell><DataTable.Cell>{entry.priority}</DataTable.Cell><DataTable.Cell>{t(`spa_loader.states.${entry.state}`)}</DataTable.Cell><DataTable.Cell>{entry.source ? t(`spa_loader.sources.${entry.source}`) : "—"}</DataTable.Cell><DataTable.Cell>{entry.startedAt === null ? "—" : `${Math.round(entry.startedAt)} ms`}</DataTable.Cell><DataTable.Cell>{entry.durationMs === null ? "—" : `${Math.round(entry.durationMs)} ms`}</DataTable.Cell>
+              <DataTable.Cell className="font-mono">{entry.id}</DataTable.Cell><DataTable.Cell>{entry.group ?? "—"}</DataTable.Cell><DataTable.Cell>{entry.priority}</DataTable.Cell><DataTable.Cell>{t(`spa_loader.states.${entry.state}`)}</DataTable.Cell><DataTable.Cell>{formatBytes(entry.size)}</DataTable.Cell><DataTable.Cell>{entry.source ? t(`spa_loader.sources.${entry.source}`) : "—"}</DataTable.Cell><DataTable.Cell>{entry.startedAt === null ? "—" : `${Math.round(entry.startedAt)} ms`}</DataTable.Cell><DataTable.Cell>{entry.durationMs === null ? "—" : `${Math.round(entry.durationMs)} ms`}</DataTable.Cell>
             </DataTable.Row>)}</DataTable.Body>
           </DataTable.Root>
         </Section.Body>
@@ -75,11 +75,11 @@ export function AdminSpaLoader() {
           ...(startup?.progress?.speed ? [[t("spa_loader.speed"), `${formatBytes(startup.progress.speed)}/s`]] : [])
         ]} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.startup_assets")} rows={[
-          ...(startup?.budget ? [[t("spa_loader.budget"), `${formatBytes(startup.assets.reduce((total, asset) => total + asset.wire_size, 0))} / ${formatBytes(startup.budget.bytes)}`]] : []),
-          ...(startup?.assets ?? []).map((item) => [item.path, `${formatBytes(item.bytes)} / ${formatBytes(item.wire_size)} · ${item.source}`])
+          ...(startup?.budget ? [[t("spa_loader.budget"), `${formatBytes(startup.assets.reduce((total, asset) => total + (asset.budget_size ?? 0), 0))} / ${formatBytes(startup.budget.bytes)}`]] : []),
+          ...(startup?.assets ?? []).map((item) => [item.path, `${formatBytes(item.bytes)} / ${formatBytes(item.wire_size)}${item.budget_size !== null && startup?.budget ? ` · ${Math.round((item.budget_size / startup.budget.bytes) * 100)}%` : ""} · ${item.source}`])
         ]} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.service_worker")} rows={startup ? [[t("spa_loader.present"), String(startup.service_worker.present)], [t("spa_loader.controlled"), String(startup.service_worker.controlled)], [t("spa_loader.registration"), startup.service_worker.registration?.active ?? startup.service_worker.registration?.waiting ?? startup.service_worker.registration?.installing ?? t("spa_loader.none")], [t("spa_loader.revision"), `${startup.service_worker.worker_revision ?? "?"} / ${startup.revision.page}`], [t("spa_loader.counted"), startup.service_worker.counted_requests.join(", ") || t("spa_loader.none")]] : []} empty={t("spa_loader.no_data")} />
-        <DiagnosticSection title={t("spa_loader.recovery")} rows={(startup?.events ?? []).map((item) => [item.kind, `${Math.round(item.at_ms)} ms`])} empty={t("spa_loader.no_events")} />
+        <DiagnosticSection title={t("spa_loader.recovery")} rows={(startup?.events ?? []).map((item) => [item.kind, [item.outcome ? t(`spa_loader.outcomes.${item.outcome}`) : null, item.attempt ? `#${item.attempt}` : null, item.revision ?? null, `${Math.round(item.at_ms)} ms`].filter(Boolean).join(" · ")])} empty={t("spa_loader.no_events")} />
       </div>
     </Page.Root>
   )

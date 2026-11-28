@@ -498,6 +498,7 @@
           bytes: workerBytes[path] || (timing ? startupAssets.sizes[path] : 0),
           size: startupAssets.sizes[path],
           wire_size: startupAssets.wire[path],
+          budget_size: startupAssets.budgetSizes[path] == null ? null : startupAssets.budgetSizes[path],
           source: workerBytes[path] ? "service_worker" : timing ? ((timing.transferSize === 0 && timing.decodedBodySize > 0) ? "cache" : "network") : "pending",
           timing: timing ? timingEntry(timing, false) : null
         });
@@ -509,6 +510,7 @@
       progress_samples: byteSamples.slice(),
       progress: progressSnapshot(),
       budget: startupAssets && startupAssets.budget ? startupAssets.budget : null,
+      lazy_chunks: startupAssets && startupAssets.lazy_chunks ? startupAssets.lazy_chunks : {},
       events: startupEvents ? startupEvents.slice() : [],
       revision: { page: currentRevision, previous: previousRevision, changed: revisionChanged },
       service_worker: {
@@ -645,6 +647,7 @@
       if (!listed || typeof listed !== "object") return null;
       var sizes = {};
       var wire = {};
+      var budgetSizes = {};
       var total = 0;
       Object.keys(listed).forEach(function (path) {
         var asset = listed[path] || {};
@@ -654,9 +657,10 @@
         if (!isFinite(wireSize) || wireSize < 0) wireSize = size;
         sizes[path] = size;
         wire[path] = wireSize;
+        if (isFinite(Number(asset.budget)) && Number(asset.budget) >= 0) budgetSizes[path] = Number(asset.budget);
         total += wireSize;
       });
-      return total > 0 ? { total: total, sizes: sizes, wire: wire, estimated: parsed.estimated === true, budget: parsed.budget || null } : null;
+      return total > 0 ? { total: total, sizes: sizes, wire: wire, budgetSizes: budgetSizes, estimated: parsed.estimated === true, budget: parsed.budget || null, lazy_chunks: parsed.lazy_chunks || {} } : null;
     } catch (e) {
       return null;
     }

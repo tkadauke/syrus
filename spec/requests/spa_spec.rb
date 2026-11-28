@@ -321,7 +321,8 @@ RSpec.describe "SPA shell", type: :request do
         variants: {
           "/assets/spa-entry-SpEc_En-1.digested.js" => { "br" => 300_000, "gzip" => 380_000 },
           "/assets/tailwind-74e6a7ef.css" => { "br" => 40_000, "gzip" => 55_000 }
-        }
+        },
+        lazy_chunks: { "app/frontend/routes/Chat.tsx" => { "file" => "spa-Chat.digested.js", "size" => 98_000 } }
       )
     )
     sign_in_as(Factories.user)
@@ -340,9 +341,10 @@ RSpec.describe "SPA shell", type: :request do
       "budget" => { "kind" => "startup_gzip", "bytes" => 480_000 },
       "estimated" => false,
       "assets" => {
-        "/assets/spa-entry-SpEc_En-1.digested.js" => { "size" => 1_500_000, "wire" => 380_000 },
+        "/assets/spa-entry-SpEc_En-1.digested.js" => { "size" => 1_500_000, "wire" => 380_000, "budget" => 380_000 },
         "/assets/tailwind-74e6a7ef.css" => { "size" => 400_000, "wire" => 55_000 }
-      }
+      },
+      "lazy_chunks" => { "app/frontend/routes/Chat.tsx" => { "file" => "spa-Chat.digested.js", "size" => 98_000 } }
     )
     expect(shell_body.call.index('name="syrus-startup-assets"')).to be < shell_body.call.index('id="syrus-startup-diagnostics"')
 

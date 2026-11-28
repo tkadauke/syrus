@@ -24,6 +24,8 @@ export type ChunkWarmupOptions = {
   priority: number
   /** Optional group name; `start({ skipGroups })` leaves those entries cold. */
   group?: string
+  /** Vite manifest source key, used only by subscribed diagnostics. */
+  manifestKey?: string
 }
 
 type ConnectionLike = { saveData?: boolean; effectiveType?: string }
@@ -43,6 +45,7 @@ type Entry = {
   load: () => Promise<unknown>
   promise?: Promise<unknown>
   loaded: boolean
+  manifestKey?: string
 }
 
 export type ChunkLoadState = "not_loaded" | "queued" | "loading" | "loaded" | "failed"
@@ -55,6 +58,8 @@ export type ChunkWarmupEntrySnapshot = {
   source: ChunkLoadSource | null
   startedAt: number | null
   durationMs: number | null
+  manifestKey: string | null
+  size: number | null
 }
 export type ChunkWarmupSnapshot = {
   entries: ChunkWarmupEntrySnapshot[]
@@ -70,6 +75,12 @@ type ObservedLoad = { source: ChunkLoadSource; startedAt: number; durationMs: nu
 export type WarmableLoader<T> = (() => Promise<T>) & { readonly warmupId: string }
 
 const SLOW_CONNECTION_TYPES = new Set(["slow-2g", "2g"])
+
+function inferredManifestKey(id: string) {
+  if (id.startsWith("route:")) return `app/frontend/routes/${id.slice("route:".length)}.tsx`
+  if (id.startsWith("plugin:../../")) return id.slice("plugin:../../".length)
+  return undefined
+}
 
 function browserEnvironment(): ChunkWarmupEnvironment {
   return {
@@ -92,7 +103,7 @@ export class ChunkWarmupQueue {
   private entries = new Map<string, Entry>()
   private order = 0
   private started = false
-  private stopped = false
+  private stoppedReason: "data_saver" | "slow_connection" | "failure" | null = null
   private skipGroups = new Set<string>()
   private demandsInFlight = 0
   private backgroundInFlight: Entry | null = null
@@ -116,7 +127,7 @@ export class ChunkWarmupQueue {
   register<T>(id: string, load: () => Promise<T>, options: ChunkWarmupOptions): WarmableLoader<T> {
     let entry = this.entries.get(id)
     if (!entry) {
-      entry = { id, priority: options.priority, group: options.group, order: this.order++, load, loaded: false }
+      entry = { id, priority: options.priority, group: options.group, order: this.order++, load, loaded: false, manifestKey: options.manifestKey ?? inferredManifestKey(id) }
       this.entries.set(id, entry)
     }
     const registered = entry
@@ -146,6 +157,7 @@ export class ChunkWarmupQueue {
     if (this.environment().isHidden()) pauseReasons.push("hidden_tab")
     if (this.demandsInFlight > 0) pauseReasons.push("on_demand")
     if (this.disabledReason) pauseReasons.push(this.disabledReason)
+    if (this.stoppedReason && this.stoppedReason !== "failure" && !pauseReasons.includes(this.stoppedReason)) pauseReasons.push(this.stoppedReason)
     const entries = Array.from(this.entries.values()).map((entry): ChunkWarmupEntrySnapshot => {
       const observed = this.observedLoads?.get(entry.id)
       let state: ChunkLoadState = entry.loaded ? "loaded" : "not_loaded"
@@ -159,7 +171,9 @@ export class ChunkWarmupQueue {
         state,
         source: observed?.source ?? null,
         startedAt: observed?.startedAt ?? null,
-        durationMs: observed?.durationMs ?? null
+        durationMs: observed?.durationMs ?? null,
+        manifestKey: entry.manifestKey ?? null,
+        size: null
       }
     })
     return {
@@ -168,14 +182,14 @@ export class ChunkWarmupQueue {
       loading: this.backgroundInFlight?.id ?? entries.find((entry) => entry.state === "loading")?.id ?? null,
       paused: pauseReasons.length > 0,
       pauseReasons,
-      stoppedAfterFailure: this.stopped && !this.slowConnection()
+      stoppedAfterFailure: this.stoppedReason === "failure"
     }
   }
 
   /** In-tab testing actions used by the diagnostics page. */
   warmEverythingNow() {
     this.started = true
-    this.stopped = false
+    this.stoppedReason = null
     this.skipGroups.clear()
     this.disabledReason = null
     this.schedulePump()
@@ -184,7 +198,7 @@ export class ChunkWarmupQueue {
 
   clearWarmupState() {
     this.started = false
-    this.stopped = false
+    this.stoppedReason = null
     this.skipGroups.clear()
     this.observedLoads?.clear()
     this.notify()
@@ -201,8 +215,9 @@ export class ChunkWarmupQueue {
     skipGroups.forEach((group) => this.skipGroups.add(group))
     if (this.started) return
     this.started = true
-    if (this.slowConnection()) {
-      this.stopped = true
+    const connectionStopReason = this.connectionStopReason()
+    if (connectionStopReason) {
+      this.stoppedReason = connectionStopReason
       this.notify()
       return
     }
@@ -223,10 +238,11 @@ export class ChunkWarmupQueue {
     return this.entries.get(id)?.loaded ?? false
   }
 
-  private slowConnection() {
+  private connectionStopReason(): "data_saver" | "slow_connection" | null {
     const connection = this.environment().connection()
-    if (!connection) return false
-    return connection.saveData === true || SLOW_CONNECTION_TYPES.has(connection.effectiveType ?? "")
+    if (connection?.saveData === true) return "data_saver"
+    if (SLOW_CONNECTION_TYPES.has(connection?.effectiveType ?? "")) return "slow_connection"
+    return null
   }
 
   private fetch(entry: Entry) {
@@ -278,7 +294,7 @@ export class ChunkWarmupQueue {
   }
 
   private schedulePump() {
-    if (!this.started || this.stopped || this.pumpScheduled) return
+    if (!this.started || this.stoppedReason || this.pumpScheduled) return
     this.pumpScheduled = true
     this.environment().scheduleIdle(() => {
       this.pumpScheduled = false
@@ -296,7 +312,7 @@ export class ChunkWarmupQueue {
   }
 
   private pump() {
-    if (this.stopped || this.backgroundInFlight || this.demandsInFlight > 0) return
+    if (this.stoppedReason || this.backgroundInFlight || this.demandsInFlight > 0) return
     if (this.environment().isHidden()) return
     const entry = this.nextEntry()
     if (!entry) return
@@ -312,7 +328,7 @@ export class ChunkWarmupQueue {
       () => {
         // handled-error-expected: a background load failing (typically a chunk a deploy replaced) stops warm-up; the on-demand load retries and owns recovery.
         this.backgroundInFlight = null
-        this.stopped = true
+        this.stoppedReason = "failure"
         this.notify()
       }
     )

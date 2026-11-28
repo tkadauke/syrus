@@ -12,7 +12,14 @@ let stopStartup: (() => void) | null = null
 let cachedSnapshot: SpaLoaderDiagnosticsSnapshot | null = null
 
 function readSnapshot(): SpaLoaderDiagnosticsSnapshot {
-  return { warmup: chunkWarmup.snapshot(), startup: window.SyrusStartupDiagnostics?.snapshot?.() ?? null }
+  const startup = window.SyrusStartupDiagnostics?.snapshot?.() ?? null
+  const warmup = chunkWarmup.snapshot()
+  if (startup) {
+    warmup.entries.forEach((entry) => {
+      entry.size = entry.manifestKey ? startup.lazy_chunks?.[entry.manifestKey]?.size ?? null : null
+    })
+  }
+  return { warmup, startup }
 }
 
 function emit() {

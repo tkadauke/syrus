@@ -17,14 +17,18 @@ function dispatchPreloadError() {
 
 describe("installStaleChunkRecovery", () => {
   let uninstall: () => void = () => {}
+  const recordEvent = vi.fn()
 
   beforeEach(() => {
     window.sessionStorage.clear()
     setRevision("rev-1")
+    recordEvent.mockClear()
+    window.SyrusStartupDiagnostics = { mark: vi.fn(), event: recordEvent }
   })
 
   afterEach(() => {
     uninstall()
+    delete window.SyrusStartupDiagnostics
   })
 
   it("reloads once when a chunk from a previous deploy fails to load", () => {
@@ -35,6 +39,7 @@ describe("installStaleChunkRecovery", () => {
 
     expect(reload).toHaveBeenCalledTimes(1)
     expect(event.defaultPrevented).toBe(true)
+    expect(recordEvent).toHaveBeenCalledWith("stale_chunk_failure", { outcome: "reload", revision: "rev-1" })
   })
 
   it("lets the error reach the boundary when the reload already happened for this revision", () => {
@@ -46,6 +51,7 @@ describe("installStaleChunkRecovery", () => {
 
     expect(reload).toHaveBeenCalledTimes(1)
     expect(second.defaultPrevented).toBe(false)
+    expect(recordEvent).toHaveBeenLastCalledWith("stale_chunk_failure", { outcome: "error_boundary", revision: "rev-1" })
   })
 
   it("allows another reload after the next deploy", () => {
@@ -70,6 +76,7 @@ describe("installStaleChunkRecovery", () => {
 
     expect(reload).not.toHaveBeenCalled()
     expect(event.defaultPrevented).toBe(false)
+    expect(recordEvent).toHaveBeenCalledWith("stale_chunk_failure", { outcome: "error_boundary", revision: "rev-1" })
     storage.mockRestore()
   })
 
@@ -81,6 +88,7 @@ describe("installStaleChunkRecovery", () => {
     const background = dispatchPreloadError()
     expect(reload).not.toHaveBeenCalled()
     expect(background.defaultPrevented).toBe(false)
+    expect(recordEvent).toHaveBeenCalledWith("stale_chunk_failure", { outcome: "warmup_stopped" })
 
     backgroundOnly = false
     const onDemand = dispatchPreloadError()

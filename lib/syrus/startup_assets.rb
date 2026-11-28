@@ -28,7 +28,7 @@ module Syrus
     # sizes: { "/assets/<file>" => uncompressed bytes }
     # variants: { "/assets/<file>" => { "br" => bytes, "gzip" => bytes } }, for
     # the variants the build wrote.
-    Result = Data.define(:sizes, :variants) do
+    Result = Data.define(:sizes, :variants, :lazy_chunks) do
       # What the meta tag carries for one request. With no Accept-Encoding to
       # go by (something in between may have stripped it), each file is
       # assumed to arrive as its smallest variant and the total is marked as an
@@ -36,13 +36,16 @@ module Syrus
       def for_request(accept_encoding)
         known = accept_encoding.to_s.strip.present?
         assets = sizes.to_h do |path, size|
-          [ path, { "size" => size, "wire" => wire_size(path, size, known ? accept_encoding : nil) } ]
+          asset = { "size" => size, "wire" => wire_size(path, size, known ? accept_encoding : nil) }
+          asset["budget"] = variants.fetch(path, {}).fetch("gzip", size) if path.end_with?(".js")
+          [ path, asset ]
         end
         {
           "total" => assets.values.sum { |asset| asset.fetch("wire") },
           "budget" => { "kind" => "startup_gzip", "bytes" => STARTUP_GZIP_BUDGET_BYTES },
           "estimated" => !known,
-          "assets" => assets
+          "assets" => assets,
+          "lazy_chunks" => lazy_chunks
         }
       end
 
@@ -112,13 +115,20 @@ module Syrus
     end
 
     def result
+      manifest = JSON.parse(manifest_path.read)
       sizes = {}
       ViteEntrypoint.new(manifest_path).startup_files.each do |file|
         path = builds_root.join(file)
         sizes["#{prefix}/#{file}"] = path.file? ? path.size : 0
       end
       stylesheets.each { |path, bytes| sizes[path] ||= bytes.to_i }
-      Result.new(sizes: sizes, variants: sizes.keys.to_h { |path| [ path, variants_for(path) ] })
+      lazy_chunks = manifest.filter_map do |source, chunk|
+        next unless chunk["isDynamicEntry"] && chunk["file"]
+
+        file = builds_root.join(chunk.fetch("file"))
+        [ source, { "file" => chunk.fetch("file"), "size" => file.file? ? file.size : 0 } ]
+      end.to_h
+      Result.new(sizes: sizes, variants: sizes.keys.to_h { |path| [ path, variants_for(path) ] }, lazy_chunks: lazy_chunks)
     end
 
     private
