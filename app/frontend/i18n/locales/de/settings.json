@@ -2144,7 +2144,7 @@
     "slider": "Stufe der Fragebereitschaft",
     "inherit": "Standard verwenden",
     "timeout": "Antwortfrist (Minuten)",
-    "timeout_help": "Optional. Danach fährt der Agent mit seiner angegebenen Standardantwort fort.",
+    "timeout_help": "Optional, {{min}}–{{max}} Minuten (1 Stunde bis 4 Wochen). Danach fährt der Agent mit seiner angegebenen Standardantwort fort.",
     "levels": {
       "autonomous": { "label": "Autonom", "description": "Fragt nur, wenn die Arbeit wirklich nicht fortgesetzt werden kann." },
       "independent": { "label": "Selbstständig", "description": "Fragt auch vor schwer rückgängig zu machenden Entscheidungen." },

@@ -2144,7 +2144,7 @@
     "slider": "Gradus studii interrogandi",
     "inherit": "Praedefinitione uti",
     "timeout": "Terminus responsi (minuta)",
-    "timeout_help": "Ad libitum. Post hoc tempus agens responsum praedefinitum sequitur.",
+    "timeout_help": "Ad libitum, {{min}}–{{max}} minutae (una hora ad quattuor hebdomades). Post hoc tempus agens responsum praedefinitum sequitur.",
     "levels": {
       "autonomous": { "label": "Autonomus", "description": "Rogat tantum cum opus vere procedere non potest." },
       "independent": { "label": "Independens", "description": "Etiam ante decisiones difficulter revocandas rogat." },
