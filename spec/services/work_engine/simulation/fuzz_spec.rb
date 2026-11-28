@@ -179,6 +179,12 @@ RSpec.describe WorkEngine::Simulation::Fuzz do
       expect(signature(held)).to be_nil
     end
 
+    it "passes a quiet world whose remaining Job waits for a capable worker" do
+      held = result(status: "stuck", final_states: { "JOB-1" => "running:no_capable_worker" }, stuck_reasons: [ "no state changed" ])
+
+      expect(signature(held)).to be_nil
+    end
+
     it "fails on invariant violations, keyed by invariant" do
       violated = result(status: "violated", invariant_violations: [ "tick 4: invariant slot_holders WorkUnit:3:rebase_slot held ticks 2..4: x" ])
 
