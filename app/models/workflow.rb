@@ -579,9 +579,15 @@ class Workflow < ApplicationRecord
     # Killing live processes and cancelling Runs write Runs, and cancelling a
     # Run writes its Step, so the Steps are locked before any Run, parents
     # before children (NY40).
-    active_steps = step_scope.to_a
+    # A Step parked on an operator question is neither active nor terminal;
+    # terminal cleanup retires it and its question so a later answer (or the
+    # answer timeout) cannot resume work on a finished Workflow.
+    active_steps = (step_scope.to_a + steps.where(state: "awaiting_answer").to_a).uniq
     Step.lock.where(id: active_steps.map(&:id)).order(:id).to_a if active_steps.any?
     request_live_process_kill!
+    AgentQuestion.active.where(run_id: runs.select(:id)).find_each do |question|
+      question.withdraw!(source: "workflow_terminal")
+    end
     Step.suppress_cancel_cascade do
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
@@ -589,7 +595,7 @@ class Workflow < ApplicationRecord
         step.id if preserve_publication_failure_during_terminal_cleanup?(step, reason: reason)
       end
 
-      runs.active.find_each do |run|
+      runs.where(state: Run::ACTIVE_STATES + [ "awaiting_answer" ]).find_each do |run|
         if publication_failure_step_ids.include?(run.step_id)
           # Run cancellation normally cascades to its owning Step. Publication
           # retries are the narrow exception: this unused Run is cancelled,

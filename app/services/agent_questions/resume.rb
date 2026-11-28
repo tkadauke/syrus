@@ -16,6 +16,8 @@ module AgentQuestions
         awaiting = @run.awaiting_answer? && step.awaiting_answer?
         blocked = @run.blocked? && step.blocked? && workflow.blocked?
         return false unless awaiting || blocked
+        return false if workflow.terminal? && !blocked
+        return false if workflow.job&.closed?
 
         if resumable_session?
           @run.prompt = answer_prompt

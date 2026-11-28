@@ -220,7 +220,7 @@ class Step < ApplicationRecord
     end
 
     event :cancel do
-      transitions from: [ :queued, :running ], to: :cancelled, after: -> { self.finished_at = Time.current }
+      transitions from: [ :queued, :running, :awaiting_answer ], to: :cancelled, after: -> { self.finished_at = Time.current }
     end
 
     event :skip do
