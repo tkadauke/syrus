@@ -18,6 +18,7 @@ ownership:
     - coworker_chats
     - coworker_base_releases
     - coworker_environment_revisions
+    - coworker_turn_environment_bindings
     - coworker_environments
     - coworker_grants
     - coworker_provisioning_attempts

@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_071426) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_084341) do
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
     t.bigint "user_id", null: false
@@ -1387,6 +1387,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_071426) do
     t.datetime "updated_at", null: false
     t.index ["review_evidence_id"], name: "index_coworker_review_contexts_on_review_evidence_id", unique: true
     t.index ["run_id"], name: "index_coworker_review_contexts_on_run_id", unique: true
+  end
+
+  create_table "coworker_turn_environment_bindings", force: :cascade do |t|
+    t.bigint "chat_session_id", null: false
+    t.bigint "user_message_id", null: false
+    t.bigint "coworker_id", null: false
+    t.bigint "environment_activation_id"
+    t.bigint "environment_revision_id"
+    t.bigint "coworker_base_release_id", null: false
+    t.bigint "runtime_image_id", null: false
+    t.boolean "feature_gate_enabled", null: false
+    t.string "selection_kind", limit: 32, null: false
+    t.string "image_digest", limit: 191, null: false
+    t.string "base_digest", limit: 191, null: false
+    t.integer "runtime_abi", null: false
+    t.string "revocation_state", limit: 32, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "created_at"], name: "idx_coworker_turn_env_bindings_chat"
+    t.index ["image_digest"], name: "idx_coworker_turn_env_bindings_digest"
+    t.index ["user_message_id"], name: "idx_coworker_turn_env_bindings_message", unique: true
   end
 
   create_table "coworker_workspace_conflicts", force: :cascade do |t|

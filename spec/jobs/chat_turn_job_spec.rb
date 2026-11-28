@@ -301,6 +301,19 @@ RSpec.describe ChatTurnJob, :ci_only do
       .with(result: result, exception: instance_of(ActiveRecord::Deadlocked)).once
   end
 
+  it "notifies the lifecycle only after the turn is claimed" do
+    lifecycle = Class.new(ChatTurnLifecycles::Default) do
+      def turn_started!; end
+    end.new(chat_session: chat, user_message: user_message)
+    allow(lifecycle).to receive(:turn_started!)
+    allow(ChatTurnLifecycles).to receive(:for).and_return(lifecycle)
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(lifecycle).to have_received(:turn_started!).once
+  end
+
   it "updates coding_checkout_uncommitted after the turn when there are uncommitted changes" do
     enable_coding_mode!
     chat.update!(mode: "coding", coding_checkout_branch: "syrus-chat-#{chat.id}")

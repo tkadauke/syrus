@@ -13,6 +13,14 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
   before do
     Coworkers::ChatExtension.install_into(scope)
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    selection = Coworkers::TurnEnvironmentSelection::Selection.new(
+      kind: "standard", feature_gate_enabled: false, activation_id: nil, revision_id: nil,
+      base_release_id: 1, runtime_image_id: 31, image_digest: "sha256:#{'1' * 64}",
+      base_digest: "sha256:#{'1' * 64}", runtime_abi: 1, revocation_state: "available",
+      runtime_image: instance_double(RuntimeImage)
+    )
+    @environment_resolver = instance_double(Coworkers::TurnEnvironmentSelection, resolve: selection, persist!: nil)
+    allow(Coworkers::TurnEnvironmentSelection).to receive(:new).and_return(@environment_resolver)
   end
 
   after { scope.dispose }
@@ -40,19 +48,15 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
   end
 
   it "pins one immutable activation at admission even when publication advances concurrently" do
-    Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
-    environment = Coworkers::Environment.create!(coworker:, state: "active")
     first_image = instance_double(RuntimeImage, id: 31, digest: "sha256:#{'1' * 64}")
-    replacement_image = instance_double(RuntimeImage, id: 32, digest: "sha256:#{'2' * 64}")
-    first = Coworkers::EnvironmentActiveSelection::Selection.new(
-      activation_id: 11, revision_id: 21, runtime_image_id: 31,
-      image_digest: first_image.digest, runtime_image: first_image
+    first = Coworkers::TurnEnvironmentSelection::Selection.new(
+      kind: "custom", feature_gate_enabled: true, activation_id: 11, revision_id: 21,
+      base_release_id: 1, runtime_image_id: 31, image_digest: first_image.digest,
+      base_digest: "sha256:#{'3' * 64}", runtime_abi: 3, revocation_state: "available",
+      runtime_image: first_image
     )
-    replacement = Coworkers::EnvironmentActiveSelection::Selection.new(
-      activation_id: 12, revision_id: 22, runtime_image_id: 32,
-      image_digest: replacement_image.digest, runtime_image: replacement_image
-    )
-    allow(Coworkers::EnvironmentActiveSelection).to receive(:resolve).with(environment).and_return(first, replacement)
+    resolver = instance_double(Coworkers::TurnEnvironmentSelection, resolve: first, persist!: nil)
+    allow(Coworkers::TurnEnvironmentSelection).to receive(:new).and_return(resolver)
     allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return({})
     lifecycle = described_class.new(chat_session: chat, user_message: message)
 
@@ -62,18 +66,31 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
     expect(policy.runtime_image).to eq(first_image)
     expect(policy.runtime_image_digest).to eq(first.image_digest)
     expect(policy).to be_fail_closed
-    expect(Coworkers::EnvironmentActiveSelection).to have_received(:resolve).once
+    expect(resolver).to have_received(:resolve).once
+  end
+
+  it "records the resolved environment after the turn is claimed" do
+    allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return({})
+    lifecycle = described_class.new(chat_session: chat, user_message: message)
+
+    lifecycle.admission
+    lifecycle.turn_started!
+
+    expect(@environment_resolver).to have_received(:persist!).with(chat_session: chat)
   end
 
   it "counts only failures that occur before the agent process starts" do
     Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
     environment = Coworkers::Environment.create!(coworker:, state: "active")
-    selection = Coworkers::EnvironmentActiveSelection::Selection.new(
-      activation_id: 11, revision_id: 21, runtime_image_id: 31,
-      image_digest: "sha256:#{'1' * 64}", runtime_image: instance_double(RuntimeImage)
+    selection = Coworkers::TurnEnvironmentSelection::Selection.new(
+      kind: "custom", feature_gate_enabled: true, activation_id: 11, revision_id: 21,
+      base_release_id: 1, runtime_image_id: 31, image_digest: "sha256:#{'1' * 64}",
+      base_digest: "sha256:#{'2' * 64}", runtime_abi: 3, revocation_state: "available",
+      runtime_image: instance_double(RuntimeImage)
     )
     recovery = instance_double(Coworkers::EnvironmentRecovery, record_launch_failure!: nil)
-    allow(Coworkers::EnvironmentActiveSelection).to receive(:resolve).with(environment).and_return(selection)
+    resolver = instance_double(Coworkers::TurnEnvironmentSelection, resolve: selection, persist!: nil)
+    allow(Coworkers::TurnEnvironmentSelection).to receive(:new).and_return(resolver)
     allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return({})
     allow(Coworkers::EnvironmentRecovery).to receive(:new).with(environment).and_return(recovery)
     lifecycle = described_class.new(chat_session: chat, user_message: message)
@@ -92,12 +109,15 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
   it "does not count a late exception after an agent process started" do
     Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
     environment = Coworkers::Environment.create!(coworker:, state: "active")
-    selection = Coworkers::EnvironmentActiveSelection::Selection.new(
-      activation_id: 11, revision_id: 21, runtime_image_id: 31,
-      image_digest: "sha256:#{'1' * 64}", runtime_image: instance_double(RuntimeImage)
+    selection = Coworkers::TurnEnvironmentSelection::Selection.new(
+      kind: "custom", feature_gate_enabled: true, activation_id: 11, revision_id: 21,
+      base_release_id: 1, runtime_image_id: 31, image_digest: "sha256:#{'1' * 64}",
+      base_digest: "sha256:#{'2' * 64}", runtime_abi: 3, revocation_state: "available",
+      runtime_image: instance_double(RuntimeImage)
     )
     recovery = instance_double(Coworkers::EnvironmentRecovery, record_launch_failure!: nil)
-    allow(Coworkers::EnvironmentActiveSelection).to receive(:resolve).with(environment).and_return(selection)
+    resolver = instance_double(Coworkers::TurnEnvironmentSelection, resolve: selection, persist!: nil)
+    allow(Coworkers::TurnEnvironmentSelection).to receive(:new).and_return(resolver)
     allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return({})
     allow(Coworkers::EnvironmentRecovery).to receive(:new).with(environment).and_return(recovery)
     lifecycle = described_class.new(chat_session: chat, user_message: message)
