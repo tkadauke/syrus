@@ -1985,7 +1985,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
         state: "running",
         started_at: 5.minutes.ago
       )
-      attach_work_unit(workflow, state: "running", kind: "job_bundle", member_jobs: [ owner, member ])
+      unit = attach_work_unit(workflow, state: "running", kind: "job_bundle", member_jobs: [ owner, member ])
+
+      expect(unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:repository:%")).to exist
 
       rows = call(subject: "job", section: "rows")
       items = rows[:items].index_by { |item| item[:id] }
@@ -2005,6 +2007,66 @@ RSpec.describe App::DashboardPayload, :ci_only do
         latest_workflow_state: "running"
       )
       expect(items.fetch(member.id)[:latest_workflow_id]).not_to eq(stale_member_workflow.id)
+    end
+
+    it "keeps approved pre-lane landing work approved while retaining workflow and queue metadata" do
+      SmartFolder.ensure_builtins_for_subject!("job")
+      landing_queue_folder = SmartFolder.find_builtin_by_attention("landing_queue")
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        state: "approved",
+        pr_number: 103,
+        landing_queue_blocked_reason: { key: "waiting_landing_lane" }
+      )
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "queued")
+      unit = attach_work_unit(workflow, state: "blocked", kind: "auto_merge", blocked_reason: "active_work_lock")
+      unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:repository:%").find_each(&:release!)
+
+      rows = call(subject: "job", smart_folder_id: landing_queue_folder.id, section: "rows")
+      item = rows[:items].find { |candidate| candidate[:id] == job.id }
+
+      expect(item).to include(
+        state: "approved",
+        summary_state: "approved",
+        active_workflow_trigger_kind: "auto_merge",
+        latest_workflow_id: workflow.id,
+        latest_workflow_trigger_kind: "auto_merge",
+        landing_queue_wait_reason: { key: "blocked_by_active_landing_unit" }
+      )
+    end
+
+    it "keeps canonical landing jobs visually landing without a lane lock" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 104)
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |candidate| candidate[:id] == job.id }
+
+      expect(item).to include(state: "landing", summary_state: "landing")
+    end
+
+    it "batches active landing lane lock lookup for job rows" do
+      jobs = 3.times.map do |index|
+        job = Factories.job_record(user: user, repository: repo, state: "approved", pr_number: 110 + index)
+        workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "queued")
+        unit = attach_work_unit(workflow, state: "blocked", kind: "auto_merge", blocked_reason: "active_work_lock")
+        unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:repository:%").find_each(&:release!)
+        job
+      end
+
+      lock_queries = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        lock_queries += 1 if payload[:sql].match?(/FROM\s+["`]?work_unit_locks["`]?/i)
+      end
+
+      result = begin
+        call(subject: "job", section: "rows")
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(result[:items].filter_map { |item| item[:id] if jobs.map(&:id).include?(item[:id]) }.size).to eq(3)
+      expect(lock_queries).to eq(1)
     end
 
     it "shows failed jobs with active repair WorkUnits as repairing" do
