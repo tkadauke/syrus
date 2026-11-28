@@ -448,9 +448,42 @@ describe("startupDiagnostics", () => {
     })
     expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
     expect(startupStatus()).toHaveTextContent("Syrus is still loading")
-    expect(startupStatus()).toHaveTextContent("This can happen on a slow connection. Retry if it does not finish soon.")
+    expect(startupStatus()).toHaveTextContent("It keeps loading on its own.")
+    // Retrying a slow load throws away what already downloaded.
+    expect(startupRetry()).toHaveAttribute("hidden")
+  })
+
+  it("offers Retry only once startup has made no progress for the stall window", () => {
+    vi.useFakeTimers()
+    let resources: PerformanceEntry[] = []
+    installStartupShell({ performanceEntries: { get resource() { return resources } } as unknown as Record<string, PerformanceEntry[]> })
+
+    vi.advanceTimersByTime(8000)
+    // A slow bundle finishes after a while: that is progress, so no Retry yet.
+    vi.advanceTimersByTime(25000)
+    resources = [ { name: "/assets/app.js" } as PerformanceEntry ]
+    vi.advanceTimersByTime(5000)
+    expect(startupRetry()).toHaveAttribute("hidden")
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+
+    // Then nothing arrives for the whole stall window.
+    vi.advanceTimersByTime(35000)
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "stalled")
+    expect(startupStatus()).toHaveTextContent("Loading has stalled")
     expect(startupRetry()).not.toHaveAttribute("hidden")
     expect(startupRetry().href).toBe(`${window.location.origin}/jobs/42`)
+  })
+
+  it("takes over from the shell's fallback timer, so the shell never offers an early Retry", () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = `<div id="syrus-startup-status"></div>`
+    window.eval(inlineStartupFallback())
+    installStartupShell()
+
+    vi.advanceTimersByTime(8000)
+
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+    expect(startupRetry()).toHaveAttribute("hidden")
   })
 
   it("hides the shell loading state and does not report the watchdog after React marks first render", () => {

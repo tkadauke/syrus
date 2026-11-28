@@ -1,5 +1,12 @@
 (function () {
   var WATCHDOG_TIMEOUT_MS = 8000;
+  // A slow connection is still a working one. Retrying throws away whatever
+  // has already downloaded and starts over, so the watchdog only says the app
+  // is still loading; Retry is offered once nothing has made progress (no
+  // startup resource finished, no milestone reached) for this long.
+  var STALL_RETRY_MS = 30000;
+  var PROGRESS_POLL_MS = 5000;
+  var progressTimer = null;
   var startupAt = Date.now();
   var reportedKeys = {};
   var milestones = [];
@@ -396,6 +403,10 @@
         window.clearTimeout(watchdogTimer);
         watchdogTimer = null;
       }
+      if (progressTimer !== null) {
+        window.clearInterval(progressTimer);
+        progressTimer = null;
+      }
       hideStartupState();
     }
     reportMilestone(milestone);
@@ -489,6 +500,51 @@
     });
   });
 
+  // This script owns the watchdog once it runs; the shell's own fallback
+  // timer is only for when this script never arrives.
+  if (window.__syrusStartupFallbackTimer) {
+    window.clearTimeout(window.__syrusStartupFallbackTimer);
+    window.__syrusStartupFallbackTimer = null;
+  }
+
+  function startupProgressSignature() {
+    var resources = 0;
+    try {
+      if (window.performance && performance.getEntriesByType) resources = performance.getEntriesByType("resource").length;
+    } catch (e) {
+      resources = 0;
+    }
+    return resources + ":" + milestones.length + ":" + (document.readyState || "");
+  }
+
+  function watchForStall() {
+    var signature = startupProgressSignature();
+    var lastProgressAt = Date.now();
+    progressTimer = window.setInterval(function () {
+      if (window.__syrusReactFirstRender) {
+        window.clearInterval(progressTimer);
+        progressTimer = null;
+        return;
+      }
+      var current = startupProgressSignature();
+      if (current !== signature) {
+        signature = current;
+        lastProgressAt = Date.now();
+        return;
+      }
+      if (Date.now() - lastProgressAt < STALL_RETRY_MS) return;
+
+      window.clearInterval(progressTimer);
+      progressTimer = null;
+      showStartupState({
+        name: "stalled",
+        title: "Loading has stalled",
+        message: "Nothing has arrived for a while. Retry, or keep waiting.",
+        retry: true
+      });
+    }, PROGRESS_POLL_MS);
+  }
+
   watchdogTimer = window.setTimeout(function () {
     if (window.__syrusReactFirstRender) return;
     var root = document.getElementById("syrus-spa-root");
@@ -496,9 +552,9 @@
     showStartupState({
       name: "watchdog",
       title: "Syrus is still loading",
-      message: "This can happen on a slow connection. Retry if it does not finish soon.",
-      retry: true
+      message: "This can take a while on a slow connection. It keeps loading on its own."
     });
+    watchForStall();
     report("StartupWatchdog", rootBlank ? "SPA startup watchdog: root still blank" : "SPA startup watchdog: first render not marked", {
       phase: milestones.some(function (entry) { return entry.name === "react_module_evaluated"; }) ? "root_mount" : "bundle_evaluation",
       root_present: !!root,

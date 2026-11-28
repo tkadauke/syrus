@@ -89,7 +89,7 @@
 
     <script id="syrus-startup-diagnostics-fallback" nonce="<%= content_security_policy_nonce %>">
       (function () {
-        function showFailure(title, message) {
+        function showFailure(title, message, offerRetry) {
           if (window.__syrusReactFirstRender) return;
           var status = document.getElementById("syrus-startup-status");
           if (!status) return;
@@ -102,20 +102,23 @@
           var correlation = status.querySelector("[data-syrus-startup-correlation]");
           if (titleEl) titleEl.textContent = title;
           if (messageEl) messageEl.textContent = message;
-          if (spinner) spinner.hidden = true;
-          if (retry) retry.hidden = false;
-          if (correlation) {
+          if (spinner) spinner.hidden = offerRetry;
+          if (retry) retry.hidden = !offerRetry;
+          if (correlation && offerRetry) {
             correlation.hidden = false;
             correlation.textContent = (status.dataset.referenceLabel || "Reference") + ": startup-shell-" + Date.now();
           }
         }
         window.addEventListener("error", function (event) {
           if (event.target && event.target.id === "syrus-startup-diagnostics") {
-            showFailure("The app could not load", "Check your connection, then retry.");
+            showFailure("The app could not load", "Check your connection, then retry.", true);
           }
         }, true);
+        // Only runs until startup_diagnostics.js arrives and takes over. A
+        // slow download is not a failure, so this says so without offering a
+        // Retry that would throw the download away.
         window.__syrusStartupFallbackTimer = window.setTimeout(function () {
-          showFailure("Syrus is still loading", "This can happen on a slow connection. Retry if it does not finish soon.");
+          showFailure("Syrus is still loading", "This can take a while on a slow connection. It keeps loading on its own.", false);
         }, 8000);
       })();
     </script>
