@@ -29,7 +29,11 @@ module Coworkers
     def rollback!(failed_activation:, actor:)
       environment.with_lock do
         failed_activation.reload
-        raise EnvironmentRevision::InvalidTransition, "rollback target is no longer active" unless environment.active_activation_id == failed_activation.id
+        unless environment.active_activation_id == failed_activation.id
+          current = environment.active_activation
+          audit("rollback_replayed", current, code: "active_pointer_advanced") if current
+          return current
+        end
 
         target = rollback_target(failed_activation)
         raise EnvironmentRevision::InvalidTransition, "no compatible verified rollback image is available" unless target
@@ -82,6 +86,11 @@ module Coworkers
     end
 
     def activate!(target, failed_activation:, actor:)
+      target.runtime_image.lock!
+      target.verification_attestation.lock!
+      unless launchable?(target)
+        raise EnvironmentRevision::InvalidTransition, "no compatible verified rollback image is available"
+      end
       failed_activation.revision.transition_to!(:retired) if failed_activation.revision.active?
       target.revision.transition_to!(:active) if target.revision.retired?
       activation = environment.activations.create!(

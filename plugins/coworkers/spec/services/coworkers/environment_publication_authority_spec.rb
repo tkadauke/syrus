@@ -127,4 +127,31 @@ RSpec.describe Coworkers::EnvironmentPublicationAuthority do
     expect(result).to be_ask
     expect(result.inherited_from).to be_nil
   end
+
+  it "revalidates the live feature gate immediately before publication" do
+    attest(image)
+    result = described_class.new(owner:, coworker:, environment:, revision:, risk:).call
+    Feature.find_by!(slug: "coworker_custom_environments").update!(enabled: false)
+
+    expect {
+      described_class.revalidate!(result, owner:, coworker:, environment:, revision:)
+    }.to raise_error(Coworkers::EnvironmentRevision::InvalidTransition, /no longer authorized/)
+  end
+
+  it "revalidates a revoked one-use lease immediately before publication" do
+    descriptor = described_class.new(owner:, coworker:, environment:, revision:, risk:).send(:descriptor)
+    subject = described_class.new(owner:, coworker:, environment:, revision:, risk:).send(:permission_subject)
+    lease = Syrus::Host::PermissionManagement.new(owner).lease!({
+      "capability" => descriptor.capability, "operation" => descriptor.operation,
+      "role" => AgentRole::COWORKER, "subject_selector_type" => "agent", "subject_selector_id" => coworker.id.to_s,
+      "resource_scope" => {}, "arguments" => subject.permission_arguments,
+      "duration" => "invocation", "max_uses" => 1
+    }, actor: owner)
+    result = described_class.new(owner:, coworker:, environment:, revision:, risk:).call
+    lease.revoke!(actor: owner)
+
+    expect {
+      described_class.revalidate!(result, owner:, coworker:, environment:, revision:)
+    }.to raise_error(Coworkers::EnvironmentRevision::InvalidTransition, /no longer authorized/)
+  end
 end
