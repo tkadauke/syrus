@@ -10,6 +10,10 @@ RSpec.describe ContainerExecution::CoworkerCapabilityProbe do
   end
 
   it "runs the per-turn container and default-deny checks before advertising confinement" do
+    allow(Syrus::Host::RuntimeImages).to receive(:worker_health).and_return(
+      "registry_access" => "ok", "cache_integrity" => "ok", "base_abi_compatible" => true,
+      "termination_support" => true
+    )
     allow(ContainerExecution::Configuration).to receive(:docker_command_path).and_return("/usr/bin/docker")
     allow(ContainerExecution::Configuration).to receive(:docker_transport_available?).and_return(true)
     ENV["SYRUS_CONTAINER_EXECUTION_IMAGE"] = "ghcr.io/example/coworker:latest"
@@ -32,12 +36,19 @@ RSpec.describe ContainerExecution::CoworkerCapabilityProbe do
       "--network", "coworker-egress", "--dns", "10.0.0.53"
     )
     expect(probe.fetch(:command).join(" ")).to include("1.1.1.1/443", "169.254.169.254/80")
+    expect(probe.dig(:diagnostics, "runtime_image")).to include(
+      "registry_access" => "ok", "cache_integrity" => "ok", "base_abi_compatible" => true,
+      "confinement" => true, "scratch_profile" => "standard", "scratch_executable" => false,
+      "termination_support" => true
+    )
 
     ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE"] = "executable_scratch"
     ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_SCRATCH"] = "512m"
     expect(described_class.capability_probes.first.fetch(:command)).to include(
       "--tmpfs", "/scratch:rw,nosuid,nodev,exec,size=512m"
     )
+    expect(described_class.capability_probes.first.dig(:diagnostics, "runtime_image"))
+      .to include("scratch_profile" => "executable_scratch", "scratch_executable" => true)
 
     ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE"] = "unknown"
     probe = described_class.capability_probes.first

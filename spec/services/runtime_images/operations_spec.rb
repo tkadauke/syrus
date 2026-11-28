@@ -63,6 +63,18 @@ RSpec.describe "Runtime Image Service audit, health, and diagnostics" do
         metric_value(Syrus::Metrics.counter(:syrus_runtime_image_operations_total), { kind: "publish", outcome: "ok" }).to_i
       }.by(1)
     end
+
+    it "counts processes targeted by severe revocation" do
+      image = publish
+      SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a", pid: 101,
+        started_at: Time.current, resource_attribution: { "runtime_image_digest" => image.digest })
+      allow(OperationalLogging).to receive(:ingest)
+
+      expect { service.revoke(image, reason: "compromised", severity: "severe") }.to change {
+        metric_value(Syrus::Metrics.counter(:syrus_runtime_image_revocation_terminations_total),
+          { outcome: "requested" }).to_i
+      }.by(1)
+    end
   end
 
   describe RuntimeImages::Health do

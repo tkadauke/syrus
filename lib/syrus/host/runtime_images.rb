@@ -50,6 +50,8 @@ module Syrus
           .recent_first.pick(:details) || {}
       end
 
+      def self.worker_health = ::RuntimeImages::WorkerHealth.snapshot
+
       def self.delete(image, **) = ::RuntimeImages::Service.new.delete(image, **)
 
       def self.audit(event_type, **) = ::RuntimeImages::Audit.record(event_type, **)
