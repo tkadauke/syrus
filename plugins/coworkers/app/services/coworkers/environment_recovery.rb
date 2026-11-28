@@ -39,9 +39,8 @@ module Coworkers
     end
 
     def refresh_retention!(actor: "system")
-      keep = environment.activations.reorder(activated_at: :desc, id: :desc)
-        .includes(:runtime_image).filter { |activation| launchable?(activation) }
-        .first(rollback_retention_count + 1)
+      keep = activation_chain(environment.active_activation)
+        .select { |activation| launchable?(activation) }.first(rollback_retention_count + 1)
       keep_ids = keep.map(&:runtime_image_id)
 
       keep.each { |activation| Syrus::Host::RuntimeImages.retain(activation.runtime_image, reason: RETENTION_REASON, actor:) }
@@ -65,8 +64,11 @@ module Coworkers
     end
 
     def rollback_target(failed_activation)
-      environment.activations.where.not(id: failed_activation.id).reorder(activated_at: :desc, id: :desc)
-        .includes(:revision, :runtime_image, :verification_attestation).detect { |activation| launchable?(activation) }
+      activation_chain(failed_activation.previous_activation).detect { |activation| launchable?(activation) }
+    end
+
+    def activation_chain(first)
+      Enumerator.produce(first) { |activation| activation&.previous_activation }.take_while(&:present?)
     end
 
     def launchable?(activation)
@@ -82,12 +84,21 @@ module Coworkers
     def activate!(target, failed_activation:, actor:)
       failed_activation.revision.transition_to!(:retired) if failed_activation.revision.active?
       target.revision.transition_to!(:active) if target.revision.retired?
-      event = audit("rolled_back", target, code: "launch_failure_threshold")
+      activation = environment.activations.create!(
+        revision: target.revision, runtime_image: target.runtime_image,
+        previous_activation: target.previous_activation,
+        verification_attestation: target.verification_attestation,
+        authority_lease: target.authority_lease,
+        inherited_from_activation: target.authority_kind == "inherited" ? target.inherited_from_activation : nil,
+        source_digest: target.source_digest, image_digest: target.image_digest,
+        authority_kind: target.authority_kind, actor: actor.to_s, activated_at: now
+      )
+      event = audit("rolled_back", activation, code: "launch_failure_threshold")
       environment.update!(state: "active", active_revision: target.revision,
-                          active_runtime_image: target.runtime_image, active_activation: target,
+                          active_runtime_image: target.runtime_image, active_activation: activation,
                           last_error_code: nil, last_audit_event: event)
       refresh_retention!(actor:)
-      target
+      activation
     end
 
     def audit(action, activation, code: nil)
