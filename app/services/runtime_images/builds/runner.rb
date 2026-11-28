@@ -162,6 +162,9 @@ module RuntimeImages
         end
         policy
       end
+      # The re-evaluator re-verifies a built image through these two; private,
+      # every re-evaluation raised NoMethodError (F156).
+      public :verify_candidate, :verification_policy
 
       private
 

@@ -5097,6 +5097,29 @@ reading the failure as answered.
 (stuck before) and `spec/services/work_engine/cancel_superseded_ci_repair_behind_base_spec.rb`.
 
 ---
+## F156. Every runtime image re-evaluation of a built image failed — fixed
+
+**Invariant.** An accepted image stays usable across re-evaluation as long as
+it still passes: re-evaluation can demote an image only on a real finding.
+
+**Counterexample.** Re-evaluation of a built image could not succeed, for three
+reasons on one path. `Reevaluator#call` called `Builds::Runner#verify_candidate`
+and `#verification_policy`, both private, so it raised `NoMethodError`. Past
+that, it handed the scanner the persisted `RuntimeImageBuildEvidence`, whose
+`log` is a text column, and `ImagePolicyScanner#write_inputs` called `finish`
+on it, which only the live build's `LogCapture` has. And it took the request's
+newest evidence row regardless of digest, so a later rebuild of the same
+request would judge this image by another image's build. Attestations expire
+after a day; the first re-evaluation of every built image would have blocked it
+(or raised), leaving it permanently unpullable.
+
+**Fix.** Both runner methods are public, the scanner reads the log as text when
+it is not a capture, and re-evaluation takes the newest evidence bound to the
+image's digest. Spec first: "writes the build log from persisted build
+evidence" and "re-evaluates with the build evidence bound to the image's
+digest" failed before the change (the latter on the private method).
+
+
 ## F155. The candidate probe asked for a launch-only image and was always refused — fixed
 
 **Invariant.** A verification check can reach the image it verifies.

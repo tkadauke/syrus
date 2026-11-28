@@ -13,7 +13,11 @@ module RuntimeImages
       def call(attestation, policy:, now: Time.current, build_result: nil)
         return attestation unless claim(attestation, now)
         return @orchestrator.verify(attestation.runtime_image, policy: policy, now: now) unless build_result
-        evidence = build_result.request.evidences.max_by { |item| [ item.created_at, item.id ] }
+        # The evidence of this image's own build: a later rebuild of the same
+        # request leaves newer evidence for another digest (F156).
+        image = attestation.runtime_image
+        evidence = build_result.request.evidences.select { |item| item.image_digest == image.digest }
+                               .max_by { |item| [ item.created_at, item.id ] }
         raise ProviderError, "build evidence is unavailable for re-evaluation" unless evidence
         @build_runner.verify_candidate(build_result.request, attestation.runtime_image, evidence, policy: policy)
       end

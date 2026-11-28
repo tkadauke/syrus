@@ -38,6 +38,22 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
     expect(orchestrator).not_to have_received(:verify)
   end
 
+  # The newest evidence row of a request may belong to another image digest
+  # (a later rebuild of the same request); re-evaluating with it would judge
+  # this image by another image's build (F156).
+  it "re-evaluates with the build evidence bound to the image's digest" do
+    attestation
+    own = instance_double(RuntimeImageBuildEvidence, image_digest: image.digest, created_at: 2.hours.ago, id: 1)
+    other = instance_double(RuntimeImageBuildEvidence, image_digest: "sha256:#{"f" * 64}", created_at: 1.minute.ago, id: 2)
+    request = instance_double(RuntimeImageBuildRequest, evidences: [ own, other ])
+    result = instance_double(RuntimeImageBuildResult, request: request)
+    allow(runner).to receive(:verification_policy).and_return(policy)
+    allow(runner).to receive(:verify_candidate).and_return(:reverified)
+
+    expect(service.call(attestation, policy: policy, build_result: result)).to eq(:reverified)
+    expect(runner).to have_received(:verify_candidate).with(request, image, own, policy: policy)
+  end
+
   it "recovers an abandoned newer verification attempt" do
     now = Time.current
     attestation

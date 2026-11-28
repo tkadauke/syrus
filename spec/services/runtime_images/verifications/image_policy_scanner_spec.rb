@@ -35,6 +35,21 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
     expect(JSON.parse(scanned_files.fetch("image-metadata.json"))).to include("Size" => 10)
   end
 
+  # Re-evaluation passes the persisted RuntimeImageBuildEvidence, whose log is
+  # a text column, not the live build's LogCapture. Calling `finish` on it
+  # raised, every re-evaluation was blocked as a verifier error, and every
+  # built image became unpullable once its first attestation expired (F156).
+  it "writes the build log from persisted build evidence" do
+    persisted = instance_double(RuntimeImageBuildEvidence, log: "persisted build log")
+
+    Dir.mktmpdir do |dir|
+      described_class.new(built_images: built_images, runner: double("runner"))
+                     .send(:write_inputs, dir, request, persisted, "", {})
+
+      expect(File.read(File.join(dir, "build.log"))).to eq("persisted build log")
+    end
+  end
+
   it "fails closed when complete image history exceeds the inspection output limit" do
     allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image@sha256:digest")
     runner = lambda do |argv|

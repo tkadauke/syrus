@@ -38,13 +38,19 @@ module RuntimeImages
       private
 
       def write_inputs(dir, request, evidence, history, metadata)
-        File.binwrite(File.join(dir, "build.log"), evidence.log.finish.to_s)
+        File.binwrite(File.join(dir, "build.log"), build_log_text(evidence.log))
         File.write(File.join(dir, "image-history.jsonl"), history)
         File.write(File.join(dir, "image-metadata.json"), JSON.generate(metadata))
         return unless request.source_archive.attached?
 
         archive = File.join(dir, "source.archive")
         stage_source(request.source_archive.attachment.blob, archive)
+      end
+
+      # A live build hands its LogCapture; re-evaluation hands the persisted
+      # evidence, whose log is already text (F156).
+      def build_log_text(log)
+        (log.respond_to?(:finish) ? log.finish : log).to_s
       end
 
       def stage_source(blob, archive)
