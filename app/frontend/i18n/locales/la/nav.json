@@ -403,6 +403,7 @@
     "title": "Quaestiones",
     "close": "Claudere",
     "empty": "Nulla quaestio responsum exspectat.",
-    "arrived": "{{count}} nova quaestio advenit."
+    "arrived_one": "{{count}} nova quaestio advenit.",
+    "arrived_other": "{{count}} novae quaestiones advenerunt."
   }
 }

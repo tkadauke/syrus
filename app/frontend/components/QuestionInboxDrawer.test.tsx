@@ -2,10 +2,24 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import i18n from "../i18n"
 import { QuestionInboxDrawer } from "./QuestionInboxDrawer"
 
 describe("QuestionInboxDrawer", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("pluralizes the arrival announcement in every locale", async () => {
+    try {
+      expect(i18n.t("nav:question_inbox.arrived", { count: 1 })).toBe("1 new question arrived.")
+      expect(i18n.t("nav:question_inbox.arrived", { count: 3 })).toBe("3 new questions arrived.")
+      await i18n.changeLanguage("de")
+      expect(i18n.t("nav:question_inbox.arrived", { count: 3 })).toBe("3 neue Fragen sind eingetroffen.")
+      await i18n.changeLanguage("la")
+      expect(i18n.t("nav:question_inbox.arrived", { count: 3 })).toBe("3 novae quaestiones advenerunt.")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
 
   it("supports callers whose existing API fixture omits question data", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))

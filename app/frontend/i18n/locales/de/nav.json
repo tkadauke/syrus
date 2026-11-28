@@ -403,6 +403,7 @@
     "title": "Fragen",
     "close": "Schließen",
     "empty": "Keine Frage wartet auf eine Antwort.",
-    "arrived": "{{count}} neue Frage ist eingetroffen."
+    "arrived_one": "{{count}} neue Frage ist eingetroffen.",
+    "arrived_other": "{{count}} neue Fragen sind eingetroffen."
   }
 }

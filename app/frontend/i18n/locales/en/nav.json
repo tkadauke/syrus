@@ -403,6 +403,7 @@
     "title": "Questions",
     "close": "Close",
     "empty": "No questions are waiting for an answer.",
-    "arrived": "{{count}} new question arrived."
+    "arrived_one": "{{count}} new question arrived.",
+    "arrived_other": "{{count}} new questions arrived."
   }
 }
