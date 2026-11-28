@@ -60,6 +60,7 @@ RSpec.describe "Coworkers plugin" do
     expect(report.tables).to contain_exactly(
       "coworker_base_releases",
       "coworker_chats",
+      "coworker_environment_activations",
       "coworker_environment_revisions",
       "coworker_environments",
       "coworker_grants",
@@ -72,6 +73,8 @@ RSpec.describe "Coworkers plugin" do
     )
     expect(report.tables).not_to include("review_evidences", "runs", "scheduled_tasks")
     expect(report.inline_fields).to contain_exactly(
+      have_attributes(table: "app_settings", column: "coworker_environment_launch_failure_threshold"),
+      have_attributes(table: "app_settings", column: "coworker_environment_rollback_retention_count"),
       have_attributes(table: "scheduled_tasks", column: "coworker_id"),
       have_attributes(table: "scheduled_tasks", column: "after_run"),
       have_attributes(table: "runs", column: "coworker_wake_enqueued_at")
