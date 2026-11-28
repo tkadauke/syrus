@@ -132,6 +132,8 @@
   "live_process_list": "Process List",
   "live_global_status": "Global Status",
   "live_statement_digests": "Statement Summaries",
+  "live_statement_digests_unavailable": "Statement summaries are unavailable for this connection.",
+  "live_statement_digests_unavailable_hint": "Performance Schema may be disabled, or the MySQL user may not have permission to read statement summaries.",
   "live_auto_refresh": "Refreshes every 10 seconds",
   "foreign_keys_heading": "Foreign Keys",
   "no_foreign_keys": "No foreign keys.",

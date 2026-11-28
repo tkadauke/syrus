@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
+import { Surface, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { executeMysqlQuery } from "../api/mysqlQuery"
@@ -38,6 +39,7 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
     staleTime: 0,
     refetchInterval: 30_000
   })
+  const statementSummariesUnavailable = selectedId === "statement_digests" && (live.isError || live.data?.available === false)
 
   return (
     <section aria-label={t("aria_live_tab")} className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
@@ -64,12 +66,17 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
       </div>
 
       {live.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("query_running")}</p> : null}
-      {live.isError ? (
-        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+      {statementSummariesUnavailable ? (
+        <Surface variant="inset">
+          <Text variant="heading-sm">{t("live_statement_digests_unavailable")}</Text>
+          <Text className="mt-1" tone="muted">{t("live_statement_digests_unavailable_hint")}</Text>
+        </Surface>
+      ) : live.isError ? (
+        <Text role="alert" tone="danger">
           {errorMessage(live.error, t("query_error_fallback"))}
-        </p>
+        </Text>
       ) : null}
-      {live.data ? <MysqlQueryResultPanel result={live.data} /> : null}
+      {live.data && !statementSummariesUnavailable ? <MysqlQueryResultPanel result={live.data} /> : null}
     </section>
   )
 }
