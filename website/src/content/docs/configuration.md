@@ -209,6 +209,17 @@ directory, exit status or timeout state, and a compact tail of command
 output on the workflow page. You asked for the command, so a failure is
 loud.
 
+A failed command runs once more before it counts. If it fails again, Syrus
+decides from that command's own exit status and output whether retrying the
+step can help. Network and registry trouble (connection resets, DNS or TLS
+failures, registry 5xx responses, fetch timeouts) and a command that ran out
+of time are retried within the usual retry budget. A native extension that
+will not compile or link, a missing system library, a lockfile that does not
+resolve, a missing executable, or any failure with no sign of a network
+problem is not retried: it fails the same way every time until the repository
+or the worker changes, so Syrus reports it, naming the package and library
+when the output does, instead of spending retries on it.
+
 If `.syrus.yml` is missing, Syrus auto-detects one setup command from the
 first matching file:
 

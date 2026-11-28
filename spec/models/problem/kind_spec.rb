@@ -16,6 +16,7 @@ RSpec.describe Problem::Kind do
       classifier_source.scan(/result\(\s*"([a-z_]+)"/).flatten + classifier_constants +
         repair_executor_source.scan(/classification:\s*"([a-z_]+)"/).flatten +
         step_sources.flat_map { |path| File.read(path).scan(/(?:fail_with!\(|problem_code )[:\s]*:([a-z0-9_]+)/).flatten } +
+        Dir[Rails.root.join("app/services/failure_problems/**/*.rb")].flat_map { |path| File.read(path).scan(/declare\(:([a-z0-9_]+)/).flatten } +
         [ RunFailureClassifier::UNCLASSIFIED, ProviderUsageLimit::CLASSIFICATION, ProviderModelUnsupported::CLASSIFICATION,
           ProviderContentRefusal::CLASSIFICATION ]
     end

@@ -86,6 +86,15 @@ class Problem
       Entry.new(code: "prepare_network_transient", scope: :external, retryable: true,
                 default_remediation: :retry_step,
                 label: "Package registry temporarily unreachable"),
+      # Declared by FailureProblems::GithubApi from Octokit's error class and
+      # HTTP status. Separate from provider_transient, which feeds the agent
+      # provider circuit breaker: a GitHub outage is not a provider outage.
+      Entry.new(code: "github_api_transient", scope: :external, retryable: true,
+                default_remediation: :retry_step,
+                label: "GitHub API temporarily unavailable"),
+      Entry.new(code: "github_api_rate_limited", scope: :external, retryable: true,
+                default_remediation: :defer,
+                label: "GitHub API rate limited"),
 
       # -- The workspace ------------------------------------------------------
       Entry.new(code: "workspace_checkout_invalid", scope: :run, retryable: true,
@@ -105,6 +114,20 @@ class Problem
       Entry.new(code: "git_state_corrupt", scope: :workflow, retryable: false,
                 default_remediation: :restart_workflow),
       Entry.new(code: "git_failure", scope: :run, retryable: false, default_remediation: :escalate),
+      # Declared by FailureProblems::Git from the failed command's own output.
+      Entry.new(code: "git_conflict", scope: :step, retryable: false, default_remediation: :escalate,
+                label: "Git conflict"),
+      Entry.new(code: "git_ref_missing", scope: :external, retryable: false, default_remediation: :escalate,
+                label: "Git ref missing"),
+      Entry.new(code: "git_auth_denied", scope: :external, retryable: false, default_remediation: :escalate,
+                label: "Git access denied"),
+      # Declared by FailureProblems::Prepare: a setup command failed twice for a
+      # reason in its own output that a retry cannot change -- a native
+      # extension that will not build, a missing system library, a lockfile
+      # that does not resolve, a missing executable.
+      Entry.new(code: "prepare_install_failed", scope: :run, retryable: false,
+                default_remediation: :escalate,
+                label: "Dependency install failed"),
       Entry.new(code: "empty_commit", scope: :step, retryable: false, default_remediation: :advance),
 
       # -- The agent and its provider ----------------------------------------
@@ -190,6 +213,9 @@ class Problem
                 default_remediation: :branch),
       Entry.new(code: "github_push_protection", scope: :external, retryable: false,
                 default_remediation: :escalate),
+      Entry.new(code: "github_api_rejected", scope: :external, retryable: false,
+                default_remediation: :escalate,
+                label: "GitHub API rejected the request"),
       Entry.new(code: "pr_open_no_commits_between", scope: :external, retryable: true,
                 default_remediation: :restart_workflow),
       Entry.new(code: "merge_train_rebase_conflict", scope: :unit, retryable: false,

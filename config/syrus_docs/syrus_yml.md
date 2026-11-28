@@ -353,6 +353,13 @@ prepare:
 
 Use `prepare: []` or `prepare: false` to opt out entirely. If `.syrus.yml` is absent, Syrus auto-detects a single setup command from lockfiles in this priority order: `Gemfile` → `yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`. Auto-detected commands soft-fail (warning + agent still runs); explicit `.syrus.yml` commands hard-fail and abort the chain.
 
+A failed command is run once more before it counts. When it still fails, Syrus reads that command's own exit status and output to decide whether the step is worth retrying:
+
+- **Retried** (within the normal retry budget): the package registry or network failed — connection resets, DNS failures, TLS errors, registry 5xx responses, fetch timeouts — or the command ran past its time limit.
+- **Not retried**: the install itself cannot succeed as configured — a native extension that fails to compile or link, a missing system library or header, a manifest and lockfile that do not resolve, a missing executable, or any other failure with no sign of a network problem. The failure names the command and, when the output says, the package and library involved.
+
+The same rules apply to the dependency install a grader runs in its own checkout.
+
 Set `Repository#prepare_enabled` to false in the admin UI to disable the prepare step for all workflows on a repo. Add the `syrus-skip-prepare` label to an issue to skip it for that Job only.
 
 In the root `.syrus.yml`, `prepare:` remains the automatic baseline setup for

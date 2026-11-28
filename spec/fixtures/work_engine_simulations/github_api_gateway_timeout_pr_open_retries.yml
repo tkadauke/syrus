@@ -1,0 +1,43 @@
+# A GitHub 504 during PR creation arrives as the bare Octokit::ServerError
+# (Octokit has no class of its own for 504). pr_open is non-agentic, so the
+# text classifier's provider-transient branch -- which needs an agent
+# provider and only knew the dedicated 5xx classes -- read it as an
+# unretryable application error and left the Job failed after its
+# implementation was done. The error's HTTP status now declares
+# github_api_transient, and the step is retried.
+name: github api gateway timeout pr_open retries
+max_ticks: 60
+repository:
+  owner: simulation
+  name: github-api-gateway-timeout-pr-open-retries
+runner:
+  auto_retry_failed_jobs: false
+jobs:
+  gateway_timeout:
+    title: GitHub times out creating the PR once
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+  steps:
+    pr_open:
+      - status: failure
+        problem_code: github_api_transient
+        error_class: Octokit::ServerError
+        error_message: "POST https://api.github.com/repos/simulation/github-api-gateway-timeout-pr-open-retries/pulls: 504 - We couldn't respond to your request in time. Sorry about that."
+      - status: success
+expect:
+  jobs:
+    gateway_timeout:
+      - implemented
+  run_evidence:
+    - job: gateway_timeout
+      step: pr_open
+      classification: github_api_transient
+  events:
+    - "auto retry"
+success_states:
+  gateway_timeout:
+    - implemented

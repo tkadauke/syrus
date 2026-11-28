@@ -967,7 +967,8 @@ module WorkEngine
             fail_run!(run, agent_outcome: "error",
                            failure_code: simulated_failure_code(outcome),
                            error_message: simulated_outcome_field(outcome, "error_message"),
-                           error_class: simulated_outcome_field(outcome, "error_class"))
+                           error_class: simulated_outcome_field(outcome, "error_class"),
+                           problem_code: simulated_outcome_field(outcome, "problem_code"))
           else
             finish_simulated_processes!(run, "succeeded")
             succeed_run_and_step!(run)
@@ -984,7 +985,8 @@ module WorkEngine
           fail_run!(run, agent_outcome: "error",
                          failure_code: simulated_failure_code(outcome),
                          error_message: simulated_outcome_field(outcome, "error_message"),
-                         error_class: simulated_outcome_field(outcome, "error_class"))
+                         error_class: simulated_outcome_field(outcome, "error_class"),
+                         problem_code: simulated_outcome_field(outcome, "problem_code"))
         else
           raise ArgumentError, "unknown simulation outcome #{outcome.inspect} for #{run.slug}"
         end
@@ -1010,12 +1012,12 @@ module WorkEngine
         drain_step_success!(step)
       end
 
-      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil)
+      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil, problem_code: nil)
         if failure_code.present?
           stamp_simulated_failure_code!(run, failure_code)
         end
-        if error_message.present? || error_class.present?
-          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message)
+        if error_message.present? || error_class.present? || problem_code.present?
+          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message, problem_code: problem_code)
         end
         run.agent_outcome = agent_outcome
         run.fail!
@@ -1026,12 +1028,15 @@ module WorkEngine
       # Gives the failed run the diagnostic a real handler would have
       # captured, so reason-text matching downstream (transient blockers,
       # quota resets, failure_reason_for) reads the injected fact instead
-      # of a generic message.
-      def record_simulated_diagnostic!(run, error_class:, error_message:)
+      # of a generic message. `problem_code` is the Problem the real handler
+      # would have declared (Steps::Base#fail_with!), which the run
+      # classifiers read before any of that text.
+      def record_simulated_diagnostic!(run, error_class:, error_message:, problem_code: nil)
         RunDiagnostic.create!(
           run: run,
           error_class: error_class.presence || "Steps::Base::StepFailed",
-          error_message: error_message.presence || "simulated failure"
+          error_message: error_message.presence || "simulated failure",
+          problem_code: problem_code.presence
         )
       end
 

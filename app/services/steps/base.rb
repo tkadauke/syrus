@@ -59,9 +59,16 @@ module Steps
       # claim to know. Unmapped codes resolve to nil rather than raising: this
       # runs on the failure path, where a new exception turns a handled
       # failure into a crash.
+      #
+      # A step that did not declare a code but raised this while handling a
+      # GitRunner::GitError or an Octokit error -- `rescue GitError => e;
+      # raise StepFailed, "...: #{e.message}"` is the common shape -- still
+      # declares what that underlying failure was (FailureProblems), so a
+      # dropped connection is retryable and a missing ref is not without the
+      # classifier reading the wrapped message back.
       def problem
         code = @explicit_problem_code || self.class.problem_code
-        return nil if code.blank?
+        return FailureProblems.for_exception(cause) if code.blank?
 
         Problem.resolve(code, evidence: evidence)
       end

@@ -211,7 +211,9 @@ RSpec.describe Steps::Grader, :ci_only do
       instance_double(ProcessRunner, run: fake_result)
     end
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /timed out/)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /timed out/) { |error|
+      expect(error.problem.code).to eq("timeout")
+    }
   end
 
   it "still reports a genuine grader failure as a failure" do
@@ -224,7 +226,50 @@ RSpec.describe Steps::Grader, :ci_only do
       instance_double(ProcessRunner, run: fake_result)
     end
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 1\)/)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 1\)/) { |error|
+      expect(error.problem.code).to eq("grader_failure")
+      expect(error.problem.evidence).to include(exit_code: 1)
+    }
+  end
+
+  it "declares a grader killed for going silent a timeout, not a verdict" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: nil, timed_out: false, stopped: false,
+      silent_timed_out: true, operator_killed: false,
+      aliveness_failed: false, duration_s: 600.0, spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |error|
+      expect(error.problem.code).to eq("timeout")
+      expect(error.problem.evidence).to include(silent_timed_out: true)
+    }
+  end
+
+  # Production: a jest grader whose test hit its own 15s timeout, and a
+  # migration grader whose output said "Command timed out after 120s", were
+  # both classified as infrastructure timeouts from their logs. Their process
+  # exited 1 -- a verdict on the tree.
+  it "declares a grader whose own process exited non-zero a failure even when its output mentions a timeout" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 30.0, spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
+      runner = instance_double(ProcessRunner)
+      allow(runner).to receive(:run) do
+        kwargs[:on_output_chunk]&.call("Error: Test timed out in 15000ms.\n")
+        fake_result
+      end
+      runner
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 1\)/) { |error|
+      expect(error.problem.code).to eq("grader_failure")
+    }
   end
 
   it "does not rerun or adjudicate a successful grader command" do

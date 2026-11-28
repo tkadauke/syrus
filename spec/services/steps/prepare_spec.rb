@@ -248,6 +248,91 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     end
   end
 
+  # The step that ran the command declares why it failed, from the command's
+  # own exit status and output, so the run classifier never has to guess it
+  # back out of the logs.
+  describe "declaring why a command failed" do
+    def result(exit_status:, timed_out: false)
+      ProcessRunner::Result.new(
+        exit_status: exit_status, timed_out: timed_out, stopped: false,
+        silent_timed_out: false, operator_killed: false, aliveness_failed: false,
+        duration_s: 0.1, spawned_process_id: nil
+      )
+    end
+
+    def stub_command_output(output, exit_status:, timed_out: false)
+      fake_runner = instance_double(ProcessRunner)
+      sink = nil
+      allow(fake_runner).to receive(:run) do
+        sink&.call(output)
+        result(exit_status: exit_status, timed_out: timed_out)
+      end
+      stub_prepare_process_runner(fake_runner) { |kwargs| sink = kwargs.fetch(:on_output_chunk) }
+    end
+
+    def failure_problem
+      handler.call
+      raise "expected prepare to fail"
+    rescue Steps::Base::StepFailed => e
+      e.problem
+    end
+
+    before do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        prepare:
+          - bundle install --jobs 4
+      YAML
+    end
+
+    it "declares a native extension that cannot link a non-retryable install failure naming the gem" do
+      stub_command_output(<<~OUT, exit_status: 5)
+        Fetching timeout 0.6.1
+        Installing mysql2 0.5.7 with native extensions
+        ld: library 'zstd' not found
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        /opt/syrus/rubies/3.4.10/lib/ruby/3.4.0/bundler/settings.rb:159:in
+        'Bundler::Settings#temporary'
+        An error occurred while installing mysql2 (0.5.7), and Bundler cannot continue.
+      OUT
+
+      problem = failure_problem
+
+      expect(problem.code).to eq("prepare_install_failed")
+      expect(problem).not_to be_retryable
+      expect(problem.evidence).to include(command: "bundle install --jobs 4", failed_package: "mysql2 (0.5.7)", subject: "zstd")
+    end
+
+    it "declares a registry connection reset retryable" do
+      stub_command_output("npm error code ECONNRESET\nnpm error network aborted\n", exit_status: 1)
+
+      expect(failure_problem.code).to eq("prepare_network_transient")
+    end
+
+    it "declares a timed-out command a retryable timeout" do
+      stub_command_output("Installing nokogiri 1.19.7\n", exit_status: nil, timed_out: true)
+
+      expect(failure_problem.code).to eq("timeout")
+    end
+
+    it "declares an invalid prepare configuration a non-retryable user error" do
+      File.write(@ws_path.join(".syrus.yml"), "prepare: 42\n")
+
+      expect(failure_problem.code).to eq("validation_or_user_error")
+    end
+
+    it "records the declared code on the run's diagnostic" do
+      stub_command_output("ld: library 'zstd' not found\n", exit_status: 5)
+
+      begin
+        handler.call
+      rescue Steps::Base::StepFailed => e
+        CaptureRunDiagnostic.capture(run, e)
+      end
+
+      expect(run.reload.run_diagnostic.problem_code).to eq("prepare_install_failed")
+    end
+  end
+
   it "runs commands with workspace-local dependency paths" do
     File.write(@ws_path.join(".syrus.yml"), <<~YAML)
       prepare:

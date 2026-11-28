@@ -74,7 +74,13 @@ module Steps
       log("speculative_merge_train: integrated #{member.slug} (#{branch})")
     rescue GitRunner::GitError => e
       abort_rebase!
-      raise StepFailed, "speculative_merge_train: could not integrate #{member.slug} cleanly: #{e.message}"
+      message = "speculative_merge_train: could not integrate #{member.slug} cleanly: #{e.message}"
+      # A conflict keeps the merge-train vocabulary; anything else (a fetch
+      # that lost its connection, say) declares itself through the GitError
+      # this StepFailed is raised from.
+      fail_with!(:merge_train_rebase_conflict, message, evidence: { member: member.slug }) if FailureProblems.for_exception(e)&.code == "git_conflict"
+
+      raise StepFailed, message
     end
 
     def fetch_branch!(branch)

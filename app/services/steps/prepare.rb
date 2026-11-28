@@ -220,12 +220,14 @@ module Steps
       else
         record_prepare_failure!(failure)
         message = prepare_failure_message(failure)
-        if disk_full_text?(failure["output_tail"])
-          fail_with!(:disk_full, message,
-                     evidence: { command: failure["command"], exit_status: failure["exit_status"] })
-        end
+        # Decided here, from this command's exit status and its own output
+        # tail, rather than downstream from the Run's logs: the classifier
+        # used to read a gem named `timeout` as a timed-out install and a
+        # wrapped backtrace frame as a transient provider failure.
+        problem = FailureProblems::Prepare.for(failure)
+        raise StepFailed, message unless problem
 
-        raise StepFailed, message
+        fail_with!(problem.code, message, evidence: problem.evidence)
       end
     end
 
@@ -291,7 +293,8 @@ module Steps
         "message" => plan.error
       }
       record_prepare_failure!(failure)
-      raise StepFailed, prepare_failure_message(failure)
+      fail_with!(:validation_or_user_error, prepare_failure_message(failure),
+                 evidence: { configuration_error: true, source: plan.source })
     end
 
     # Same record shape as a hard failure, tagged `soft` so the UI can

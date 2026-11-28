@@ -111,7 +111,14 @@ repo health columns the main-health gate reads; `resume_deferred_phase`
 models a queued `WorkflowPhaseAdmissionJob` waking a workflow phase after a
 WorkUnit gate passes (`{ job:, step: }`, with `step` optional). Failure outcomes can carry
 a `failure_code` (`- status: failure` plus `failure_code:`), stamped like a
-real step handler would stamp it so `Try` branches match. Workflow event
+real step handler would stamp it so `Try` branches match. They can also
+carry a `problem_code` (with `error_class`/`error_message`), recorded on the
+Run's diagnostic as the Problem the real handler would have declared, so the
+run classifiers decide retryability from it before reading any text. Pin the
+declared answer with `expect.run_evidence` (`{ job:, step:, classification: }`):
+the simulator fails every Run with `agent_outcome: error`, which is itself
+retryable, so retry *behavior* alone does not prove which input decided it.
+Workflow event
 conditions accept `start_blocked:` alongside `state:` to match on the
 current start-block reason.
 

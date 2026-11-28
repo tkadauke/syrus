@@ -381,6 +381,34 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(checkout.path.join(".syrus/deps/bundle/attempts").read.lines.size).to eq(2)
   end
 
+  # The grader's dependency install declares why it failed from its own
+  # output, the same way the mutable prepare step does, so the grader Run is
+  # never classified from its logs.
+  it "declares a registry failure that survives the retry retryable network noise" do
+    update_remote_config(<<~YAML)
+      prepare:
+        - echo "npm error code ECONNRESET" && exit 1
+    YAML
+    checkout = described_class.new(step)
+
+    expect { checkout.setup }.to raise_error(Steps::Base::StepFailed) { |error|
+      expect(error.problem.code).to eq("prepare_network_transient")
+    }
+  end
+
+  it "declares a native build failure a non-retryable install failure naming the package" do
+    update_remote_config(<<~'YAML')
+      prepare:
+        - "echo \"ld: library 'zstd' not found\" && echo \"An error occurred while installing mysql2 (0.5.7), and Bundler cannot continue.\" && exit 5"
+    YAML
+    checkout = described_class.new(step)
+
+    expect { checkout.setup }.to raise_error(Steps::Base::StepFailed, /immutable source prepare command failed/) { |error|
+      expect(error.problem.code).to eq("prepare_install_failed")
+      expect(error.problem.evidence).to include(failed_package: "mysql2 (0.5.7)", subject: "zstd", exit_status: 5)
+    }
+  end
+
   it "fails loudly on invalid explicit prepare config without recording a prepared cache" do
     update_remote_config("prepare: bundle install\n")
     checkout = described_class.new(step)

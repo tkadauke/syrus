@@ -84,10 +84,17 @@ class CaptureRunDiagnostic
   # Steps::Base::StepFailed#problem). Recording it here is what lets the
   # classifier and the landing handlers read the step's own answer instead of
   # regex-matching their way back to it from the message.
+  #
+  # An exception that is not a StepFailed -- a GitRunner::GitError or an
+  # Octokit error that escaped the step -- still carries structure (exit
+  # status and git's own output; HTTP status), which FailureProblems reads
+  # here so those failures never reach the classifier's text matching either.
   def assign_problem(diagnostic)
-    return unless @exception.respond_to?(:problem)
-
-    problem = @exception.problem
+    problem = if @exception.respond_to?(:problem)
+      @exception.problem
+    else
+      FailureProblems.for_exception(@exception)
+    end
     return if problem.nil?
 
     diagnostic.problem_code = problem.code
