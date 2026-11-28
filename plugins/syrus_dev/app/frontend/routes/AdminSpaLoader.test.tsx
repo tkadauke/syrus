@@ -36,8 +36,10 @@ function snapshot(state = "queued") {
       progress_samples: [], progress: null, events: [{ kind: "auto_retry", at_ms: 9000, attempt: 1 }, { kind: "stale_chunk_failure", at_ms: 9100, outcome: "reload", revision: "new" }],
       lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
       revision: { page: "new", previous: "old", changed: true },
-      current_state: "stalled",
-      service_worker: { present: true, controlled: true, registration: { installing: null, waiting: null, active: "activated" }, worker_revision: "new", counted_requests: ["/assets/spa.js"] }, auto_retry_attempt: 1
+      current_state: "ready",
+      last_problem_state: "watchdog",
+      service_worker: { present: true, controlled: true, registration: { installing: null, waiting: null, active: "activated" }, worker_revision: "new", counted_requests: ["/assets/spa.js"] },
+      auto_retry_attempt: 1, maximum_auto_retry_attempt: 2
     }
   }
 }
@@ -63,8 +65,9 @@ describe("AdminSpaLoader", () => {
     expect(screen.getByText("8 KB")).toBeInTheDocument()
     expect(screen.getByText(/Service worker.*request 10 ms.*first byte 25 ms.*complete 40 ms/)).toBeInTheDocument()
     expect(screen.getByText("old → new")).toBeInTheDocument()
-    expect(screen.getByText("Stalled")).toBeInTheDocument()
-    expect(screen.getByText("1", { selector: "dd" })).toBeInTheDocument()
+    expect(screen.getByText("Ready")).toBeInTheDocument()
+    expect(screen.getByText("Still loading")).toBeInTheDocument()
+    expect(screen.getByText("2", { selector: "dd" })).toBeInTheDocument()
     expect(screen.getAllByText("Yes")).toHaveLength(2)
     expect(screen.getByText("Activated")).toBeInTheDocument()
     expect(screen.getByText("new / new")).toBeInTheDocument()

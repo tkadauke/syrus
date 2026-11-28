@@ -13,6 +13,7 @@
   var reportedKeys = {};
   var milestones = [];
   var pendingStartupState = null;
+  var lastProblemStartupState = null;
   var lifecycleState = document.visibilityState === "hidden" ? "hidden" : "active";
   var MAX_STARTUP_RESOURCES = 40;
   var startupTraceId = "startup-" + startupAt + "-" + Math.random().toString(36).slice(2, 10);
@@ -31,6 +32,7 @@
   var currentRevision = meta("syrus-app-revision") || "unknown";
   var previousRevision = storedValue(REVISION_KEY);
   var revisionChanged = !!previousRevision && previousRevision !== currentRevision;
+  var maximumAutoRetryAttempt = storedRetryAttempt();
   var snapshotListeners = null;
   var startupEvents = null;
   var serviceWorkerRegistration = null;
@@ -326,6 +328,7 @@
     if (window.__syrusReactFirstRender || autoRetrying) return;
     autoRetrying = true;
     storeRetryAttempt(storedRetryAttempt() + 1);
+    maximumAutoRetryAttempt = Math.max(maximumAutoRetryAttempt, storedRetryAttempt());
     if (startupEvents) startupEvents.push({ kind: "auto_retry", at_ms: Date.now() - startupAt, attempt: storedRetryAttempt() });
     notifySnapshotListeners();
     (window.__syrusStartupReload || function () { window.location.reload(); })();
@@ -372,6 +375,7 @@
 
   function showStartupState(state) {
     pendingStartupState = state;
+    if (state.retry === true || state.name === "watchdog") lastProblemStartupState = state.name || "unknown";
     if (startupEvents) startupEvents.push({ kind: state.name || "unknown", at_ms: Date.now() - startupAt });
     notifySnapshotListeners();
     if (!applyStartupState(state)) {
@@ -514,6 +518,7 @@
       events: startupEvents ? startupEvents.slice() : [],
       revision: { page: currentRevision, previous: previousRevision, changed: revisionChanged },
       current_state: pendingStartupState ? pendingStartupState.name || "unknown" : null,
+      last_problem_state: lastProblemStartupState,
       service_worker: {
         present: serviceWorkerContext().service_worker_present,
         controlled: serviceWorkerContext().service_worker_controlled,
@@ -524,7 +529,8 @@
         })(),
         counted_requests: Object.keys(workerBytes)
       },
-      auto_retry_attempt: storedRetryAttempt()
+      auto_retry_attempt: storedRetryAttempt(),
+      maximum_auto_retry_attempt: maximumAutoRetryAttempt
     };
   }
 

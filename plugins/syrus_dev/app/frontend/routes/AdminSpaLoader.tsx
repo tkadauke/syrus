@@ -88,7 +88,8 @@ export function AdminSpaLoader() {
           ...(startup?.progress?.speed ? [[t("spa_loader.speed"), `${formatBytes(startup.progress.speed)}/s`]] : []),
           ...(startup?.revision.changed ? [[t("spa_loader.revision_change"), `${startup.revision.previous ?? t("spa_loader.none")} → ${startup.revision.page}`]] : []),
           ...(startup?.current_state ? [[t("spa_loader.current_state"), diagnosticValue("event_kinds", startup.current_state)]] : []),
-          ...(startup ? [[t("spa_loader.retry_attempts"), String(startup.auto_retry_attempt)]] : [])
+          ...(startup?.last_problem_state ? [[t("spa_loader.last_problem_state"), diagnosticValue("event_kinds", startup.last_problem_state)]] : []),
+          ...(startup ? [[t("spa_loader.retry_attempts"), String(startup.maximum_auto_retry_attempt)]] : [])
         ]} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.startup_assets")} rows={[
           ...(startup?.budget ? [[t("spa_loader.budget"), `${formatBytes(startup.assets.reduce((total, asset) => total + (asset.budget_size ?? 0), 0))} / ${formatBytes(startup.budget.bytes)}`]] : []),

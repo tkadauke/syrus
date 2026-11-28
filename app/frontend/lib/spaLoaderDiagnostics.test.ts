@@ -26,8 +26,10 @@ function startupSnapshot() {
     lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
     events: [], revision: { page: "current", previous: null, changed: false },
     current_state: "ready",
+    last_problem_state: null,
     service_worker: { present: false, controlled: false, registration: null, worker_revision: null, counted_requests: [] },
-    auto_retry_attempt: 0
+    auto_retry_attempt: 0,
+    maximum_auto_retry_attempt: 0
   }
 }
 

@@ -200,15 +200,21 @@ describe("startupDiagnostics", () => {
     expect(mark).toHaveBeenCalledWith("react_commit")
   })
 
-  it("exposes retained startup state and retry count before diagnostics subscribe", () => {
+  it("retains startup problem state and retry count after a successful commit", () => {
     vi.useFakeTimers()
     window.sessionStorage.setItem("syrus.startup.autoRetryAttempt", "2")
     installStartupShell()
 
     vi.advanceTimersByTime(8000)
+    window.SyrusStartupDiagnostics?.mark("react_commit")
     const snapshot = window.SyrusStartupDiagnostics?.snapshot?.()
 
-    expect(snapshot).toMatchObject({ current_state: "watchdog", auto_retry_attempt: 2 })
+    expect(snapshot).toMatchObject({
+      current_state: "ready",
+      last_problem_state: "watchdog",
+      auto_retry_attempt: 0,
+      maximum_auto_retry_attempt: 2
+    })
     expect(snapshot?.events).toEqual([])
   })
 

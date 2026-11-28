@@ -18,8 +18,10 @@ export type StartupDiagnosticsSnapshot = {
   events: Array<{ kind: string; at_ms: number; attempt?: number; outcome?: string; revision?: string }>
   revision: { page: string; previous: string | null; changed: boolean }
   current_state: string | null
+  last_problem_state: string | null
   service_worker: { present: boolean; controlled: boolean; registration: { installing: string | null; waiting: string | null; active: string | null } | null; worker_revision: string | null; counted_requests: string[] }
   auto_retry_attempt: number
+  maximum_auto_retry_attempt: number
 }
 
 export type StartupPhase = "bundle_evaluation" | "root_mount" | "bootstrap_fetch" | "route_initialization"
