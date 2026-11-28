@@ -32,9 +32,14 @@ export type CoworkerDetail = CoworkerSummary & {
       max_self_approvals_per_day?: number
       max_feedback_rounds_per_job?: number
       allow_sensitive_changes?: boolean
+      mode?: "shadow" | "enabled"
     }
     scope?: unknown
   }[]
+  job_autonomy_comparison: {
+    actions: Record<string, { shadow_decisions: number; paired: number; agreed: number; disagreed: number; agreement_rate: number | null }>
+    disagreements: { id: number; action: string; job_id: number | null; predicted_decision: string; operator_decision: string; created_at: string }[]
+  }
   grant_catalog: {
     name: string
     label: string

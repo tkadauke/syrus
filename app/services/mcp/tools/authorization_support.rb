@@ -74,11 +74,15 @@ module Mcp::Tools
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
         server_context.delete(:coworker_job_autonomy_refusal)
+        server_context.delete(:coworker_job_autonomy_shadow)
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
         if autonomous_coworker_job_action?(tool, context, server_context, arguments)
           enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
           return
+        end
+        if server_context[:coworker_job_autonomy_shadow]
+          return create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: true)
         end
         if server_context[:coworker_job_autonomy_refusal].present?
           return create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: true)
@@ -110,6 +114,16 @@ module Mcp::Tools
         return false unless repository
 
         decision = actor.job_autonomy.authorize(tool_name:, repository:, job:)
+        if decision.shadow?
+          server_context[:coworker_job_autonomy_shadow] = {
+            "tool_name" => tool_name, "rule_id" => decision.rule.id, "coworker_id" => actor.id,
+            "job_id" => job&.id, "repository_id" => repository.id,
+            "predicted_decision" => decision.predicted_decision,
+            "evidence" => decision.evidence, "guardrail_outcomes" => decision.guardrail_outcomes
+          }.compact.freeze
+          server_context[:coworker_job_autonomy_refusal] = decision.reason if decision.reason.present?
+          return false
+        end
         unless decision.allowed?
           if decision.rule.present? && decision.reason.present?
             server_context[:coworker_job_autonomy_refusal] = decision.reason
@@ -315,6 +329,9 @@ module Mcp::Tools
         return unless result.request
 
         action = result.request
+        shadow = server_context.delete(:coworker_job_autonomy_shadow)
+        context.agent_actor.record_job_autonomy_shadow!(authorization: shadow, pending_action: action) if
+          shadow && context.agent_actor&.respond_to?(:record_job_autonomy_shadow!)
         server_context[:current_message]&.update_columns(pending_action_id: action.id)
         Mcp::Tools.success(
           pending_action_id: action.id,

@@ -49,7 +49,8 @@ module Api
           coworker = authorized_coworker
           render json: {
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-            grant_catalog: grant_catalog_json
+            grant_catalog: grant_catalog_json,
+            job_autonomy_comparison: Coworkers::JobAutonomyComparison.call(coworker:)
           }
         end
 

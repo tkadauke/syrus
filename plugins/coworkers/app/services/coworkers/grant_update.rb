@@ -49,6 +49,8 @@ class Coworkers::GrantUpdate
       result["allow_sensitive_changes"] = ActiveModel::Type::Boolean.new.cast(
         @constraints.fetch("allow_sensitive_changes", @constraints.fetch(:allow_sensitive_changes, defaults["allow_sensitive_changes"]))
       )
+      result["mode"] = (@constraints["mode"] || @constraints[:mode] || "shadow").to_s
+      raise ArgumentError, "mode must be shadow or enabled" unless result["mode"].in?(Coworkers::JobAutonomy::MODES)
       return result
     end
     if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])
@@ -81,6 +83,7 @@ class Coworkers::GrantUpdate
       current = Coworkers::JobAutonomy::DEFAULTS.merge(entry[:constraints].to_h)
       target = normalized_constraints
       return true if %w[max_open_jobs max_self_approvals_per_day max_feedback_rounds_per_job].any? { |key| target.fetch(key) > current.fetch(key).to_i }
+      return true if current.fetch("mode", "shadow") == "shadow" && target.fetch("mode") == "enabled"
       return target["allow_sensitive_changes"] && !ActiveModel::Type::Boolean.new.cast(current["allow_sensitive_changes"])
     end
     if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])

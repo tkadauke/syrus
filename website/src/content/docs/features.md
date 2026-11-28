@@ -2554,7 +2554,12 @@ owners can lower or raise both positive limits in the grant constraints.
 
 Repository-scoped coworker Job grants can let a coworker file a Job, approve
 its own implementation, submit feedback, cancel, or retry without a separate
-operator confirmation. Owners configure limits for open self-filed Jobs,
+operator confirmation. New grants start in shadow mode: the coworker records
+what it would do, including guardrail evidence, while the operator's normal
+confirmation flow remains in control. The coworker page pairs those predictions
+with later operator decisions and reports agreement and disagreement per action.
+Owners can switch each repository-scoped action between shadow and enabled.
+Owners configure limits for open self-filed Jobs,
 daily self-approvals, and feedback rounds on each Job. Reaching a limit sends
 the action to the operator for confirmation with the reason instead of dropping
 it. Self-approval still requires every required review to approve the exact

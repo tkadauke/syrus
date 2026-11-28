@@ -795,8 +795,15 @@ function CoworkerApprovals({ id }: { id: string }) {
 const POLICY_RANK = { off: 0, queue: 1, confirm: 2, auto: 3 } as const
 const SPAWN_CAPABILITIES = new Set(["coworker.spawn_chat", "syrus.spawn_chat"])
 const DEFAULT_SPAWN_CAPS = { max_spawns_per_run: 3, max_spawns_per_day: 10 }
-const JOB_CAPABILITIES = new Set(["coworker.jobs.propose", "coworker.jobs.approve", "coworker.jobs.feedback"])
-const DEFAULT_JOB_LIMITS = { max_open_jobs: 3, max_self_approvals_per_day: 5, max_feedback_rounds_per_job: 3, allow_sensitive_changes: false }
+const JOB_CAPABILITIES = new Set(["coworker.jobs.propose", "coworker.jobs.approve", "coworker.jobs.feedback", "coworker.jobs.cancel", "coworker.jobs.retry"])
+type JobAutonomyLimits = {
+  max_open_jobs: number
+  max_self_approvals_per_day: number
+  max_feedback_rounds_per_job: number
+  allow_sensitive_changes: boolean
+  mode: "shadow" | "enabled"
+}
+const DEFAULT_JOB_LIMITS: JobAutonomyLimits = { max_open_jobs: 3, max_self_approvals_per_day: 5, max_feedback_rounds_per_job: 3, allow_sensitive_changes: false, mode: "shadow" }
 
 function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
@@ -814,7 +821,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
         ])
     )
   )
-  const [jobLimits, setJobLimits] = useState<Record<string, typeof DEFAULT_JOB_LIMITS>>(() =>
+  const [jobLimits, setJobLimits] = useState<Record<string, JobAutonomyLimits>>(() =>
     Object.fromEntries(
       coworker.grants
         .filter((grant) => JOB_CAPABILITIES.has(grant.capability))
@@ -893,6 +900,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
       next.max_self_approvals_per_day > current.max_self_approvals_per_day ||
       next.max_feedback_rounds_per_job > current.max_feedback_rounds_per_job ||
       (next.allow_sensitive_changes && !current.allow_sensitive_changes)
+      || (next.mode === "enabled" && current.mode !== "enabled")
     if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
     mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: escalation })
   }
@@ -971,6 +979,23 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 ) : null}
                 {JOB_CAPABILITIES.has(capability) ? (
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <label className="block text-xs text-text-secondary sm:col-span-3">
+                      {t("capabilities.autonomy_mode")}
+                      <Select
+                        className="mt-1"
+                        aria-label={t("capabilities.autonomy_mode")}
+                        value={(jobLimits[capability] || DEFAULT_JOB_LIMITS).mode}
+                        onChange={(event) =>
+                          setJobLimits((current) => ({
+                            ...current,
+                            [capability]: { ...(current[capability] || DEFAULT_JOB_LIMITS), mode: event.target.value as "shadow" | "enabled" }
+                          }))
+                        }
+                      >
+                        <option value="shadow">{t("capabilities.modes.shadow")}</option>
+                        <option value="enabled">{t("capabilities.modes.enabled")}</option>
+                      </Select>
+                    </label>
                     {(["max_open_jobs", "max_self_approvals_per_day", "max_feedback_rounds_per_job"] as const).map((key) => (
                       <label className="block text-xs text-text-secondary" key={key}>
                         {t(`capabilities.${key}`)}
@@ -1054,6 +1079,33 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
           )
         })}
       </div>
+      {coworker.job_autonomy_comparison ? (
+        <section className="rounded border border-border bg-surface p-4">
+          <h3 className="font-medium">{t("capabilities.shadow_agreement")}</h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {Object.entries(coworker.job_autonomy_comparison.actions).map(([action, result]) => (
+              <div className="rounded border border-border p-3 text-sm" key={action}>
+                <div className="font-medium">{t(`capabilities.actions.${action}`)}</div>
+                <div className="text-text-secondary">
+                  {result.paired
+                    ? t("capabilities.agreement_result", { agreed: result.agreed, paired: result.paired, rate: Math.round((result.agreement_rate || 0) * 100) })
+                    : t("capabilities.no_paired_decisions", { count: result.shadow_decisions })}
+                </div>
+              </div>
+            ))}
+          </div>
+          {coworker.job_autonomy_comparison.disagreements.length ? (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium">{t("capabilities.disagreements")}</h4>
+              <ul className="mt-2 space-y-1 text-sm text-text-secondary">
+                {coworker.job_autonomy_comparison.disagreements.map((item) => (
+                  <li key={item.id}>{t("capabilities.disagreement", { action: t(`capabilities.actions.${item.action}`), job: item.job_id || "–" })}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
       {mutation.isError ? <PanelMessage>{mutation.error.message}</PanelMessage> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         {(["gmail", "calendar"] as const).map((integration) => (

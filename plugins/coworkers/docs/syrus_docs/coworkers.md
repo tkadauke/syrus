@@ -370,9 +370,17 @@ Owners may separately grant five repository-scoped autonomy capabilities:
 filing a Job, approving it, submitting feedback, cancelling it, and retrying
 it. Each capability is off by default and has no effect until a repository is
 selected. Except for filing, it applies only to Jobs filed by that same
-coworker. Ordinary chats cannot use these coworker grants. Autonomous actions
-retain the normal state, review, landing, and retry checks and record the
-coworker, permission rule, Job, repository, and action in the audit trail.
+coworker. Every newly granted capability starts in `shadow` mode. It evaluates
+the normal budgets and guardrails but does not execute; the ordinary pending
+action continues to the operator. The recorded would-file, would-approve,
+would-send-feedback, would-cancel, or would-retry decision includes its evidence
+and each guardrail outcome. Ordinary chats cannot use these coworker grants.
+Autonomous actions retain the normal state, review, landing, and retry checks
+and record the coworker, permission rule, Job, repository, and action in the
+audit trail. The Capabilities tab pairs completed shadow decisions with the
+operator's later approval or rejection and shows agreement totals and
+disagreement cases per action. Switching an action to `enabled` requires
+confirmation; switching back to `shadow` takes effect directly.
 
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner

@@ -94,7 +94,7 @@ RSpec.describe "coworker Job lifecycle tools" do
   it "enforces a canonical deny rule before creating the lifecycle pending action" do
     job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
     descriptor = McpToolRegistry.entries(surface: :coworker)
       .find { |entry| entry.tool == Mcp::Tools::CancelJobTool }.descriptor
@@ -118,7 +118,7 @@ RSpec.describe "coworker Job lifecycle tools" do
     workflow = Workflow.create!(job:, trigger_kind: "initial")
     allow(Syrus::Host::ImmutableReviewHeadBarrier).to receive(:required_reviews_satisfied?).with(workflow).and_return(true)
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.approve", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.approve", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
     rule = coworker.permission_rules.rules.find { |candidate| candidate.capability.start_with?("coworker.jobs.approve") }
 
@@ -138,7 +138,7 @@ RSpec.describe "coworker Job lifecycle tools" do
     workflow = Workflow.create!(job:, trigger_kind: "initial")
     allow(Syrus::Host::ImmutableReviewHeadBarrier).to receive(:required_reviews_satisfied?).with(workflow).and_return(false)
     coworker.permission_rules.update!(capability: "coworker.jobs.approve", approval_policy: "auto",
-      scope: repository.id, actor: owner)
+      scope: repository.id, actor: owner, constraints: { "mode" => "enabled" })
 
     response = Mcp::Tools::ApproveJobTool.call(job_id: job.id, server_context:)
 
@@ -159,11 +159,32 @@ RSpec.describe "coworker Job lifecycle tools" do
     expect(chat.pending_actions.last).to be_pending
   end
 
+  it "records a shadow decision without performing the action" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    coworker.permission_rules.update!(
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+    )
+
+    response = Mcp::Tools::CancelJobTool.call(job_id: job.id, reason: "Obsolete.", server_context:)
+
+    expect(response).not_to be_error
+    expect(job.reload).to be_implemented
+    pending = chat.pending_actions.last
+    expect(pending).to be_pending
+    shadow = coworker.job_autonomy_shadow_decisions.last
+    expect(shadow).to have_attributes(action: "cancel_job", predicted_decision: "act", chat_pending_action: pending)
+    expect(shadow.evidence).to include("job_id" => job.id, "repository_id" => repository.id)
+    expect(shadow.guardrail_outcomes).to include(
+      "repository_scope" => { "passed" => true, "repository_id" => repository.id },
+      "own_job" => { "passed" => true }
+    )
+  end
+
   it "does not give a regular chat a coworker's matching autonomy rule" do
     job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
     regular_chat = ChatSession.create!(user: owner, repository:, title: "Operator chat")
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
 
     response = Mcp::Tools::CancelJobTool.call(
@@ -178,7 +199,7 @@ RSpec.describe "coworker Job lifecycle tools" do
   it "autonomously cancels its own Job under the repository rule" do
     job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.cancel", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
 
     response = Mcp::Tools::CancelJobTool.call(job_id: job.id, reason: "Superseded.", server_context:)
@@ -194,7 +215,7 @@ RSpec.describe "coworker Job lifecycle tools" do
   it "autonomously submits feedback on its own Job under the repository rule" do
     job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.feedback", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.feedback", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
 
     response = Mcp::Tools::SubmitChatFeedbackTool.call(
@@ -212,7 +233,7 @@ RSpec.describe "coworker Job lifecycle tools" do
   it "autonomously retries its own Job under the repository rule" do
     job = retryable_job
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.retry", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.retry", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
 
     response = Mcp::Tools::RetryJobTool.call(job_id: job.id, server_context:)

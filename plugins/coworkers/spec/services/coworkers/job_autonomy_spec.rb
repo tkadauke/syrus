@@ -9,11 +9,22 @@ RSpec.describe Coworkers::JobAutonomy do
   end
   let(:own_job) { Factories.job_record(user: owner, repository:, filed_by_coworker_id: coworker.id) }
 
-  def grant!(tool_name, repository_id: repository.id, constraints: {})
+  def grant!(tool_name, repository_id: repository.id, constraints: { "mode" => "enabled" })
     capability = described_class::CAPABILITIES.fetch(tool_name)
     coworker.permission_rules.update!(
       capability:, approval_policy: "auto", scope: repository_id, constraints:, actor: owner
     )
+  end
+
+  it "keeps a newly granted capability in shadow mode while retaining guardrail evidence" do
+    grant!("propose_job", constraints: {})
+
+    decision = described_class.new(coworker).authorize(tool_name: "propose_job", repository:)
+
+    expect(decision).not_to be_allowed
+    expect(decision).to be_shadow
+    expect(decision.evidence).to include("repository_id" => repository.id, "permission_rule_id" => decision.rule.id)
+    expect(decision.guardrail_outcomes.fetch("open_job_budget")).to include("passed" => true, "count" => 0, "limit" => 3)
   end
 
   it "allows each scoped action only for the coworker's own Job" do

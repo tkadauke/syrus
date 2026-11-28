@@ -95,4 +95,17 @@ RSpec.describe Coworkers::GrantUpdate do
         constraints: Coworkers::JobAutonomy::DEFAULTS.merge("allow_sensitive_changes" => true), scope: repository.id)
     }.to raise_error(Coworkers::GrantUpdate::ConfirmationRequired)
   end
+
+
+  it "starts autonomy grants in shadow and confirms switching them to enabled" do
+    described_class.call(owner:, coworker:, capability: "coworker.jobs.retry", approval_policy: "auto",
+      scope: repository.id, confirmed: true)
+    grant = coworker.permission_rules.entries.find { |entry| entry[:capability] == "coworker.jobs.retry" }
+    expect(grant[:constraints]).to include("mode" => "shadow")
+
+    expect {
+      described_class.call(owner:, coworker:, capability: "coworker.jobs.retry", approval_policy: "auto",
+        constraints: grant[:constraints].merge("mode" => "enabled"), scope: repository.id)
+    }.to raise_error(Coworkers::GrantUpdate::ConfirmationRequired)
+  end
 end

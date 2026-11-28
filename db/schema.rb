@@ -10,12 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-# Syrus uses this dump for SQLite development and test databases. Production
-# MySQL schema authority is the migration history; do not load this SQLite
-# snapshot into MySQL.
-
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_173916) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_192324) do
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
     t.bigint "user_id", null: false
@@ -1341,6 +1336,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_173916) do
     t.json "scope"
     t.index ["coworker_id", "capability"], name: "index_coworker_grants_on_coworker_id_and_capability", unique: true
     t.index ["coworker_id"], name: "index_coworker_grants_on_coworker_id"
+  end
+
+  create_table "coworker_job_autonomy_shadow_decisions", force: :cascade do |t|
+    t.integer "coworker_id", null: false
+    t.integer "permission_rule_id", null: false
+    t.integer "repository_id", null: false
+    t.integer "job_id"
+    t.integer "chat_pending_action_id", null: false
+    t.string "action", null: false
+    t.string "predicted_decision", null: false
+    t.json "evidence"
+    t.json "guardrail_outcomes"
+    t.string "operator_decision"
+    t.datetime "operator_decided_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_coworker_job_autonomy_shadow_decisions_on_action"
+    t.index ["chat_pending_action_id"], name: "idx_on_chat_pending_action_id_d261f608a1"
+    t.index ["coworker_id"], name: "index_coworker_job_autonomy_shadow_decisions_on_coworker_id"
+    t.index ["job_id"], name: "index_coworker_job_autonomy_shadow_decisions_on_job_id"
+    t.index ["operator_decision"], name: "idx_on_operator_decision_e754d70a99"
+    t.index ["repository_id"], name: "index_coworker_job_autonomy_shadow_decisions_on_repository_id"
   end
 
   create_table "coworker_provisioning_attempts", force: :cascade do |t|

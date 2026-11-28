@@ -16,6 +16,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   has_many :chats, through: :coworker_chats, source: :chat_session
   has_many :chat_agents, class_name: "Coworkers::ChatAgent", dependent: :destroy, inverse_of: :coworker
   has_many :review_contexts, class_name: "Coworkers::ReviewContext", dependent: :destroy, inverse_of: :coworker
+  has_many :job_autonomy_shadow_decisions, class_name: "Coworkers::JobAutonomyShadowDecision", dependent: :destroy, inverse_of: :coworker
   has_one :environment, class_name: "Coworkers::Environment", dependent: :destroy, inverse_of: :coworker
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
@@ -79,6 +80,14 @@ class Coworkers::Coworker < Syrus::Host::Record
       "coworker_job_autonomy_action", owner: owner_user, coworker: self,
       permission_rule_id: authorization.fetch("rule_id"), job_id: job.id,
       repository_id: job.repository_id, autonomous_action: authorization.fetch("tool_name")
+    )
+  end
+  def record_job_autonomy_shadow!(authorization:, pending_action:)
+    job_autonomy_shadow_decisions.create!(
+      permission_rule_id: authorization.fetch("rule_id"), repository_id: authorization.fetch("repository_id"),
+      job_id: authorization["job_id"], chat_pending_action: pending_action,
+      action: authorization.fetch("tool_name"), predicted_decision: authorization.fetch("predicted_decision"),
+      evidence: authorization.fetch("evidence"), guardrail_outcomes: authorization.fetch("guardrail_outcomes")
     )
   end
   def prepare_review_context!(run:, evidence:, criteria:) = Coworkers::ReviewMemoryLifecycle.prepare!(coworker: self, run:, evidence:, criteria:)

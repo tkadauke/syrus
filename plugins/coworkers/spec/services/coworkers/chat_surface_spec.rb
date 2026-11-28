@@ -182,7 +182,7 @@ RSpec.describe "Coworker chat surface" do
 
   it "autonomously files a Job with coworker ownership under the repository rule" do
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.propose", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.propose", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
 
     response = coworker_tool("propose_job").call(
@@ -205,7 +205,7 @@ RSpec.describe "Coworker chat surface" do
 
   it "rolls back autonomous Job filing when coworker ownership cannot be recorded" do
     coworker.permission_rules.update!(
-      capability: "coworker.jobs.propose", approval_policy: "auto", scope: repository.id, actor: owner
+      capability: "coworker.jobs.propose", approval_policy: "auto", scope: repository.id, actor: owner, constraints: { "mode" => "enabled" }
     )
     allow_any_instance_of(Job).to receive(:update!).and_wrap_original do |method, attributes|
       raise ArgumentError, "ownership could not be recorded" if attributes.key?(:filed_by_coworker_id)

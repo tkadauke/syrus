@@ -825,11 +825,16 @@ it("surfaces and saves Job autonomy budgets and the sensitive-change carve-out",
             max_open_jobs: 2,
             max_self_approvals_per_day: 4,
             max_feedback_rounds_per_job: 3,
-            allow_sensitive_changes: false
+            allow_sensitive_changes: false,
+            mode: "shadow"
           },
           scope: [11]
         }
       ],
+      job_autonomy_comparison: {
+        actions: { approve_job: { shadow_decisions: 3, paired: 2, agreed: 1, disagreed: 1, agreement_rate: 0.5 } },
+        disagreements: [{ id: 9, action: "approve_job", job_id: 44, predicted_decision: "act", operator_decision: "abstain", created_at: "2026-11-28T10:00:00Z" }]
+      },
       grant_catalog: [
         ...detailPayload.coworker.grant_catalog,
         {
@@ -855,6 +860,9 @@ it("surfaces and saves Job autonomy budgets and the sensitive-change carve-out",
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
 
   fireEvent.change(await screen.findByRole("spinbutton", { name: "Maximum self-approvals per day" }), { target: { value: "5" } })
+  expect(screen.getByText("1 of 2 agreed (50%)")).toBeInTheDocument()
+  expect(screen.getByText(/Approve on Job 44/)).toBeInTheDocument()
+  fireEvent.change(screen.getByRole("combobox", { name: "Autonomy mode" }), { target: { value: "enabled" } })
   fireEvent.click(screen.getByRole("checkbox", { name: "Allow self-approval of sensitive changes" }))
   fireEvent.click(screen.getByRole("button", { name: "Save autonomy limits" }))
 
