@@ -225,3 +225,85 @@ models:
     owner: LandingQueueProcessor
     method: dependency_order
     sha: 3061da36b0650ee4
+- model: SlotCapacity.lean
+  mirrors:
+  - path: app/services/rebase_workflow_selector.rb
+    owner: RebaseWorkflowSelector
+    method: self.active_in_repository
+    sha: 123dc9558761a0a0
+  - path: app/jobs/poll_rebase_job.rb
+    owner: PollRebaseJob
+    method: repo_rebase_concurrency_reached?
+    sha: 4daac8925339bf36
+  - path: app/jobs/poll_merge_state_job.rb
+    owner: PollMergeStateJob
+    method: repo_rebase_concurrency_reached?
+    sha: a7092d9613b629af
+  - path: app/services/work_definitions.rb
+    owner: WorkDefinitions
+    method: landing_capacity_full?
+    sha: 142347e8f526094d
+  - path: app/services/work_definitions.rb
+    owner: WorkDefinitions
+    method: free_landing_lane_for
+    sha: 660b2e0ef8f05317
+  - path: app/models/work_unit.rb
+    owner: WorkUnit
+    method: block!
+    sha: 12f10761baa431a5
+  - path: app/models/work_unit.rb
+    owner: WorkUnit
+    method: mark_terminal!
+    sha: b0f523509ab29d09
+- model: ApprovedProgress.lean
+  mirrors:
+  - path: app/services/landing_queue_processor.rb
+    owner: LandingQueueProcessor
+    method: mergeability_admits_landing?
+    sha: 90bd2f5ff85ecf04
+  - path: app/services/landing_queue_processor.rb
+    owner: LandingQueueProcessor
+    method: land
+    sha: e662205cf94bf8ed
+  - path: app/jobs/auto_retry_job.rb
+    owner: AutoRetryJob
+    method: skip_if_failure_no_longer_retryable
+    sha: 1cb4c3de19cc505f
+  - path: app/services/work_engine/repair_planner.rb
+    owner: BranchDivergedPrOpen
+    method: plan
+    sha: bf67fd6f8631cd24
+- model: RetryTermination.lean
+  mirrors:
+  - path: app/models/auto_retry_attempt.rb
+    owner: AutoRetryAttempt
+    method: self.retry_budget_limit_for
+    sha: 342424c51e9459b8
+  - path: app/services/work_engine/repair_planner.rb
+    owner: Base
+    method: retry_budget_available?
+    sha: da0373bfd69ca7c2
+  - path: app/services/work_engine/repair_executor.rb
+    owner: Base
+    method: schedule_auto_retry!
+    sha: 824964fe239fcb66
+  - path: app/jobs/auto_retry_job.rb
+    owner: AutoRetryJob
+    method: skip_if_provider_delay_no_longer_matches
+    sha: 202d13bd6a35798e
+  - path: app/jobs/auto_retry_job.rb
+    owner: AutoRetryJob
+    method: skip_if_default_provider_changed
+    sha: 63da5ffd7dbac45b
+  - path: app/models/job.rb
+    owner: Job
+    method: enforce_workflow_runaway_limits!
+    sha: c21dc36db328e43b
+  - path: app/services/landing_failure_handler.rb
+    owner: LandingFailureHandler
+    method: call
+    sha: 268a4692da51340a
+  - path: app/services/landing_failure_handler.rb
+    owner: LandingFailureHandler
+    method: runaway_retry_refused?
+    sha: a366bdd3423383e7

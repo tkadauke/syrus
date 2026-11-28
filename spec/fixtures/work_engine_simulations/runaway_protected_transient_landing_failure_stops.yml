@@ -1,0 +1,41 @@
+# An operator approved a Job that runaway protection had already stopped. Its
+# landing's prepare could not build, which reads as a transient blocker, so
+# LandingFailureHandler deferred it -- the Job kept its approval and the
+# landing queue launched it again. Runaway protection no longer counted the
+# failed Workflows (the flag was already set), so nothing bounded the loop and
+# the landing relaunched every few minutes for hours. A runaway-protected Job's
+# transient landing failure now fails the landing back to :implemented
+# (formal/SyrusModel/RetryTermination.lean).
+name: runaway protected transient landing failure stops
+max_ticks: 40
+repository:
+  owner: simulation
+  name: runaway-protected-transient-landing-failure-stops
+  auto_merge_enabled: true
+jobs:
+  stuck:
+    title: Approved after runaway protection, landing prepare cannot build
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-stuck
+    pr_number: 6950
+    pr_checks_state: passing
+    pr_checks_sha: dddddddddddddddddddddddddddddddddddddddd
+    mergeability_head_sha: dddddddddddddddddddddddddddddddddddddddd
+    mergeability_checked_at: "2099-01-01 00:00:00"
+    github_mergeable_state: clean
+    github_mergeable: true
+    commits_behind_base: 0
+    approved_at: "2026-11-27 16:15:00"
+    approved_via: operator
+    runaway_protection: too_many_failed_workflows
+outcomes:
+  default: success
+  steps:
+    prepare:
+      status: failure
+      error_class: Steps::Base::StepFailed
+      error_message: "prepare command failed (exit 5): bundle install\nAn error occurred while installing mysql2 (0.5.7), and Bundler cannot continue."
+success_states:
+  stuck:
+    - implemented

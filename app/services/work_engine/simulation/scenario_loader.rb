@@ -18,7 +18,7 @@ module WorkEngine
         external_pr_number external_pr_author external_pr_fork mergeability_base_sha
         mergeability_head_sha mergeability_checked_at github_mergeable github_mergeable_state
         local_mergeable local_mergeable_state
-        triaging_reason classifier_attempts created_at updated_at
+        triaging_reason classifier_attempts created_at updated_at runaway_protection
       ].freeze
       WORKFLOW_UPDATE_KEYS = %w[
         worker_hostname worker_storage_key started_at finished_at cleaned_up_at

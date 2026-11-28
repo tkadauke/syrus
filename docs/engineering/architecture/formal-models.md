@@ -23,6 +23,11 @@ as the Ruby changes. How to build and extend them is in
   merge-train evidence, row-lock order, landing slots, stacked-Job conflict
   recovery, plugin trust, backup retention, and more). Each file's header says
   which Ruby it mirrors and what it proves.
+- **Capacity, progress and retry termination:** who may occupy a rebase slot
+  or landing lane (`SlotCapacity.lean`), that an approved Job lands or carries
+  a named blocker under stated fairness assumptions (`ApprovedProgress.lean`),
+  and that automatic retries under a fixed failure classification stop, with a
+  ranking function (`RetryTermination.lean`).
 - **The coverage inventory**, `formal/coverage/coverage.json`: every reconciler
   issue kind and engine property, with whether it is proved, partly proved, or
   by design.

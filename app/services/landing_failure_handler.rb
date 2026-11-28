@@ -65,6 +65,9 @@ class LandingFailureHandler
     if failure_code.pause_landing?
       pause_landing!
       job.defer_landing! if job.may_defer_landing?
+    elsif runaway_retry_refused?
+      log_runaway_stop!
+      job.fail_landing! if job.may_fail_landing?
     elsif failure_code.defer_landing?
       log_deferral!
       job.defer_landing! if job.may_defer_landing?
@@ -141,6 +144,33 @@ class LandingFailureHandler
 
   def transient_blocker?
     self.class.transient_blocker?(reason)
+  end
+
+  # A transient deferral keeps the approval and the landing queue launches
+  # the landing again, with no budget of its own: the Job's runaway limits
+  # (Job#enforce_workflow_runaway_limits!) are the only bound, and they stop
+  # counting once runaway protection is set. So a Job an operator approved
+  # while it was runaway-protected relaunched a deterministically failing
+  # landing (a prepare that could not build, read as transient) every few
+  # minutes for hours. Runaway protection means automatic retries wait for an
+  # operator; here that is the approval, so the landing fails back to
+  # :implemented instead (formal/SyrusModel/RetryTermination.lean).
+  def runaway_retry_refused?
+    failure_code.code == LandingFailureCode::TRANSIENT_BLOCKER && job.runaway_protected?
+  end
+
+  def log_runaway_stop!
+    log_run = run || job.current_run
+    return unless log_run
+
+    JobLog.append!(
+      run: log_run,
+      kind: "system",
+      chunk: "landing_queue: landing failed after a transient failure and was not deferred because runaway protection " \
+        "(#{job.runaway_protection}) is active; re-approve to try again (#{reason.truncate(180)})"
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[LandingFailureHandler] failed to log runaway landing stop for #{job.slug}: #{e.class}: #{e.message}")
   end
 
   def self.stale_merge_train_base?(reason)
