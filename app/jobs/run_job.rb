@@ -663,7 +663,7 @@ class RunJob < ApplicationJob
         PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
         return
       end
-      if @workflow.artifact("cannot_proceed").to_h["disposition"] == "failed"
+      if @workflow.reload.artifact("cannot_proceed").to_h["disposition"] == "failed"
         fail_after_transient_cannot_proceed!(e.reason)
       else
         block_after_cannot_proceed!(e.reason)
@@ -1387,7 +1387,7 @@ class RunJob < ApplicationJob
     held_ids = Array(Thread.current[::Run::INLINE_HELD_RUN_IDS])
     return nil if held_ids.empty?
 
-    cursor = @step.next_step
+    cursor = @step.reload.next_step
     while cursor
       queued = cursor.runs.where(state: "queued", id: held_ids).order(:created_at).last
       if queued && !self.class.distributed_parallel_run?(queued)
