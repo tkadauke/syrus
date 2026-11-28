@@ -21,6 +21,7 @@ module RuntimeImages
 
       # Whether the class is required to name an ecosystem (npm, debian, ...).
       def ecosystem_required? = false
+      def ecosystem_input_mode = "none"
       def ecosystems = nil
       def path_scoped? = false
       # Only internal mirrors may resolve into private address space.
@@ -49,6 +50,7 @@ module RuntimeImages
       end
 
       class OsMirror < SourceClass
+        def ecosystem_input_mode = "freeform"
         def displaced_by_required_mirror? = true
       end
 
@@ -66,6 +68,7 @@ module RuntimeImages
         }.freeze
 
         def ecosystem_required? = true
+        def ecosystem_input_mode = "select"
         def ecosystems = ECOSYSTEMS
         def displaced_by_required_mirror? = true
       end
@@ -100,6 +103,7 @@ module RuntimeImages
       end
 
       class InternalMirror < SourceClass
+        def ecosystem_input_mode = "freeform"
         def allow_private? = true
         def requirable? = true
       end

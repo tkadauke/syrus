@@ -5,6 +5,15 @@ RSpec.describe RuntimeImages::BuildNetwork::SourceClass do
     expect(described_class.keys).to match_array(%w[os_mirror language_registry source_host artifact_registry exact_domain repository_namespace internal_mirror])
     expect { described_class.for("nope") }.to raise_error(KeyError)
   end
+
+  it "describes ecosystem inputs without requiring callers to branch on source-class names" do
+    expect(described_class.for("os_mirror")).to have_attributes(ecosystem_input_mode: "freeform", ecosystems: nil)
+    expect(described_class.for("internal_mirror")).to have_attributes(ecosystem_input_mode: "freeform", ecosystems: nil)
+    expect(described_class.for("language_registry")).to have_attributes(
+      ecosystem_input_mode: "select", ecosystems: include("npm", "pypi")
+    )
+    expect(described_class.for("exact_domain")).to have_attributes(ecosystem_input_mode: "none", ecosystems: nil)
+  end
 end
 
 RSpec.describe RuntimeImageBuildNetworkRule do

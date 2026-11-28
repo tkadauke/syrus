@@ -63,10 +63,11 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
       oci_registry: { configured: false, credentials: {} },
       build_network_rules: [],
       build_network_source_classes: [
-        { key: "exact_domain", ecosystem_required: false, path_scoped: false, requirable: false },
-        { key: "internal_mirror", ecosystem_required: false, path_scoped: false, requirable: true }
-      ],
-      build_network_ecosystems: ["npm", "pypi"]
+        { key: "exact_domain", ecosystem_required: false, ecosystem_input_mode: "none", ecosystem_options: [], path_scoped: false, requirable: false },
+        { key: "os_mirror", ecosystem_required: false, ecosystem_input_mode: "freeform", ecosystem_options: [], path_scoped: false, requirable: false },
+        { key: "language_registry", ecosystem_required: true, ecosystem_input_mode: "select", ecosystem_options: ["npm", "pypi"], path_scoped: false, requirable: false },
+        { key: "internal_mirror", ecosystem_required: false, ecosystem_input_mode: "freeform", ecosystem_options: [], path_scoped: false, requirable: true }
+      ]
     },
     ...overrides
   }
@@ -169,6 +170,36 @@ describe("RetentionSettings", () => {
       "/api/v1/app/admin/retention_settings/network_rules",
       expect.objectContaining({ method: "POST", body: expect.stringContaining('"host":"packages.example.test"') })
     ))
+  })
+
+  it("creates OS and required internal mirrors for a free-form ecosystem", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse(retentionPayload({ message: "Retention settings updated." })))
+      return Promise.resolve(jsonResponse(retentionPayload()))
+    })
+    renderRoute()
+    await screen.findByText("Build-network allowlist and mirrors")
+
+    fireEvent.change(screen.getByLabelText("Destination type"), { target: { value: "os_mirror" } })
+    fireEvent.change(screen.getByLabelText("Host"), { target: { value: "deb.example.test" } })
+    fireEvent.change(screen.getByLabelText("Ecosystem"), { target: { value: "debian" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add rule" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1))
+    expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body).toContain(
+      '"source_class":"os_mirror","host":"deb.example.test","port":443,"path_prefix":"","ecosystem":"debian"'
+    )
+
+    fireEvent.change(screen.getByLabelText("Destination type"), { target: { value: "internal_mirror" } })
+    fireEvent.change(screen.getByLabelText("Host"), { target: { value: "apt.corp.example" } })
+    fireEvent.change(screen.getByLabelText("Ecosystem"), { target: { value: "debian" } })
+    fireEvent.click(screen.getByLabelText("Require this internal mirror"))
+    fireEvent.click(screen.getByRole("button", { name: "Add rule" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2))
+    const secondBody = fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")[1][1]?.body
+    expect(secondBody).toContain('"source_class":"internal_mirror"')
+    expect(secondBody).toContain('"ecosystem":"debian","required":true')
   })
 
   it("shows disabled and scoped network-rule details and can delete a rule", async () => {

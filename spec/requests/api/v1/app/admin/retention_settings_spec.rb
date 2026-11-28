@@ -71,7 +71,9 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     expect(parse_body.dig("runtime_environment", "policy", "builder", "max_concurrent_builds")).to eq(2)
     expect(parse_body.dig("runtime_environment", "oci_registry", "configured")).to be(false)
     expect(parse_body.dig("runtime_environment", "build_network_source_classes")).to include(
-      include("key" => "internal_mirror", "requirable" => true),
+      include("key" => "internal_mirror", "requirable" => true, "ecosystem_input_mode" => "freeform", "ecosystem_options" => []),
+      include("key" => "os_mirror", "ecosystem_input_mode" => "freeform"),
+      include("key" => "language_registry", "ecosystem_input_mode" => "select", "ecosystem_options" => include("npm")),
       include("key" => "repository_namespace", "path_scoped" => true)
     )
   end

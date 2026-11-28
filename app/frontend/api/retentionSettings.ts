@@ -76,8 +76,14 @@ export type RetentionSettingsPayload = {
       credentials: Record<string, boolean>
     }
     build_network_rules: BuildNetworkRule[]
-    build_network_source_classes: Array<{ key: string; ecosystem_required: boolean; path_scoped: boolean; requirable: boolean }>
-    build_network_ecosystems: string[]
+    build_network_source_classes: Array<{
+      key: string
+      ecosystem_required: boolean
+      ecosystem_input_mode: "none" | "select" | "freeform"
+      ecosystem_options: string[]
+      path_scoped: boolean
+      requirable: boolean
+    }>
   }
   message?: string
 }

@@ -256,15 +256,16 @@ function BuildNetworkRulesEditor({ environment, onNotice }: { environment: Runti
         <NetworkInput label={t("retention_settings.environment.network_host")} onChange={(host) => setDraft((current) => ({ ...current, host }))} required value={draft.host} />
         <NetworkInput label={t("retention_settings.environment.network_port")} onChange={(port) => setDraft((current) => ({ ...current, port: port ? Number(port) : null }))} type="number" value={draft.port?.toString() || ""} />
         {sourceMetadata?.path_scoped ? <NetworkInput label={t("retention_settings.environment.network_path_prefix")} onChange={(path_prefix) => setDraft((current) => ({ ...current, path_prefix }))} required value={draft.path_prefix || ""} /> : null}
-        {sourceMetadata?.ecosystem_required || draft.source_class === "internal_mirror" ? (
+        {sourceMetadata?.ecosystem_input_mode === "select" ? (
           <label className="text-xs text-text-secondary">
             {t("retention_settings.environment.network_ecosystem_label")}
             <Select className="mt-1" onChange={(event) => setDraft((current) => ({ ...current, ecosystem: event.target.value }))} required={sourceMetadata?.ecosystem_required} value={draft.ecosystem || ""}>
               <option value="">{t("retention_settings.environment.network_ecosystem_all")}</option>
-              {environment.build_network_ecosystems.map((ecosystem) => <option key={ecosystem} value={ecosystem}>{ecosystem}</option>)}
+              {sourceMetadata.ecosystem_options.map((ecosystem) => <option key={ecosystem} value={ecosystem}>{ecosystem}</option>)}
             </Select>
           </label>
         ) : null}
+        {sourceMetadata?.ecosystem_input_mode === "freeform" ? <NetworkInput label={t("retention_settings.environment.network_ecosystem_label")} onChange={(ecosystem) => setDraft((current) => ({ ...current, ecosystem }))} required={sourceMetadata.ecosystem_required} value={draft.ecosystem || ""} /> : null}
         <NetworkInput label={t("retention_settings.environment.network_note")} onChange={(note) => setDraft((current) => ({ ...current, note }))} value={draft.note || ""} />
         <div className="flex flex-col justify-end gap-2">
           <Checkbox checked={draft.enabled} label={t("retention_settings.environment.network_enabled_label")} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />

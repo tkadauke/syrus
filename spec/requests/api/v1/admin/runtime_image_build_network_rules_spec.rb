@@ -15,6 +15,8 @@ RSpec.describe "API: /api/v1/admin/runtime_image_build_network_rules", type: :re
     expect(body["rules"].map { |r| r["host"] }).to eq([ "github.com" ])
     expect(body["source_classes"].map { |c| c["key"] }).to match_array(RuntimeImages::BuildNetwork::SourceClass.keys)
     expect(body["source_classes"].find { |c| c["key"] == "internal_mirror" }).to include("allows_private_addresses" => true, "requirable" => true)
+    expect(body["source_classes"].find { |c| c["key"] == "os_mirror" }).to include("ecosystem_input_mode" => "freeform", "ecosystem_options" => [])
+    expect(body["source_classes"].find { |c| c["key"] == "language_registry" }).to include("ecosystem_input_mode" => "select", "ecosystem_options" => include("npm"))
   end
 
   it "creates, updates, and deletes a rule, attributing the actor" do

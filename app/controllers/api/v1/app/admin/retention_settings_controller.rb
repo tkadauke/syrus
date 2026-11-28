@@ -75,9 +75,9 @@ module Api
               build_network_rules: RuntimeImageBuildNetworkRule.order(:source_class, :host, :port).map { |rule| network_rule_payload(rule) },
               build_network_source_classes: RuntimeImages::BuildNetwork::SourceClass.registry.values.map do |klass|
                 source = klass.new
-                { key: klass.key, ecosystem_required: source.ecosystem_required?, path_scoped: source.path_scoped?, requirable: source.requirable? }
-              end,
-              build_network_ecosystems: RuntimeImages::BuildNetwork::SourceClass::LanguageRegistry::ECOSYSTEMS
+                { key: klass.key, ecosystem_required: source.ecosystem_required?, ecosystem_input_mode: source.ecosystem_input_mode,
+                  ecosystem_options: source.ecosystems || [], path_scoped: source.path_scoped?, requirable: source.requirable? }
+              end
             }
           end
 

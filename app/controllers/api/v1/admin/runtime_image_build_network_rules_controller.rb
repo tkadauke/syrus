@@ -57,7 +57,8 @@ module Api
         end
 
         def describe(source)
-          { key: source.class.key, ecosystem_required: source.ecosystem_required?, path_scoped: source.path_scoped?,
+          { key: source.class.key, ecosystem_required: source.ecosystem_required?, ecosystem_input_mode: source.ecosystem_input_mode,
+            ecosystem_options: source.ecosystems || [], path_scoped: source.path_scoped?,
             allows_private_addresses: source.allow_private?, requirable: source.requirable?,
             displaced_by_required_mirror: source.displaced_by_required_mirror? }
         end
