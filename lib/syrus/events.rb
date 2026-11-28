@@ -40,7 +40,8 @@ module Syrus
       "user.created"          => :async,
       "repository.created"    => :async,
       "repository.archived"   => :async,
-      "repository.destroyed"  => :async
+      "repository.destroyed"  => :async,
+      "runtime_image.rebuild_requested" => :async
     }.freeze
 
     class UnknownEvent < StandardError; end

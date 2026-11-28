@@ -16,6 +16,16 @@ RSpec.describe RuntimeImages::BaseCompatibility do
     expect(compat.environments_needing_rebuild).to be_empty
   end
 
+  it "requests a rebuild when a bundled-provider contract changed" do
+    release = active_base
+    image = publish_environment(release)
+    allow(RuntimeImages::RuntimeAbi).to receive(:outdated_contract?).with(image).and_return(true)
+
+    finding = compat.environments_needing_rebuild.first
+    expect(finding).to have_attributes(image: image, replacement: release,
+                                       reasons: [ "provider_contract_outdated" ])
+  end
+
   it "finds environments on a revoked base and names the replacement" do
     old = active_base
     env = publish_environment(old)

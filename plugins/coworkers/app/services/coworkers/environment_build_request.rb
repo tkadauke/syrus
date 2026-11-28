@@ -24,7 +24,11 @@ class Coworkers::EnvironmentBuildRequest
   def call(created_by: nil, reason: nil)
     ensure_enabled!
     snapshot = Coworkers::EnvironmentSource.new(@coworker, @workspace).snapshot!(created_by: created_by)
-    revision = snapshot.revision
+    call_revision(snapshot.revision, created_by:, reason:)
+  end
+
+  def call_revision(revision, base: nil, created_by: nil, reason: nil)
+    ensure_enabled!
     environment = revision.environment
 
     environment.with_lock do
@@ -32,7 +36,7 @@ class Coworkers::EnvironmentBuildRequest
       return Result.new(revision:, build_request: revision.build_request) if revision.build_request
 
       manifest = revision.source_manifest.fetch("files")
-      base = Syrus::Host::RuntimeImages.active_base(platform: @platform)
+      base ||= Syrus::Host::RuntimeImages.active_base(platform: @platform)
       raise BaseUnavailable, "no compatible active coworker base is available" unless base
 
       request = Syrus::Host::RuntimeImages.request_build(

@@ -144,7 +144,8 @@ RSpec.describe "Runtime Image Service audit, health, and diagnostics" do
       expect(described_class.new.queue_name).to eq("cleanup")
       RuntimeImages::Providers.register(provider)
       publish
-      expect(described_class.perform_now).to eq(0)
+      expect { expect(described_class.perform_now).to eq(0) }
+        .to have_enqueued_job(BaseRebuildDiscoveryJob)
     ensure
       RuntimeImages::Providers.unregister(provider.key)
     end

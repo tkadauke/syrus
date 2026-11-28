@@ -13,7 +13,11 @@ module Syrus
 
       def self.active_base(**) = ::RuntimeImages::BuildRequests.new.active_base(**)
 
+      def self.base_for_rebuild(id) = ::RuntimeImages::BuildRequests.new.base_for_rebuild(id)
+
       def self.base_launch(**) = ::RuntimeImages::BuildRequests.new.base_launch(**)
+
+      def self.current_launch_contract?(image, **) = ::RuntimeImages::RuntimeAbi.current_contract?(image, **)
 
       def self.request_build(**) = ::RuntimeImages::BuildRequests.new.submit(**)
 

@@ -7,6 +7,7 @@ class RuntimeImageReconcileJob < ApplicationJob
 
   def perform
     findings = RuntimeImages::Reconciler.new.call
+    BaseRebuildDiscoveryJob.perform_later
     Rails.logger.info("[RuntimeImageReconcileJob] findings=#{findings.size} " \
                       "kinds=#{findings.group_by(&:kind).transform_values(&:size).to_json}")
     findings.size
