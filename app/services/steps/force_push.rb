@@ -270,7 +270,7 @@ module Steps
       return adopt_remote_head!(git, truth) if truth.adopt_remote? || truth.up_to_date?
 
       workflow.set_artifact!("branch_divergence", truth.to_h.slice("remote_sha", "local_sha", "relation", "outcome", "recommended_recovery").merge(
-        "branch" => workspace.branch_name, "detected_at" => Time.current.iso8601, "message" => "force_push: remote branch holds work this rebase does not carry"
+        "branch" => workspace.branch_name, "detected_at" => Time.current.iso8601, "message" => I18n.t("services.force_push.remote_holds_unrebased_work")
       ))
       fail_with!(:branch_diverged,
                  "force_push: #{workspace.branch_name} moved to #{live.first(9)} (#{truth.relation}); refusing to overwrite work this rebase does not carry",

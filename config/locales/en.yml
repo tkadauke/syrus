@@ -163,6 +163,8 @@ en:
         terminal_states_mutually_exclusive: "an override cannot be both consumed and invalidated"
 
   services:
+    force_push:
+      remote_holds_unrebased_work: "force_push: remote branch holds work this rebase does not carry"
     recovery_decision:
       no_progress:
         headline: "Repair stopped without progress"

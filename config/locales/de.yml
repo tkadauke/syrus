@@ -133,6 +133,8 @@ de:
         terminal_states_mutually_exclusive: "Eine Außerkraftsetzung kann nicht zugleich verbraucht und ungültig gemacht sein"
 
   services:
+    force_push:
+      remote_holds_unrebased_work: "force_push: Der Remote-Branch enthält Arbeit, die dieses Rebase nicht mitbringt"
     recovery_decision:
       no_progress:
         headline: "Reparatur ohne Fortschritt beendet"

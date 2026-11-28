@@ -133,6 +133,8 @@ la:
         terminal_states_mutually_exclusive: "exceptio simul consumpta et infirmata esse non potest"
 
   services:
+    force_push:
+      remote_holds_unrebased_work: "force_push: ramus remotus opus continet quod haec rebasis non fert"
     recovery_decision:
       no_progress:
         headline: "Reparatio sine progressu cessavit"
