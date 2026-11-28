@@ -33,6 +33,7 @@ final class WebViewModel: NSObject, ObservableObject {
     private let network: NetworkMonitor?
     private var consecutiveContentCrashes = 0
     private var downloadDestinations: [ObjectIdentifier: URL] = [:]
+    let haptics: HapticsBridge
 
     /// Called after a main-frame load finishes or the URL changes, so push
     /// registration can retry once the user has signed in.
@@ -44,8 +45,15 @@ final class WebViewModel: NSObject, ObservableObject {
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
         configuration.applicationNameForUserAgent = Self.userAgentSuffix
+        let haptics = HapticsBridge()
+        self.haptics = haptics
+        configuration.userContentController.add(WeakScriptMessageHandler(haptics), name: HapticRequest.handlerName)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
+        haptics.isTrusted = { [weak self] isMainFrame, url in
+            guard isMainFrame, let url, let server = self?.server else { return false }
+            return server.sameOrigin(as: url)
+        }
 
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -168,6 +176,18 @@ final class WebViewModel: NSObject, ObservableObject {
         consecutiveContentCrashes = 0
         completedDownload = nil
         downloadError = nil
+    }
+}
+
+/// WKUserContentController retains its handlers strongly; this avoids a cycle
+/// through the web view that owns the controller.
+@MainActor
+final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var target: WKScriptMessageHandler?
+    init(_ target: WKScriptMessageHandler) { self.target = target }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
     }
 }
 

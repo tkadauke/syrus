@@ -39,6 +39,8 @@ const jobApi = vi.hoisted(() => ({
   submitJobFeedback: vi.fn(async () => undefined)
 }))
 
+const hapticsMock = vi.hoisted(() => ({ selection: vi.fn(), impact: vi.fn() }))
+vi.mock("@app/lib/iosHaptics", () => ({ haptics: hapticsMock }))
 vi.mock("@app/api/jobs", () => jobApi)
 vi.mock("@app/lib/entityStore", () => ({ normalizeJobDetailPayload: (payload: unknown) => payload }))
 vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
@@ -445,6 +447,46 @@ describe("ReviewWorkspaceRoute", () => {
 
     expect(await screen.findByRole("dialog", { name: "Approve JOB-42 for landing?" })).toBeInTheDocument()
     expect(screen.getAllByRole("dialog", { name: "Approve JOB-42 for landing?" })).toHaveLength(1)
+  })
+
+  it("clicks at distance increments while dragging and impacts only on a left or right commit", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+    hapticsMock.selection.mockClear()
+    hapticsMock.impact.mockClear()
+
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 601, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 108, clientY: 200, pointerId: 601, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 120, clientY: 200, pointerId: 601, pointerType: "touch" })
+    expect(hapticsMock.selection).not.toHaveBeenCalled()
+    fireEvent.pointerMove(card, { clientX: 130, clientY: 200, pointerId: 601, pointerType: "touch" })
+    expect(hapticsMock.selection).toHaveBeenCalledTimes(1)
+    fireEvent.pointerMove(card, { clientX: 130, clientY: 200, pointerId: 601, pointerType: "touch" })
+    expect(hapticsMock.selection).toHaveBeenCalledTimes(1)
+    expect(hapticsMock.impact).not.toHaveBeenCalled()
+
+    fireEvent.pointerMove(card, { clientX: 180, clientY: 200, pointerId: 601, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 180, clientY: 200, pointerId: 601, pointerType: "touch" })
+    expect(hapticsMock.impact).toHaveBeenCalledTimes(1)
+    expect(hapticsMock.impact).toHaveBeenCalledWith("medium")
+  })
+
+  it("does not give haptics for a released, uncommitted drag", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+    hapticsMock.impact.mockClear()
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 602, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 130, clientY: 200, pointerId: 602, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 130, clientY: 200, pointerId: 602, pointerType: "touch" })
+    expect(hapticsMock.impact).not.toHaveBeenCalled()
   })
 
   it("keeps interactive summary targets action-free while allowing locked vertical reading scroll", async () => {

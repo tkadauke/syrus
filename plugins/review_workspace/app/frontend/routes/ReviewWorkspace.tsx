@@ -5,6 +5,7 @@ import { Notice } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
+import { haptics } from "@app/lib/iosHaptics"
 import { addAppEventListener } from "@app/lib/appEvents"
 import { normalizeJobDetailPayload } from "@app/lib/entityStore"
 import { Markdown } from "@app/lib/Markdown"
@@ -15,6 +16,7 @@ import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, us
 import { Link, Navigate, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom"
 import { fetchReviewWorkspace, fetchReviewWorkspaceSummary, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
 import { buildDecisionBrief, type BriefRow, type ChangeScope } from "../lib/decisionBrief"
+import { DragHapticQuantizer } from "../lib/dragHaptics"
 import { useGestureHelp } from "../lib/gestureHelp"
 import { createReviewSessionId, useReviewSessionDeferrals } from "../lib/reviewSession"
 
@@ -293,6 +295,7 @@ function MobileGestureSurface({
     armed: boolean
     scrollOnly: boolean
     scroller: HTMLElement | null
+    ticks: DragHapticQuantizer
   }>()
   const longPress = useRef<number>()
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -325,7 +328,8 @@ function MobileGestureSurface({
       mode: "pending",
       armed: false,
       scrollOnly,
-      scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
+      scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]"),
+      ticks: new DragHapticQuantizer({ max: SWIPE_THRESHOLD })
     }
     setDragging(true)
     target.setPointerCapture?.(event.pointerId)
@@ -375,6 +379,9 @@ function MobileGestureSurface({
     const horizontal = origin.direction === "left" || origin.direction === "right"
     const signedDistance = horizontal ? (origin.direction === "right" ? x : -x) : origin.direction === "down" ? y : -y
     if (signedDistance >= SWIPE_THRESHOLD) origin.armed = true
+    // Only real pointer movement in an active gesture clicks; scrolling and the
+    // programmatic snap-back animation never reach this point.
+    if (origin.ticks.update(signedDistance)) haptics.selection()
     const distance = Math.max(0, signedDistance)
     setOffset(
       horizontal
@@ -387,6 +394,7 @@ function MobileGestureSurface({
     if (!origin || origin.pointerId !== event.pointerId) return
     reset()
     if (origin.mode !== "gesture" || !origin.armed) return
+    if (origin.direction === "right" || origin.direction === "left") haptics.impact("medium")
     if (origin.direction === "right") onApprove()
     else if (origin.direction === "left") onDefer()
     else onMove(origin.direction === "up" ? 1 : -1)

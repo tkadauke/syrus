@@ -79,6 +79,20 @@ Covered locally: Swift unit tests for registration logic and routing, and Rails
 specs for the device API, APNs client (fake transport) and delivery job.
 Not covered: real delivery to Apple.
 
+## Haptics bridge
+
+The review workspace's card drag asks the shell for haptics through a single
+`WKScriptMessageHandler` named `syrusHaptics`. Accepted bodies are exactly
+`{v: 1, kind: "selection"}` and `{v: 1, kind: "impact", style: "light" | "medium" | "heavy"}`;
+anything else (unknown keys, types, styles, versions) is dropped. Only the main
+frame of the selected server's origin is trusted, and `HapticThrottle` rate-limits
+requests natively. The web side (`app/frontend/lib/iosHaptics.ts`) only posts when
+the user agent carries `SyrusiOS/`, skips under `prefers-reduced-motion` or
+`localStorage["syrus.haptics"] = "off"`, and is a no-op in ordinary browsers. UIKit
+feedback generators already follow the system's *System Haptics* setting. While
+dragging, a light selection click fires each time the distance crosses a 24 px
+increment (either direction, with hysteresis); a left/right commit fires a medium impact.
+
 ## Signing and TestFlight
 
 No signing material is committed. The bundle id defaults to `app.syrus.ios`;
