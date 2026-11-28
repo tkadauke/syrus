@@ -83,14 +83,16 @@ module WorkEngine
           @context = context
         end
 
+        # An operator force-failing a Job is deliberately absent: a failed Job
+        # with waiting dependents is exactly what failed_blockers reports, so
+        # the perturbation only ever rediscovers the invariant working.
         def kinds
           @kinds ||= begin
             weighted = {
               "advance_main" => 3, "approve" => 2, "transient_failure" => 3, "worker_died" => 3,
               "grader_killed_by_deploy" => 2, "main_break_heal" => 2, "provider_outage" => 2,
               "ci_flake" => 2, "report_ci_failure" => 1, "close_externally" => 1, "merge_externally" => 1,
-              "set_job_provider" => 1, "resume_deferred_phase" => 2, "spurious_wake" => 1, "pause_unpause" => 3,
-              "operator_force_fail" => 1
+              "set_job_provider" => 1, "resume_deferred_phase" => 2, "spurious_wake" => 1, "pause_unpause" => 3
             }
             weighted["rewrite_stack_parent"] = 3 if context.stack_children.any?
             weighted["lose_worker"] = 2 if context.workers.any?
@@ -156,7 +158,6 @@ module WorkEngine
           when "pause_unpause"
             key = job
             [ event("pause", index, at, "pause_work" => key), event("unpause", index, later(at), "unpause_work" => key) ]
-          when "operator_force_fail" then [ event(kind, index, at, "fail" => job) ]
           when "rewrite_stack_parent" then [ event(kind, index, at, "rewrite_stack_parent" => context.stack_children.sample(random: rng)) ]
           when "lose_worker" then [ event(kind, index, at, "lose_worker" => { "hostname" => context.workers.sample(random: rng) }) ]
           when "lose_storage" then [ event(kind, index, at, "lose_storage" => { "job" => job }) ]

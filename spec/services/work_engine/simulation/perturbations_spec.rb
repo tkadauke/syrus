@@ -200,6 +200,23 @@ RSpec.describe WorkEngine::Simulation::Runner do
       expect(result.events.grep(/retry .* via/)).to be_empty
     end
 
+    # Regression: the runner failed a Step that propagation had left running
+    # for its scheduled in-place rerun, so the rerun later raised on a Step
+    # that was no longer failed or running.
+    it "lets a worker death under prepare rerun in place" do
+      result = run(SINGLE_JOB + <<~YAML)
+        events:
+          - name: worker dies under prepare
+            once: true
+            when: { tick: 0 }
+            do:
+              inject_outcome: { job: job, step: prepare, outcome: worker_died }
+      YAML
+
+      expect(result.status).to eq("success")
+      expect(result.events).to include(a_string_matching(/auto retry 1 failed_step -> started/))
+    end
+
     it "answers the landing queue's mergeability poll so an approved Job without evidence still lands" do
       result = run(<<~YAML)
         name: approved without mergeability evidence
