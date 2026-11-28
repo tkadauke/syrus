@@ -5111,6 +5111,28 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
+## F159. A severe coworker base revocation stopped nothing that ran on it — fixed (NY47: A)
+
+**Invariant.** A severe revocation means the revoked bits are unsafe: nothing
+built on them launches, and nothing running on them keeps running.
+
+**Counterexample.** `BaseReleases#revoke!` recorded the severity and
+documented severe as "the termination signal for running turns (see
+BaseRevocation)", but nothing consumed `BaseRevocation`. Coworker turns
+running on the base kept running, and coworker environments built on it kept
+launching: environment selection, publish and rollback look only at the
+derived image's own state.
+
+**Fix.** `revoke!` publishes a new core event, `coworker_base.revoked`,
+delivered inline. The coworkers plugin subscribes: on a severe revocation it
+severely revokes every environment revision built on that release, which
+clears its pointers and terminates turns on its image, and then terminates
+coworker turns running on the base digest. A standard revocation still only
+blocks new launches of the base. Spec first: "revokes environments built on
+the base and stops turns on the base and on them" failed with the revision
+still active. The operator, agent-searchable and public docs describe the
+cascade.
+
 ## F158. A multi-stage build passed base ancestry through an earlier stage — fixed (Lead L22)
 
 **Invariant.** An extension image counts as built on the approved base only

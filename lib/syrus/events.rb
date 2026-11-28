@@ -41,7 +41,11 @@ module Syrus
       "repository.created"    => :async,
       "repository.archived"   => :async,
       "repository.destroyed"  => :async,
-      "runtime_image.rebuild_requested" => :async
+      "runtime_image.rebuild_requested" => :async,
+      # A coworker base release was revoked. Inline: a severe revocation must
+      # stop what runs on the base, and on images built from it, before the
+      # operator's request returns (NY47).
+      "coworker_base.revoked" => :inline
     }.freeze
 
     class UnknownEvent < StandardError; end

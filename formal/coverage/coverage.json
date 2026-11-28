@@ -3990,7 +3990,7 @@
         "C. Keep them as they are (pullable, never re-evaluated) and document the exception."
       ],
       "recommendation": "B. It keeps running work unaffected while putting every image under the same verification lifecycle within a bounded time; A is the stricter choice if no image is in use.",
-      "decision": null
+      "decision": "Moot (2026-11-28, operator): no runtime image was published before verification existed, so none is grandfathered."
     },
     {
       "id": "NY47",
@@ -4003,7 +4003,7 @@
         "C. Keep severity informational for bases and remove the termination promise from the code and docs."
       ],
       "recommendation": "A. A severe revocation means the bits are unsafe; an image built on top of them carries them, so it should be withdrawn the same way and its running turns stopped.",
-      "decision": null
+      "decision": "A (2026-11-28, operator): a severe base revocation severely revokes every coworker environment built on the base and terminates turns on the base and on those images. Implemented as F159."
     }
   ]
 }

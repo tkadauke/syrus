@@ -106,7 +106,7 @@ The standard coworker base moves candidate → active → retired (kept pullable
 - `POST /:id/promote` makes a candidate active and retires the previous base.
 - `POST /rollback` (`platform`, optional `release_id`) re-activates a retired base; `release_id` must belong to the requested platform (`platform_mismatch` otherwise).
 - `POST /:id/support` (`supported_until`, null clears) sets a support deadline; after it passes, environments on that base are reported as needing a rebuild.
-- `POST /:id/revoke` (`reason`, `severity` = `standard` or `severe`) withdraws the base. New launches are blocked with `base_revoked`/`no_active_base` until another base is promoted or rolled back to; a severe revocation is also the termination signal for running executions.
+- `POST /:id/revoke` (`reason`, `severity` = `standard` or `severe`) withdraws the base. New launches are blocked with `base_revoked`/`no_active_base` until another base is promoted or rolled back to; a severe revocation also revokes every coworker environment built on that base (so those environments stop launching and their running turns are terminated) and terminates turns running on the base itself.
 
 Rebuild discovery lists environments built on a revoked, support-ended, or ABI-incompatible base. A base that is itself out of support is never offered as the replacement; such environments are reported as blocked until a supported base is active. All changes are audited.
 

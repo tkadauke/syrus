@@ -152,7 +152,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `agent_insights` | `AgentInsights::Lifecycle` | - | - | `domain_subscribers` |
 | `alertmanager_investigations` | `AlertmanagerInvestigations::Lifecycle` | - | - | `callback_providers` |
 | `build_cache` | `BuildCache::Lifecycle` | - | - | `domain_subscribers` |
-| `coworkers` | `Coworkers::Lifecycle` | - | - | `callback_providers` |
+| `coworkers` | `Coworkers::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
 | `design_docs` | `DesignDocs::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
 | `git_mirror` | `GitMirror::Lifecycle` | - | - | `callback_providers` |
 | `global_search` | `GlobalSearch::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |

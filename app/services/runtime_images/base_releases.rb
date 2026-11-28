@@ -137,6 +137,11 @@ module RuntimeImages
       image.release_retention! if image.retention_state == "retained"
       Audit.record("base_release.revoke", outcome: :ok, image: image, actor: actor,
                    details: { severity: severity, reason: reason, was_active: was_active })
+      # Whatever was built on this base, and whatever runs on it, belongs to a
+      # plugin (coworker environments and turns); a severe revocation withdraws
+      # those too (NY47).
+      Syrus::Events.publish("coworker_base.revoked", release_id: release.id, digest: image.digest,
+                                                     severity: severity.to_s, reason: reason)
       BaseRebuildDiscoveryJob.perform_later
       release
     end

@@ -169,10 +169,13 @@ audited (`base_release.*` events in the Runtime Image Service audit log).
 - **Revocation**: records a mandatory reason and a severity, revokes the image
   at the registry (so it can no longer be pulled), and leaves the platform
   blocked until another candidate is promoted or a retired base is rolled back
-  to. `standard` stops new launches only. `severe` additionally is the
-  termination signal: turn runtimes ask `BaseRevocation.terminate?(digest)` (or
-  poll `BaseRevocation.terminating(since:)`) with the digest a running turn is
-  pinned to and stop it when true.
+  to. `standard` stops new launches only. `severe` also withdraws everything
+  built on the base: `BaseReleases#revoke!` publishes `coworker_base.revoked`
+  (inline), and the coworkers plugin severely revokes every environment
+  revision built on that release (clearing its pointers and terminating turns
+  on its image); turns on the base digest itself are terminated by the image
+  revocation, which carries the severity. `BaseRevocation.terminate?(digest)`
+  still answers for a single digest.
 
 Operator surface: `GET /api/v1/admin/coworker_base_releases` (releases, launch
 state and rollback targets per platform, candidates, revocations, environments
