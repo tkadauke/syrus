@@ -433,14 +433,16 @@ module RuntimeImages
       # The Dockerfile's base images and what the builder resolved them to.
       # Observational: unreadable files leave the bases unresolved, never fail.
       def record_bases(scratch, evidence, recipe = {})
-        references = DockerfileBases.references(read_small(File.join(scratch, BASES_FILE)), Hash(recipe)["build_args"])
+        dockerfile = read_small(File.join(scratch, BASES_FILE))
+        references = DockerfileBases.references(dockerfile, Hash(recipe)["build_args"])
+        final = DockerfileBases.final_reference(dockerfile, Hash(recipe)["build_args"])
         images = begin
           parsed = JSON.parse(read_small(File.join(scratch, IMAGES_FILE)).presence || "[]")
           parsed.is_a?(Array) ? parsed : []
         rescue JSON::ParserError
           []
         end
-        evidence.record_bases(references, images)
+        evidence.record_bases(references, images, final: final)
       end
 
       def read_small(path)

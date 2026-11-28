@@ -36,6 +36,33 @@ module RuntimeImages
         found.uniq
       end
 
+      # The external image the last stage builds FROM, following references to
+      # earlier stages; nil for scratch or an unreadable file. The built image
+      # descends from this one only: a base an earlier stage used and the final
+      # stage merely copies from is not its ancestor (F158).
+      def final_reference(text, build_args = {})
+        stages = {}
+        args = {}
+        overrides = Hash(build_args).transform_keys(&:to_s)
+        last = nil
+        text.to_s.each_line do |line|
+          line = line.scrub("")
+          if (arg = ARG_LINE.match(line))
+            value = arg[:value] ? arg[:value].strip.delete_prefix('"').delete_suffix('"') : nil
+            args[arg[:name]] = overrides.fetch(arg[:name]) { value } unless args.key?(arg[:name])
+            next
+          end
+          match = FROM.match(line)
+          next unless match
+
+          ref = substitute(match[:ref], args)
+          resolved = stages.fetch(ref.downcase, ref)
+          stages[match[:stage].downcase] = resolved if match[:stage]
+          last = resolved
+        end
+        last unless last.nil? || last.casecmp?("scratch")
+      end
+
       def substitute(reference, args)
         reference.gsub(VARIABLE) do
           name = $~[:braced] || $~[:plain]
@@ -46,11 +73,13 @@ module RuntimeImages
 
       # A digest pinned in the reference wins; otherwise the digest the builder
       # reports for an image carrying that name; otherwise nil (not resolved).
-      def resolve(references, images)
+      # +final+ marks the entry the final stage descends from (final_reference).
+      def resolve(references, images, final: nil)
         references.map do |reference|
           pinned = PINNED.match(reference)
           digest = pinned ? pinned[:digest] : listed_digest(reference, images)
-          { "reference" => reference.truncate(300), "pinned" => !pinned.nil?, "digest" => digest }.compact
+          entry = { "reference" => reference.truncate(300), "pinned" => !pinned.nil?, "digest" => digest }.compact
+          final.nil? ? entry : entry.merge("final" => reference == final)
         end
       end
 

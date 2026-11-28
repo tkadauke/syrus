@@ -5111,6 +5111,25 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
+## F158. A multi-stage build passed base ancestry through an earlier stage — fixed (Lead L22)
+
+**Invariant.** An extension image counts as built on the approved base only
+when the image itself descends from it.
+
+**Counterexample.** `CandidateProbe#ancestry_result` accepted the approved
+base digest in any entry of the image's recorded `base_images`, which lists
+every `FROM` of the Dockerfile. `FROM <approved>@sha256:... AS build` followed
+by `FROM other:tag` and a `COPY --from=build` passed `base_ancestry`, though
+the shipped image is built on `other:tag`.
+
+**Fix.** `DockerfileBases.final_reference` follows stage aliases from the last
+`FROM` to the external image the final stage builds on, the builder marks that
+entry `final` in the evidence, and the probe requires the approved digest on
+the final entry. Provenance recorded before the mark keeps the old rule, so
+re-evaluation does not demote existing images. Spec first: "names the external
+image the final stage builds from, following stage aliases" and "requires the
+approved base on the final stage, not any stage" failed before the change.
+
 ## M83. Coworker environment Epic (#576) — F157; NY47 and leads
 
 Swept read-only and re-checked. Holds: publication is atomic (activation and
@@ -8892,7 +8911,9 @@ Later commits, checked through main `cb5b006575` (two merge trains):
 
 - Main through `871e9bb8c3`: the coworker environment Epic (#576), M83.
 
-Checked through main `871e9bb8c3`. Each loop iteration continues from there:
+- Main through `5d07eeea1b`: desktop update recovery only; no engine invariant.
+
+Checked through main `5d07eeea1b`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

@@ -79,6 +79,21 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
     expect(results.fetch("base_ancestry")).to have_attributes(outcome: :failed, failure_class: "integrity", code: "base_ancestry_mismatch")
   end
 
+  # A multi-stage Dockerfile can use the approved base in a build stage and
+  # ship a final stage built on anything else; the provenance lists both
+  # bases, and accepting any of them passed base_ancestry (F158).
+  it "requires the approved base on the final stage, not any stage" do
+    image.update!(provenance: image.provenance.merge("base_images" => [
+      { "digest" => base_digest, "pinned" => true },
+      { "digest" => "sha256:#{"e" * 64}", "pinned" => false, "final" => true }
+    ]))
+    stub_probe
+
+    results = probe.call(image: image, build_request_id: request.id)
+
+    expect(results.fetch("base_ancestry")).to have_attributes(outcome: :failed, code: "base_ancestry_mismatch")
+  end
+
   it "rejects incompatible OCI platform and root-user metadata" do
     stub_probe(metadata_result: metadata.merge("Architecture" => "arm64", "Config" => metadata.fetch("Config").merge("User" => "root")))
 

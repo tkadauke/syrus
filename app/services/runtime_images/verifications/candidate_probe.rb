@@ -38,8 +38,12 @@ module RuntimeImages
 
       def ancestry_result(image, policy)
         expected = policy.fetch("base_digest")
-        bases = Array(Hash(image.provenance)["base_images"])
-        found = bases.any? { |base| base.is_a?(Hash) && base["digest"] == expected }
+        bases = Array(Hash(image.provenance)["base_images"]).select { |base| base.is_a?(Hash) }
+        # Only the base the final stage descends from counts (F158). Provenance
+        # recorded before the final stage was marked keeps the old rule.
+        final = bases.select { |base| base.key?("final") }
+        bases = final.select { |base| base["final"] } if final.any?
+        found = bases.any? { |base| base["digest"] == expected }
         return passed("base_ancestry", image.digest) if found
 
         Result.fail(failure_class: :integrity, code: :base_ancestry_mismatch,

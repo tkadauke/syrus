@@ -31,8 +31,8 @@ module RuntimeImages
 
       # +references+ are the FROM references of the Dockerfile; +images+ is the
       # builder's own listing of what it resolved ({"names" => [...], "digest" => ...}).
-      def record_bases(references, images)
-        @base_images = DockerfileBases.resolve(references, images)
+      def record_bases(references, images, final: nil)
+        @base_images = DockerfileBases.resolve(references, images, final: final)
       end
 
       def record_process(result)

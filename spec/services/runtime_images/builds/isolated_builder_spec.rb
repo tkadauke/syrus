@@ -534,7 +534,7 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       build(request, builder(launcher: launch, version_probe: version_probe))
 
       expect(evidence.builder_version).to eq("buildah version 1.99.0; isolation=chroot; storage=vfs")
-      expect(evidence.base_images).to eq([ { "reference" => "docker.io/library/alpine:3.20", "pinned" => false, "digest" => base_digest } ])
+      expect(evidence.base_images).to eq([ { "reference" => "docker.io/library/alpine:3.20", "pinned" => false, "digest" => base_digest, "final" => true } ])
       expect(evidence.policy_snapshot.map { |rule| rule["host"] }).to eq([ "github.com" ])
       expect(evidence.policy_digest).to start_with("sha256:")
       log = evidence.finalize_log
@@ -556,7 +556,7 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
 
       expect(evidence.builder_version).to include("1.99.0")
       expect(evidence.policy_digest).to start_with("sha256:")
-      expect(evidence.base_images).to eq([ { "reference" => "busybox@sha256:#{"a" * 64}", "pinned" => true, "digest" => "sha256:#{"a" * 64}" } ])
+      expect(evidence.base_images).to eq([ { "reference" => "busybox@sha256:#{"a" * 64}", "pinned" => true, "digest" => "sha256:#{"a" * 64}", "final" => true } ])
       expect(evidence.finalize_log).to eq("boom\n")
     end
 

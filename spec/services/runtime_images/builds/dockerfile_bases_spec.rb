@@ -6,6 +6,18 @@ RSpec.describe RuntimeImages::Builds::DockerfileBases do
     expect(described_class.references(text)).to eq([ "golang:1.22", "alpine@sha256:#{"a" * 64}" ])
   end
 
+  # The image a multi-stage build produces descends from its last stage only;
+  # an approved base used by an earlier stage says nothing about it (F158).
+  it "names the external image the final stage builds from, following stage aliases" do
+    approved = "registry.test/base@sha256:#{"a" * 64}"
+    copied_from = "FROM #{approved} AS build\nRUN make\nFROM other/runtime:1\nCOPY --from=build /out /out\n"
+    built_on = "FROM #{approved} AS build\nRUN make\nFROM build\nRUN make install\n"
+
+    expect(described_class.final_reference(copied_from)).to eq("other/runtime:1")
+    expect(described_class.final_reference(built_on)).to eq(approved)
+    expect(described_class.final_reference("FROM scratch\n")).to be_nil
+  end
+
   it "uses the pinned digest, else the builder-listed digest, else none" do
     listed = [ { "names" => [ "docker.io/library/debian:12" ], "digest" => "sha256:#{"b" * 64}" } ]
     resolved = described_class.resolve([ "alpine@sha256:#{"a" * 64}", "debian:12", "unknown:1" ], listed)
