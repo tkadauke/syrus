@@ -5055,6 +5055,27 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F140. The starved-grader repair could cancel a grader a worker had just claimed — fixed
+
+**Invariant.** `CancelStarvedGrader` cancels only a grader Run that never
+started (queued, no `started_at`), so no grader process ever runs under a
+cancelled Run or Step.
+
+**Counterexample.** The repair checked the Run and Step unlocked, then wrote
+`cancelled` with `cancel_without_step_cascade!` (an `update_columns` past the
+AASM guard, added on main so the cancel no longer cascades to the Workflow). A
+worker whose capacity freed up in that gap claims the Run (RunJob's claim takes
+the lineage lock and flips it to running); the repair then overwrites the
+running Run and its Step as cancelled. The grader process keeps running,
+`grader_collect` settles on the cancellation, and the process's result arrives
+for a Run that is already terminal. The old `run.cancel!` had the same unlocked
+check, but its event at least took the lineage lock; the new write takes none.
+
+**Fix.** The checks are repeated under `Lineage.lock!(run)` with the Run and
+Step reloaded, and the repair reports `skipped` when the Run was claimed.
+Spec first: "leaves a grader a worker claimed after the checks running"
+(the claim lands just before the cancel) failed with the Run cancelled.
+
 
 ## F138. A coworker base revoked during a promotion could be made active again — fixed
 
@@ -6102,7 +6123,7 @@ after the rebase (1,901 examples). A first run showed 1,529 failures from a
 test database that lacked the Epic's new plugin tables; it was green once
 `db:test:prepare` rebuilt the database.
 
-## M80. The landing queue's order computation — proved, no bug (Lead L16, fixed as F139)
+## M81. The landing queue's order computation — proved, no bug (Lead L16, fixed as F139)
 
 `LandingQueueProcessor#ordered_landing_units` and `#dependency_order` are
 Kahn's algorithm with the ready set sorted by queue position (priority, then
@@ -8269,7 +8290,18 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   transaction, so the bounded backoff (at most three sleeps, about 10.5 s in
   all) holds no row or landing lock. Holds.
 
-Checked through main `0db71863d9`. Each loop iteration continues from there:
+- Main through `b012a2308c`: the starved-grader repair now cancels without
+  the cascade, so `grader_collect` judges the failure (F140 fixes the unlocked
+  check it relies on); a cancelled grader is terminal, so collector gating
+  holds, and advancing from it is a legal cursor because the fan-out before it
+  is finished. The base-revision retry refuses to call a failure inherited
+  when the base is the revision under test, which is what makes "inherited"
+  mean anything. Slab accounting in host admission, Vitest sizing,
+  translations and a structural hot-path spec carry no engine invariant.
+- Main through `7399234a66`: smart-folder count invalidation, cache-only
+  `after_commit` hooks. No engine invariant.
+
+Checked through main `7399234a66`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

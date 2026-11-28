@@ -890,13 +890,28 @@ module WorkEngine
           # landing fix and clearing every member's approval. grader_collect
           # counts a cancelled required grader as unsuccessful, so it must be
           # left to judge the failure.
-          Step.suppress_cancel_cascade do
-            with_transition_reason do
-              run.cancel_without_step_cascade!
-              step.cancel!
-              step.save!
+          #
+          # A worker can claim the grader after the checks above, so they are
+          # repeated under the lineage lock (which the claim also takes);
+          # cancel_without_step_cascade! writes past the AASM guard and would
+          # otherwise cancel a Run whose process has just started.
+          cancelled = Step.suppress_cancel_cascade do
+            Workflow.transaction do
+              Lineage.lock!(run)
+              run.reload
+              step.reload
+              next false unless run.queued? && run.started_at.nil? && step.queued? && step.workflow&.running?
+
+              with_transition_reason do
+                run.cancel_without_step_cascade!
+                step.cancel!
+                step.save!
+              end
+              true
             end
           end
+          return skipped("#{run_label(run)} was claimed before it could be cancelled") unless cancelled
+
           StepDispatcher.advance_from(step.reload)
           success("cancelled starved #{run_label(run)} on #{step_label(step)}; a required sibling grader already failed")
         end

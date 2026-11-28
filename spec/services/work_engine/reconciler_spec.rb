@@ -1378,6 +1378,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       expect(workflow.reload).to be_running
     end
 
+    # A worker can claim the grader between the repair's checks and its
+    # cancel. The checks must be repeated under the lineage lock, or the
+    # claimed grader's process keeps running under a cancelled Run.
+    it "leaves a grader a worker claimed after the checks running" do
+      allow(StepDispatcher).to receive(:advance_from)
+      allow(Step).to receive(:suppress_cancel_cascade).and_wrap_original do |original, &block|
+        starved_run.update_columns(state: "running", started_at: Time.current)
+        starved_grader.update_columns(state: "running")
+        original.call(&block)
+      end
+
+      reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(starved_run.reload).to be_running
+      expect(starved_grader.reload).to be_running
+      expect(StepDispatcher).not_to have_received(:advance_from)
+    end
+
     it "hands the settled grader_collect to the dispatcher" do
       # A running train has finished everything before its graders.
       workflow.steps.where("position < ?", failed_grader.position).update_all(state: "succeeded", finished_at: 1.hour.ago)
