@@ -10,11 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-# Syrus uses this dump for SQLite development and test databases. Production
-# MySQL schema authority is the migration history; do not load this SQLite
-# snapshot into MySQL.
-
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_062048) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -1267,6 +1263,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
+  create_table "coworker_environment_activations", force: :cascade do |t|
+    t.integer "coworker_environment_id", null: false
+    t.integer "environment_revision_id", null: false
+    t.integer "runtime_image_id", null: false
+    t.integer "previous_activation_id"
+    t.integer "verification_attestation_id", null: false
+    t.integer "authority_lease_id"
+    t.integer "inherited_from_activation_id"
+    t.string "source_digest", limit: 191, null: false
+    t.string "image_digest", limit: 191, null: false
+    t.string "authority_kind", null: false
+    t.string "actor", null: false
+    t.datetime "activated_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coworker_environment_id", "activated_at"], name: "idx_coworker_env_activations_history"
+    t.index ["coworker_environment_id", "source_digest"], name: "idx_coworker_env_activations_source"
+    t.index ["environment_revision_id"], name: "idx_coworker_env_activations_revision"
+  end
+
   create_table "coworker_environment_revisions", force: :cascade do |t|
     t.integer "coworker_environment_id", null: false
     t.integer "number", null: false
@@ -1301,6 +1317,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.string "last_error_code"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "active_activation_id"
+    t.index ["active_activation_id"], name: "index_coworker_environments_on_active_activation_id"
     t.index ["coworker_id"], name: "index_coworker_environments_on_coworker_id", unique: true
     t.index ["state"], name: "index_coworker_environments_on_state"
   end

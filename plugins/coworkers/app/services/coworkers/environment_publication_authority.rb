@@ -2,7 +2,7 @@ module Coworkers
   # Evaluates publication independently from candidate construction. A build
   # request or successful build is evidence, never publication authority.
   class EnvironmentPublicationAuthority
-    Result = Data.define(:decision, :subject, :risk_summary, :action, :lease, :expires_at) do
+    Result = Data.define(:decision, :subject, :risk_summary, :action, :lease, :expires_at, :inherited_from) do
       def allow? = decision == :allow
       def ask? = decision == :ask
       def deny? = decision == :deny
@@ -24,6 +24,8 @@ module Coworkers
     def call
       subject = permission_subject
       return result(:deny, subject, :retain_candidate) unless eligible?(subject)
+      inherited = inheritable_activation
+      return result(:allow, subject, :publish, nil, inherited) if inherited
 
       authorization = Syrus::Host::PermissionManagement.new(owner).authorize(
         descriptor:, role:, resource_scope: {}, arguments: subject.permission_arguments,
@@ -58,6 +60,17 @@ module Coworkers
         revision.candidate? && revision.runtime_image&.pullable?
     end
 
+    def inheritable_activation
+      return unless current_verification_attestation
+
+      environment.activations.where(source_digest: revision.source_digest)
+        .order(activated_at: :desc, id: :desc).first
+    end
+
+    def current_verification_attestation
+      EnvironmentVerificationEvidence.current(revision, now:)
+    end
+
     def evaluation_context
       context.merge(
         role:, agent_id: coworker.id, agent_actor: coworker,
@@ -66,9 +79,9 @@ module Coworkers
       ).compact
     end
 
-    def result(decision, subject, action, lease = nil)
+    def result(decision, subject, action, lease = nil, inherited_from = nil)
       Result.new(decision: decision.to_sym, subject:, risk_summary: risk.summary, action:,
-                 lease:, expires_at: lease&.expires_at)
+                 lease:, expires_at: lease&.expires_at, inherited_from:)
     end
   end
 end
