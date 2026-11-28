@@ -5055,6 +5055,34 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F144. A review override could rewrite a blocked Workflow's loop — fixed
+
+**Invariant.** Only a live Workflow's Steps change state, and only through
+their state machines; a blocked attempt stays resumable by its answer.
+
+**Counterexample.** `WorkflowOutcomeOverrides::Resumers::Review` checked the
+Workflow's state only for the failed-collector path. For any other Workflow
+it rewired the review loop: on a blocked Workflow (its repair blocked on
+`no_capable_worker` or a pending answer) it rewrote the blocked repair Steps
+to `skipped` with `update_columns`, past AASM, so `resume_from_answer` could no
+longer resume them, and it created a Run for the continuation under the
+terminal Workflow (which RunJob then refuses).
+
+**Fix.** Under the lineage lock the resumer reloads the Workflow and refuses a
+terminal one. Spec first: "refuses an override on a Workflow that is no longer
+active" (the blocked repair became skipped and the continuation got a Run)
+failed before the change.
+
+Two leads from the same sweep (L18, not fixed, fail closed): the override
+fingerprint index is not unique and `Recorder` finds then creates, so a UI
+submit racing a pending-action execution can record two consumable overrides
+for the same evidence; and `ReviewPanelCollect` reads its artifact unlocked
+and writes it back whole, so an override the resumer applied between the read
+and the write is consumed but lost, and the collector never writes
+`effective_verdict` back to member votes, so re-running it recomputes from the
+original vote.
+
+
 ## F143. Break-glass GitHub access could move a branch without destructive authority — fixed
 
 **Invariant.** In scoped break-glass mode, any write to a branch needs the
