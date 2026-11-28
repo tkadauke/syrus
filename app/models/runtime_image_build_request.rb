@@ -51,6 +51,7 @@ class RuntimeImageBuildRequest < ApplicationRecord
   scope :in_flight, -> { where(state: IN_FLIGHT_STATES) }
   scope :live, -> { where.not(state: TERMINAL_STATES) }
   scope :terminal, -> { where(state: TERMINAL_STATES) }
+  scope :source_archive_retention_candidates, -> { terminal.where.not(finished_at: nil).joins(:source_archive_attachment) }
   scope :startable, ->(now = Time.current) { queued.where(cancel_requested_at: nil).where("next_attempt_at IS NULL OR next_attempt_at <= ?", now).order(:id) }
 
   def self.dedup_key_for(namespace_id:, source_digest:, recipe_digest:, platform:)

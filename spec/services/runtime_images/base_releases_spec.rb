@@ -106,6 +106,17 @@ RSpec.describe RuntimeImages::BaseReleases do
       expect(stale.reload).to be_candidate
     end
 
+    it "refuses promotion outside the administrator-supported ABI window" do
+      allow(RuntimeImages::RuntimeAbi).to receive(:compatibility).and_return("min" => 1, "max" => 2)
+      AppSetting.current.update!(runtime_environment_policy: {
+        "base" => { "supported_abi_min" => 2, "supported_abi_max" => 2 }
+      })
+      release = candidate
+
+      expect { base_releases.promote!(release, actor: "test") }
+        .to raise_error(described_class::Refused) { |error| expect(error.codes).to include("abi_unsupported") }
+    end
+
     it "does not switch when the registry cannot retain the base being replaced" do
       first = active_base
       second = candidate

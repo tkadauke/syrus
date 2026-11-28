@@ -4,7 +4,7 @@ export type NetworkRule = { id: number; source_class: string; host: string | nul
 export type RuntimeEnvironmentPolicy = {
   builder: { max_concurrent_builds: number; max_concurrent_per_namespace: number; cpus: number; memory_bytes: number; storage_bytes: number; timeout_seconds: number; log_bytes: number }
   verification: { blocked_severities: string[]; prohibited_packages: string[] }
-  base: { rollback_retention_days: number }
+  base: { supported_abi_min: number; supported_abi_max: number; rollback_retention_days: number }
   revocation: { terminate_running_on_severe: boolean }
   cache: { max_concurrent_pulls: number; pull_timeout_seconds: number; high_pressure_percent: number; critical_pressure_percent: number }
   runtime: { mount_profile: "standard" | "executable_scratch"; scratch_size: string }

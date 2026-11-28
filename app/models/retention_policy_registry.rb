@@ -316,7 +316,7 @@ class RetentionPolicyRegistry
       setting_key: :runtime_image_build_provenance_retention_days,
       default_value: 180,
       unit: :days,
-      executor_class: nil,
+      executor_class: "RetentionPolicyExecutors::RuntimeImageBuildProvenance",
       description: "Runtime image source snapshots, sanitized build logs, provenance, SBOM references, and verification attempts. The latest evidence for every image is always retained.",
       category: "Security",
       archivable: false

@@ -8,7 +8,9 @@ module RuntimeImages
                      "cpus" => 2.0, "memory_bytes" => 4.gigabytes, "storage_bytes" => 10.gigabytes,
                      "timeout_seconds" => 1500, "log_bytes" => 5.megabytes },
       "verification" => { "blocked_severities" => %w[critical high], "prohibited_packages" => [] },
-      "base" => { "rollback_retention_days" => 90 },
+      "base" => { "supported_abi_min" => RuntimeAbi.compatibility.fetch("min"),
+                  "supported_abi_max" => RuntimeAbi.compatibility.fetch("max"),
+                  "rollback_retention_days" => 90 },
       "revocation" => { "terminate_running_on_severe" => true },
       "cache" => { "max_concurrent_pulls" => 2, "pull_timeout_seconds" => 600,
                    "high_pressure_percent" => 80, "critical_pressure_percent" => 92 },
@@ -45,6 +47,12 @@ module RuntimeImages
         raise Invalid, "cache.#{key} must be between 1 and 100" unless fetch("cache", key).to_f.between?(1, 100)
       end
       raise Invalid, "cache critical pressure must exceed high pressure" unless fetch("cache", "critical_pressure_percent").to_f > fetch("cache", "high_pressure_percent").to_f
+      abi_min = Integer(fetch("base", "supported_abi_min"), exception: false)
+      abi_max = Integer(fetch("base", "supported_abi_max"), exception: false)
+      contract = RuntimeAbi.compatibility
+      unless abi_min && abi_max && abi_min <= abi_max && abi_min >= contract.fetch("min") && abi_max <= contract.fetch("max")
+        raise Invalid, "base supported ABI window must be within #{contract.fetch("min")}..#{contract.fetch("max")}"
+      end
       raise Invalid, "runtime.mount_profile is invalid" unless fetch("runtime", "mount_profile").in?(%w[standard executable_scratch])
     end
   end

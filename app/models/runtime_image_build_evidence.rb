@@ -24,6 +24,8 @@ class RuntimeImageBuildEvidence < ApplicationRecord
   validates :source_digest, :finished_at, presence: true
   validates :runtime_image_build_attempt_id, uniqueness: true
 
+  scope :retention_payload_candidates, -> { where.not(log: nil) }
+
   # No log text, no resolved addresses, no per-rule policy: counts, digests,
   # and measurements only.
   def safe_summary

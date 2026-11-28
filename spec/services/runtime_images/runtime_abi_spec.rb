@@ -35,6 +35,17 @@ RSpec.describe RuntimeImages::RuntimeAbi do
   end
 
   describe "pre-launch validation" do
+    it "applies the administrator-supported ABI window" do
+      allow(described_class).to receive(:compatibility).and_return("min" => 1, "max" => 3)
+      AppSetting.current.update!(runtime_environment_policy: {
+        "base" => { "supported_abi_min" => 2, "supported_abi_max" => 2 }
+      })
+
+      expect(described_class.supported?(2)).to be(true)
+      expect(described_class.supported?(1)).to be(false)
+      expect(described_class.supported?(3)).to be(false)
+    end
+
     it "accepts a signed, in-range, launchable image" do
       expect(check).to be_compatible
       expect(described_class.current_contract?(image, provider: "claude")).to be(true)

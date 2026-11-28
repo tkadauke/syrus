@@ -10,7 +10,7 @@ const payload = {
   policy: {
     builder: { max_concurrent_builds: 2, max_concurrent_per_namespace: 1, cpus: 2, memory_bytes: 4096, storage_bytes: 8192, timeout_seconds: 1500, log_bytes: 1024 },
     verification: { blocked_severities: ["critical", "high"], prohibited_packages: ["unsafe-package"] },
-    base: { rollback_retention_days: 90 }, revocation: { terminate_running_on_severe: true },
+    base: { supported_abi_min: 1, supported_abi_max: 1, rollback_retention_days: 90 }, revocation: { terminate_running_on_severe: true },
     cache: { max_concurrent_pulls: 2, pull_timeout_seconds: 600, high_pressure_percent: 80, critical_pressure_percent: 92 },
     runtime: { mount_profile: "standard", scratch_size: "1g" }
   },
@@ -29,6 +29,8 @@ describe("RuntimeEnvironmentSettings", () => {
     expect(await screen.findByDisplayValue("https://registry.example.test")).toBeInTheDocument()
     expect(screen.getByText(/mirror.example.test/)).toBeInTheDocument()
     expect(screen.getByLabelText("builder password")).toHaveValue("")
+    expect(screen.getByLabelText("Minimum supported ABI")).toHaveValue(1)
+    expect(screen.getByLabelText("Maximum supported ABI")).toHaveValue(1)
     expect(screen.getByLabelText("Mount profile")).toHaveValue("standard")
   })
 })

@@ -46,6 +46,8 @@ function SettingsForm({ initial, onNotice }: { initial: Awaited<ReturnType<typeo
       <Field label={t("runtime_environment_settings.prohibited_packages")} value={policy.verification.prohibited_packages.join(", ")} onChange={(value) => setPolicy({ ...policy, verification: { ...policy.verification, prohibited_packages: split(value) } })} />
     </Grid></Card>
     <Card title={t("runtime_environment_settings.lifecycle_heading")} description={t("runtime_environment_settings.lifecycle_description")}><Grid>
+      <NumberField label={t("runtime_environment_settings.supported_abi_min")} value={policy.base.supported_abi_min} onChange={(v) => number("base", "supported_abi_min", v)} />
+      <NumberField label={t("runtime_environment_settings.supported_abi_max")} value={policy.base.supported_abi_max} onChange={(v) => number("base", "supported_abi_max", v)} />
       <NumberField label={t("runtime_environment_settings.rollback_retention_days")} value={policy.base.rollback_retention_days} onChange={(v) => number("base", "rollback_retention_days", v)} />
       <Check label={t("runtime_environment_settings.terminate_severe")} checked={policy.revocation.terminate_running_on_severe} onChange={(checked) => setPolicy({ ...policy, revocation: { terminate_running_on_severe: checked } })} />
     </Grid></Card>
