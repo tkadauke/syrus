@@ -121,6 +121,10 @@ default: &default
     class: RuntimeImageReconcileJob
     queue: cleanup
     schedule: every hour
+  reevaluate_runtime_image_verifications:
+    class: RuntimeImageVerificationReevaluationJob
+    queue: cleanup
+    schedule: every hour
   dispatch_runtime_image_builds:
     class: RuntimeImageBuildDispatchJob
     queue: control_plane
