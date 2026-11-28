@@ -99,6 +99,20 @@ class AutoRetryJob < ApplicationJob
   # scheduled, skipped, and the Job sat failed for a human.
   REPAIRED_BY_RETRY_CLASSIFICATIONS = %w[branch_diverged].freeze
 
+  # The retryability recheck's verdict on its own: given the attempt as it was
+  # scheduled and a fresh classification of its Run, does the recheck skip the
+  # retry? Pure, so the failure-corpus replay (lib/failure_corpus) can ask it
+  # for every recorded production attempt without running the job.
+  def self.retryability_recheck_skips?(retry_kind:, failure_classification:, fresh:)
+    return false if retry_kind == AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
+    return false if fresh.retryable
+    return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
+    return false if REPAIRED_BY_RETRY_CLASSIFICATIONS.include?(fresh.classification) &&
+      fresh.classification == failure_classification
+
+    true
+  end
+
   def skip_if_provider_delay_no_longer_matches(attempt)
     return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)
     return false unless attempt.run
@@ -152,10 +166,11 @@ class AutoRetryJob < ApplicationJob
     return false if attempt.retry_kind == AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
 
     fresh = RunFailureClassifier.persist!(attempt.run)
-    return false if fresh.retryable
-    return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
-    return false if REPAIRED_BY_RETRY_CLASSIFICATIONS.include?(fresh.classification) &&
-      fresh.classification == attempt.failure_classification
+    return false unless self.class.retryability_recheck_skips?(
+      retry_kind: attempt.retry_kind,
+      failure_classification: attempt.failure_classification,
+      fresh: fresh
+    )
 
     attempt.update!(skipped_reason: not_retryable_skip_reason(attempt, fresh))
     WorkUnits::AutoRetryBackoff.clear!(attempt)

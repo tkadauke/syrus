@@ -1,0 +1,122 @@
+# Acknowledged decision drift for the failure corpus replay
+# (spec/lib/failure_corpus/failure_corpus_replay_spec.rb).
+#
+# Each entry names the cases whose replayed verdict differs from the verdict
+# production recorded, the exact new verdict (`to`), why it changed, and a
+# status:
+#
+#   intentional          a deliberate fix; the new verdict is right
+#   unreviewed           a commit says it is deliberate; not yet confirmed
+#   suspected_regression the new verdict looks wrong; kept visible until fixed
+#
+# `to` is "<classification>/<retryable|final>" for a verdict change, or
+# "recheck:retry" / "recheck:skip" for AutoRetryJob's retryability recheck.
+# An entry whose change stops happening fails the replay, so a reverted fix
+# is caught and stale entries are pruned when the corpus is re-exported.
+
+- status: intentional
+  to: provider_transient/retryable
+  reason: >-
+    A bare "agent exited N" with no agent outcome is now a retryable
+    provider_transient instead of an unclassified application_error. A Codex
+    session that exited 1 while committing finished work was never retried
+    and stranded every Job stacked on it; the retry budget still bounds a
+    real crash loop.
+  cases:
+    - 63e694edff75-64163105a20229b9
+
+- status: intentional
+  to: application_error/final
+  reason: >-
+    A prepare failure whose only "transient" evidence was a Ruby backtrace
+    frame ('Bundler::Settings#temporary', including frames wrapped across
+    output lines) or Syrus's own system log is no longer a retryable
+    provider_transient. These deterministic `bundle install` failures were
+    retried many times an hour.
+  cases:
+    - 3cd93e5ef444-59db1525fbf0e121
+    - 6149d20624a8-22046b594c43a24c
+    - 6149d20624a8-3fe0f86556a59c27
+    - 677f9523d61d-6e29afb4fda593b9
+    - 677f9523d61d-7cf1e40449bc16ba
+    - a8e261f7b1e5-4e267189f954367f
+    - a8e261f7b1e5-a376a1fec222928d
+    - d837875c7de1-4aa5982fa6534fe0
+    - d837875c7de1-58d75f84606a9e96
+    - e24bfe746fa3-8ebb93ad62fc60dd
+    - e24bfe746fa3-9b9029a8cd5179db
+    - e3322097a1a0-c921127b6bb2f948
+    - eb2a243e2075-5884b8b9dd6b4b8f
+    - eb2a243e2075-cf1e88c70eda2beb
+
+- status: unreviewed
+  to: schema_version_skew/retryable
+  reason: >-
+    A missing table or column ("Table '...' doesn't exist") is now retryable
+    schema_version_skew: a Run still on the previous release right after a
+    deploy migrated. Matches the commit that added the classification; not
+    one of the fixes this allowlist was seeded with, so it awaits review.
+  cases:
+    - a9181beed9ea-71c550ae57be2fe3
+    - c37a5c04b380-ba19ee9601db3ae7
+    - cc4a0544711d-943a5f640dece12b
+
+- status: unreviewed
+  to: prepare_network_transient/retryable
+  reason: >-
+    An immutable-source `npm ci` that failed with ECONNRESET is now a
+    retryable prepare_network_transient. It used to read as
+    provider_auth_or_config because "webauthn" in the install log matched a
+    bare `auth`. Matches the commits that narrowed the auth pattern and
+    called registry blips transient; awaits review.
+  cases:
+    - 8c865d05fcdf-8bca6791ea0678c5
+
+- status: unreviewed
+  to: recheck:retry
+  reason: >-
+    AutoRetryJob's retryability recheck no longer skips a reconciler-planned
+    retry of a pr_open whose PR branch diverged: that repair is a retry from
+    the current branch (REPAIRED_BY_RETRY_CLASSIFICATIONS). Production
+    skipped all three attempts here and the Job sat failed. This is the fix
+    for the diverged-branch regression; awaits review.
+  cases:
+    - 30c5cad992e5-451c5e655700f63a
+
+- status: suspected_regression
+  to: grader_failure/final
+  reason: >-
+    The work engine declared these Runs workspace_recovery_failed (retryable,
+    confidence 1.0) when it could not recover the workspace, killing a grader
+    mid-run. Re-classifying them (RunFailureClassifier.persist!, which
+    AutoRetryJob's recheck calls) finds the killed grader's
+    "grader X failed" diagnostic and overwrites the repair's verdict with a
+    non-retryable grader_failure, so the recheck skips the retry the repair
+    scheduled. persist! only defers to a confident verdict over the
+    "unclassified" fallback, not over a weaker inference. Production shows
+    the same skip ("failure is not retryable: grader_failure (was
+    workspace_recovery_failed)"). Pre-existing, not introduced by a recent
+    change; acknowledged so new drift still fails.
+  cases:
+    - 013579706c13-9327310731d27449
+    - 0df4c9093b7b-b4b382c978d3e121
+    - 169c2d19a8f0-b4b382c978d3e121
+    - 1fb58ed8ca78-3570417143501b1a
+    - 26f20258edf3-0c6eca42fb465125
+    - 270f1b0ba1b2-d82861b65469c69c
+    - 304b1319e6d4-f3c4da2c6ddd2aa2
+    - 5b4a6b9ff44d-4f28ca485cb7fdc9
+    - 6b5a1f6c8f86-ef1c66094837a36e
+    - 79edbfb7c578-228051604db0ca12
+    - 7d538e9d0804-d82861b65469c69c
+    - 86a2697a8873-b4b382c978d3e121
+    - 9440703857ef-f3c4da2c6ddd2aa2
+    - 9c28ee6c5e46-ef1c66094837a36e
+    - ae6ba03f9d02-3786115c29dff382
+    - b6c01a9b7241-f6dffb57a7c0deb2
+    - cc91ad43050a-4f28ca485cb7fdc9
+    - db527e852f5e-b4b382c978d3e121
+    - e781b766551e-4650d16ccfc727d8
+    - f076d2e448c7-548df57eb9c0b88f
+    - f9878c0973f3-f3c4da2c6ddd2aa2
+    - fd785d740bdb-1ce64a862109ed0b

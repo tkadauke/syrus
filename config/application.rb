@@ -92,12 +92,15 @@ module Syrus
     # `deploy` is bin/deploy's implementation, not application code. It runs on
     # an operator's machine against a cluster, loads no Rails, and must not be
     # eager loaded into a running Syrus -- a web pod has no business holding
-    # the code that replaces it.
+    # the code that replaces it. `failure_corpus` is decision-drift tooling
+    # (bin/export-failure-corpus, the replay spec); its replay writes scratch
+    # rows and must never be loaded by a running instance either.
     config.autoload_lib(ignore: %w[
       assets
       tasks
       generators
       deploy
+      failure_corpus
       syrus/plugin_api.rb
       syrus/plugin_gemspec.rb
       syrus/plugin/test_kit.rb
