@@ -91,7 +91,8 @@ describe("AgentConversationTab", () => {
             base_ref: null,
             head_ref: null,
             artifact: "transcript",
-            prompt: "Implement the **greeting** helper.\nUse `friendly_name_with_a_very_long_unbroken_suffix_abcdefghijklmnopqrstuvwxyz` safely.",
+            prompt:
+              "Implement the **greeting** helper.\nUse `friendly_name_with_a_very_long_unbroken_suffix_abcdefghijklmnopqrstuvwxyz` safely.\n\n## Steps\n\n1. Add the helper\n2. Cover it with a spec",
             logs_count: 101,
             logs_page: Number(page),
             logs_per_page: 100,
@@ -123,6 +124,8 @@ describe("AgentConversationTab", () => {
     const prompt = screen.getByTestId("run-input-prompt")
     expect(prompt).toHaveTextContent("Input prompt")
     expect(prompt).toHaveTextContent("Implement the greeting helper.")
+    expect(prompt.querySelectorAll("li")).toHaveLength(2)
+    expect(prompt.querySelector("li")).toHaveTextContent("Add the helper")
     expect(prompt.firstElementChild?.nextElementSibling).toHaveClass(
       "min-w-0",
       "overflow-x-hidden",

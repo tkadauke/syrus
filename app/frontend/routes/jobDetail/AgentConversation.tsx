@@ -10,7 +10,7 @@ import { Select } from "../../components/Select"
 import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobAgentConversationNode, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
-import { renderLightMarkdown } from "../../lib/Markdown"
+import { Markdown, renderLightMarkdown } from "../../lib/Markdown"
 import { keepPreviousDataWithin } from "../../lib/placeholderData"
 import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import {
@@ -335,9 +335,9 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
               {transcript.data.prompt ? (
                 <section className="min-w-0 shrink-0 border-b border-border px-3 py-3" data-testid="run-input-prompt">
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversation_input_prompt")}</h3>
-                  <div className={promptBodyClassName}>
-                    {renderLightMarkdown(transcript.data.prompt)}
-                  </div>
+                  {/* Block markdown: the light preview renderer flattens headings,
+                      lists and code fences of a multi-section prompt into one line. */}
+                  <Markdown className={promptBodyClassName} text={transcript.data.prompt} />
                 </section>
               ) : null}
               {transcript.data.logs && transcript.data.logs.length > 0 ? (
