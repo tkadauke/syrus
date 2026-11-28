@@ -28,7 +28,7 @@ class CodexUsageProbe
     end
 
     def latest_probe_evidence(user, provider_account: nil)
-      scope = ProviderAvailabilityEvidence.where(user: user, provider: "codex", source: "usage_probe")
+      scope = Syrus::Host::ProviderAvailabilityEvidence.where(user: user, provider: "codex", source: "usage_probe")
       scope = scope.where(account_id: provider_account.public_id) if provider_account
       scope.recent.first
     end
@@ -206,7 +206,7 @@ class CodexUsageProbe
         codex_usage_snapshot: snapshot
       )
     end
-    ProviderAvailabilityEvidence.record_codex_probe!(
+    Syrus::Host::ProviderAvailabilityEvidence.record_codex_probe!(
       user: @user,
       provider_account: @provider_account,
       status: status,
@@ -215,7 +215,7 @@ class CodexUsageProbe
       http_status: snapshot["http_status"],
       observed_at: observed_at
     )
-    App::ProviderAvailability.clear_cache!(user: @user, provider: "codex")
+    Syrus::Host::ProviderAvailability.clear_cache!(user: @user, provider: "codex")
     Result.new(status: status, snapshot: snapshot, message: message)
   end
 

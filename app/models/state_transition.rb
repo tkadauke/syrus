@@ -55,6 +55,19 @@ class StateTransition < ApplicationRecord
     Thread.current[:state_transition_source] || "aasm"
   end
 
+  # Whether +step+, or its Workflow, was reopened at or after +time+ -- by a
+  # retry that now owns starting its next Run.
+  def self.step_reopened_since?(step, time)
+    return false if step.nil? || time.blank?
+
+    where(event_name: "reopen", created_at: time..)
+      .where(
+        "(subject_type = 'Workflow' AND subject_id = ?) OR (subject_type = 'Step' AND subject_id = ?)",
+        step.workflow_id, step.id
+      )
+      .exists?
+  end
+
   def self.current_user
     Thread.current[:state_transition_user]
   end

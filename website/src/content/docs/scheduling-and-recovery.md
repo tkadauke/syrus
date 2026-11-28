@@ -123,6 +123,29 @@ retain the requested mode and source failure context in their audit data.
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
 
+### Last-resort authenticated manual repair
+
+Deterministic recovery actions remain the preferred option. For exceptional
+repairs they cannot express, an operator can request a manual agentic Run with
+break-glass GitHub access. This requires a separate confirmation that names the
+repository, GitHub App identity, requested permissions, expected remote
+outcomes, and external-write risk; destructive operations require an additional
+explicit declaration.
+
+Syrus mints a short-lived credential for that Run and repository only, exposes
+authenticated repository-scoped `gh api` and Git transport only inside the
+authorized manual step. High-level GraphQL-backed `gh` commands are unavailable.
+Direct Git pushes require destructive authority; ordinary committed output
+continues through Syrus's normal publication step. Syrus audits remote
+operations without retaining the secret. Other repositories
+are rejected. After publication, Syrus independently reads the provider state
+to verify declared branch SHAs, pull-request state/base, labels, or comments.
+The agent's summary alone cannot make the Workflow succeed. Failed verification
+fails the Workflow while retaining recovery evidence. Ordinary implementation,
+grader, reviewer, and manual Runs receive no GitHub credential.
+Use `local_head` as the expected branch SHA when the remote branch must equal
+the exact implementation commit produced by the manual Run.
+
 When no previous output should survive, an administrator can request a full
 Job reset from chat. Confirmation shows and removes the pull request, branch,
 checkpoints, and active workflows, while preserving old workflow and run

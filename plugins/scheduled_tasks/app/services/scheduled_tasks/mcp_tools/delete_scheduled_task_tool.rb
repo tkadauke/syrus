@@ -35,13 +35,13 @@ module ScheduledTasks
           )
           task.soft_delete!
 
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             scheduled_task_id: task.id,
             **deleted_task.except(:id),
             deleted: true
           )
         rescue ActiveRecord::RecordInvalid => e
-          Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
         end
       end
     end

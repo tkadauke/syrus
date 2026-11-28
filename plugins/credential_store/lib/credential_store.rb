@@ -1,5 +1,5 @@
 module CredentialStore
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "credential_store" do
     requires_syrus nil

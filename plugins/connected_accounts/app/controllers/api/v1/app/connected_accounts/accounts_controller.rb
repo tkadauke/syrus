@@ -1,7 +1,7 @@
 module Api::V1::App::ConnectedAccounts
   class AccountsController < Api::V1::App::BaseController
     def index
-      accounts = ::ConnectedAccounts::Account.where(owner_kind: "user", owner_user: Current.user).includes(:credential_store_credential).order(:provider, :display_label)
+      accounts = ::ConnectedAccounts::Account.where(owner_kind: "user", owner_user: Syrus::Host::Current.user).includes(:credential_store_credential).order(:provider, :display_label)
       last_used = ::CredentialStore::CredentialAccessEvent.where(
         credential_id: accounts.map(&:credential_store_credential_id), action: "lease", result: "allowed"
       ).group(:credential_id).maximum(:created_at)
@@ -38,7 +38,7 @@ module Api::V1::App::ConnectedAccounts
 
     private
 
-    def owned_account = ::ConnectedAccounts::Account.find_by!(id: params[:id], owner_kind: "user", owner_user: Current.user)
+    def owned_account = ::ConnectedAccounts::Account.find_by!(id: params[:id], owner_kind: "user", owner_user: Syrus::Host::Current.user)
 
     def serialized(account, last_used_at)
       {

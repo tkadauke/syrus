@@ -5,6 +5,21 @@ description: Product feature reference for Jobs, Epics, schedules, chats, creden
 
 # Features
 
+## Operator questions
+
+Workflow agents can pause and ask structured single-choice, multiple-choice,
+or free-text questions. Waiting questions appear in the sidebar inbox, in the
+mobile Activity tabs, and at the top of the affected Job. Answering resumes the
+same agent session and is the panel's primary path. Filing a repair Job that
+becomes a dependency and giving up are separate alternatives. Retrying without
+an answer is kept under secondary recovery options and requires confirmation:
+it cancels the attempt, withdraws the question, and starts a fresh implementation
+attempt without added context, so the agent may ask the same question again.
+
+Question eagerness has five levels from Autonomous through Inquisitive. It can
+be set for a user or repository, overridden while filing a Job, and paired with
+an optional answer timeout in user and repository settings.
+
 This page is the broad product-level reference. Use [Concepts](/docs/concepts)
 for the data model, [Workflows](/docs/workflows) for execution chains,
 [Landing Code](/docs/landing) for merge behavior, [Tests and
@@ -127,8 +142,8 @@ workflow agents cannot create or revoke delegations.
 
 The bundled Review Workspace plugin adds a top-level **Review** destination
 with a live badge. It shows only implemented, non-investigation Jobs that the
-signed-in operator can see, modify, and approve now, excluding Jobs with
-approval-blocking runtime work. The list puts dependency-ready Jobs first,
+signed-in operator can see, modify, and approve now. Runtime work and PR-check
+status remain visible but do not remove an implemented Job. The list puts dependency-ready Jobs first,
 then applies explicit priority, ready age, and Job ID for stable ordering.
 When the Jobs dashboard is available, an optional notice shows the same
 actionable count and links into Review. The Review route remains available
@@ -452,12 +467,26 @@ testing) start it, build or
 reload it, snapshot or inspect what's running, page through its logs, and
 tear it down when done: `runtime_list_sessions`, `runtime_start`,
 `runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
-`runtime_snapshot`, `runtime_inspect`, and `runtime_logs`. Sending input to a
+`runtime_snapshot`, `runtime_inspect`, and `runtime_logs`.
+Runtime startup and build/reload calls record their provider operation before
+doing work. `runtime_status` reports whether that operation is active, timed
+out and retryable, failed, or completed (including a late completion), while
+`runtime_logs` includes its durable lifecycle and error entries alongside
+provider output. Retrying reuses the existing session and provider resource;
+a timed-out build also releases the agent's build lease.
+Sending input to a
 Runtime Session (`runtime_input`, and the equivalent direct
 `browser_click`/`browser_fill`/`browser_hover` tools) requires the agent to
 first request a short-lived control lease with `runtime_acquire_control` and
 release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
+browser sessions use the semantic `browser_click`, `browser_fill`,
+`browser_hover`, `browser_press_key`, `browser_drag`, `browser_drop`, and
+`browser_file_upload` tools with stable references returned by
+`browser_snapshot`. The older `runtime_input` browser event shape remains only
+as a deprecated compatibility adapter onto those same Playwright-backed
+operations; it is not a second input engine. Non-browser providers continue to
+use `runtime_input` with their advertised event types;
 chat tool cards show input delivery errors and provider event details, while
 typed text is masked by default and can only be revealed with an explicit
 control;
@@ -805,7 +834,24 @@ boundaries. Rebasing an upstream root walks each dependent Epic in order and
 uses the newly rebased upstream tail as the next root's base; rebasing a
 downstream root leaves its upstream Epic unchanged. Syrus locks every Job and
 Epic participating in the operation so another restack or merge train cannot
-race the branch updates. Disabling the feature restores single-Epic planning.
+race the branch updates. Before reporting success, Syrus rereads every affected
+remote branch and pull request without cached provider state, verifies the
+intended head, PR base, and stack parent, then refreshes commits-behind and
+landing blockers. A no-op branch rebase succeeds only when the requested live
+topology is already correct; failed pushes, PR retargets, refreshes, or
+postcondition checks fail the workflow and retain recovery evidence. Disabling
+the feature restores single-Epic planning.
+
+These repairs have deliberately different meanings. **Rebase in place** keeps
+the Job's parent and moves its commits onto the latest tip of that same base.
+**Epic restack** reconciles all physical PR bases with an already-correct Job
+dependency topology. **Detach to base** is an operator-confirmed topology
+change for one accidentally stacked Job: its dry run identifies the owned
+patch relative to the former parent, then Syrus replays it onto an explicit
+destination, lease-protects publication, retargets and verifies the live PR,
+removes the former stack relationship, refreshes footers, and wakes landing.
+Partial publication remains a visible failed repair so an operator can retry
+without mistaking stale remote or PR state for success.
 For a handful of older Epics whose child Jobs still branch or fan in (from
 before same-Epic dependencies were required to form a single chain), Syrus
 can prepare a combined execution base from approved dependency PR branches
@@ -1843,6 +1889,11 @@ marked beta or experimental remain visible and searchable, but an admin must
 enable instance beta mode before turning them on. Beta mode does not enable any
 feature by itself; it only permits explicit opt-in to beta or experimental
 capabilities.
+
+The experimental `landing_lanes` flag is off by default. It enables the compact
+dashboard strip, the full landing-lanes page, and their authenticated API
+payload without changing landing concurrency, the existing landing queue
+summary, or landing execution when disabled.
 
 The `performance_logging` operations flag records structured slow-request,
 slow-SQL, slow application-phase, and selected browser route-load events for production debugging. Slow
@@ -3122,3 +3173,25 @@ decision, pick one option from the scope control, for example "Allow
 screenshots for this chat". Before anything is saved, the card summarizes what
 will be remembered, where it applies, how long it lasts, and how to revoke it
 under Settings → Permissions.
+
+## Operator questions from workflow agents
+
+Workflow agents can pause an implementation, response, or review step to ask
+the operator a batch of structured questions. The waiting step is parked—not
+failed or automatically retried—and resumes in the same provider session when
+the answer arrives. Operators can also list and answer these questions through
+Syrus chat and coworker tools.
+Write-authorized operators can also answer a workflow's existing
+cannot-proceed block as a free-text question, resuming that run and provider
+session. Waiting for an answer does not delay patient automatic rebases.
+
+Syrus notifies the Job owner when a question is asked and links directly to
+the waiting question. Notification preferences can disable that notification.
+The Jobs dashboard also provides a **Waiting for your answer** smart folder and
+boolean filter, which can be combined with other filters and saved.
+
+Repositories, users, and individual Jobs can choose one of five question
+eagerness levels: autonomous, independent, balanced, collaborative, or
+inquisitive. Balanced is the default. An optional answer timeout can apply the
+agent's stated defaults after one hour to four weeks; without one, the workflow
+waits indefinitely.

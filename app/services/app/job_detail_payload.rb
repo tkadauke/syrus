@@ -140,7 +140,7 @@ module App
     def blocked_workflow_dismissal_json
       return nil unless @job.needs_attention? && @job.needs_attention_reason == "agent_cannot_proceed"
 
-      workflow = @job.workflows.where(state: "blocked", trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
+      workflow = @job.workflows.where(state: "blocked", trigger_kind: Workflow::TriggerKind::IMPLEMENTED_STATE_COMPATIBLE_VALUES)
         .reorder(created_at: :desc, id: :desc).first
       return nil unless workflow&.operator_dismissable?
 
@@ -349,6 +349,7 @@ module App
     end
 
     def job_json
+      question_policy = AgentQuestions::PolicyResolution.for(@job)
       job_detail_dependencies
       workflow_agent_provider = PerformanceLogging.phase("job_detail.job.workflow_agent_provider", job_id: @job.id) { @job.workflow_agent_provider }
       provider_availability = PerformanceLogging.phase("job_detail.job.provider_availability", job_id: @job.id, provider: workflow_agent_provider) do
@@ -477,6 +478,9 @@ module App
         delivery_target_ref: delivery_policy.job_landing_branch(@job),
         needs_attention: @job.needs_attention?,
         needs_attention_reason: @job.needs_attention_reason,
+        has_open_agent_question: AgentQuestion.active.joins(:run).where(runs: { job_id: @job.id }).exists?,
+        question_eagerness: question_policy.eagerness,
+        question_eagerness_source: question_policy.eagerness_source,
         blocked_workflow_dismissal: blocked_workflow_dismissal_json,
         needs_attention_since: iso8601(@job.needs_attention_since),
         grace_period_expires_at: iso8601(@job.grace_period_expires_at),
@@ -648,33 +652,17 @@ module App
       end
     end
 
-    # Same signal as job_has_active_runtime_work?, but ignores runs/work units
-    # from maintenance/QA workflows (Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES
-    # — rebase, stack_rebase, manual_visual_review, visual_diff) that never
-    # change the diff under review. Used to gate the Approve button so a
-    # pending rebase or visual review doesn't hide it on an already-
-    # `implemented` Job.
-    def job_has_approval_blocking_runtime_work?
-      return @job_has_approval_blocking_runtime_work if defined?(@job_has_approval_blocking_runtime_work)
-
-      @job_has_approval_blocking_runtime_work = PerformanceLogging.phase("job_detail.job.approval_blocking_runtime_work", job_id: @job.id) do
-        job_active_run_states(exclude_non_approval_blocking: true).any? ||
-          active_work_units_for_job.any? { |unit| !Workflow::TriggerKind.non_approval_blocking?(unit.workflow&.trigger_kind || unit.kind) }
-      end
-    end
-
     def job_has_active_run?
       return @job_has_active_run if defined?(@job_has_active_run)
 
       @job_has_active_run = job_active_run_states.any?
     end
 
-    def job_active_run_states(exclude_non_approval_blocking: false)
-      cache_ivar = exclude_non_approval_blocking ? :@job_active_run_states_excluding_non_approval_blocking : :@job_active_run_states
+    def job_active_run_states
+      cache_ivar = :@job_active_run_states
       return instance_variable_get(cache_ivar) if instance_variable_defined?(cache_ivar)
 
       scope = @job.runs.where(state: Run::ACTIVE_STATES)
-      scope = scope.where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES) if exclude_non_approval_blocking
       instance_variable_set(cache_ivar, scope.reorder(nil).distinct.pluck(:state))
     end
 
@@ -951,7 +939,9 @@ module App
             viewport: item.viewport,
             device: item.device,
             submission_failed: item.submission_failed_at.present?,
-            image_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}"
+            image_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}",
+            original_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}",
+            thumbnail_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}/thumbnail"
           }
         end
       }
@@ -1289,11 +1279,14 @@ module App
       # pipeline (it's "done, awaiting operator review" either way), but they
       # never have a PR to approve/land -- reviewing one ends in Close, not
       # Approve. See Workflows::Investigation.
-      approvable_job = @job.implemented? && !@job.approved? && !@job.investigation? && !job_has_approval_blocking_runtime_work?
+      approvable_job = @job.implemented? && !@job.approved? && !@job.investigation?
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
         can_write: writable,
+        recovery_decision: retry_actions[:recovery_decision],
+        recovery_timeline: retry_actions[:recovery_timeline],
+        retry_failed_step_blocker: retry_actions[:failed_step_blocker],
         can_override_planned_execution: writable && planned_execution_override_json[:eligible],
         planned_execution_override_blocked_reason: planned_execution_override_json[:refusal_reason],
         can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),

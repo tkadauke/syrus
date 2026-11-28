@@ -19,13 +19,15 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
     end
   end
 
-  it "classifies host, legacy, and unlisted core references with locations" do
-    result = scan("Syrus::Host::Job.find(1)\nAgentRole.call\nProviderAvailabilityPause.call\n",
+  it "classifies public and non-public core references with locations" do
+    result = scan("Syrus::Host::Job.find(1)\nChatBridgeThread.call\nProviderAvailabilityPause.call\n",
       public_apis: { "Syrus::Host::Job" => "0.1.16" })
 
     expect(result.public.first).to have_attributes(constant: "Syrus::Host::Job", path: "lib/fixture.rb", line: 1)
-    expect(result.legacy.first).to have_attributes(constant: "AgentRole", tier: "non-public", line: 2)
-    expect(result.unlisted.first).to have_attributes(constant: "ProviderAvailabilityPause", line: 3)
+    expect(result.unlisted).to contain_exactly(
+      have_attributes(constant: "ChatBridgeThread", tier: "unlisted", line: 2),
+      have_attributes(constant: "ProviderAvailabilityPause", tier: "unlisted", line: 3)
+    )
   end
 
   it "does not count constants in strings or comments" do
@@ -50,7 +52,6 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
     result = scan("class Pages; include Syrus::Plugin::AdminPage; end\n")
 
     expect(result.public.map(&:constant)).to eq([ "Syrus::Plugin::AdminPage" ])
-    expect(result.legacy).to be_empty
     expect(result.unlisted).to be_empty
   end
 

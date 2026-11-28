@@ -66,7 +66,7 @@ module DesignDocs
         return [] if ids.empty?
 
         attached_ids = context.allowed_repository_ids
-        accessible_ids = Repository.accessible_to(context.user).where(id: ids).pluck(:id)
+        accessible_ids = Syrus::Host::RepositoryRecord.accessible_to(context.user).where(id: ids).pluck(:id)
         raise ActiveRecord::RecordNotFound, "Repository not found in this agent context" unless accessible_ids.sort == ids.sort
         raise ActiveRecord::RecordNotFound, "Repository not attached to this chat context" if attached_ids.any? && (ids - attached_ids).any?
 

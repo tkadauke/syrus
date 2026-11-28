@@ -1,6 +1,6 @@
 module TestInsights
   class UiSlots
-    include Syrus::Plugin::UiSlot
+    include Syrus::Host::UiSlot
 
     # The Job detail Tests tab. Contributed only when this Job actually has
     # results, which is why core no longer needs a has_test_results? of its own.
@@ -25,7 +25,7 @@ module TestInsights
     end
 
     def self.results?(job)
-      run_ids = Run.joins(step: :workflow).where(workflows: { job_id: job.id }).select(:id)
+      run_ids = Syrus::Host::RunRecord.joins(step: :workflow).where(workflows: { job_id: job.id }).select(:id)
       TestRun.where(run_id: run_ids).exists?
     end
   end

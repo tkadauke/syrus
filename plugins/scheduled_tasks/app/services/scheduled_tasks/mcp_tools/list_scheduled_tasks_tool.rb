@@ -20,7 +20,7 @@ module ScheduledTasks
           chat_session = server_context.fetch(:chat_session)
           tasks = scheduled_tasks_for(chat_session).order(:created_at)
 
-          Mcp::Tools.success(tasks: tasks.map { |task| scheduled_task_payload(task) })
+          Syrus::Host::McpTools.success(tasks: tasks.map { |task| scheduled_task_payload(task) })
         end
       end
     end

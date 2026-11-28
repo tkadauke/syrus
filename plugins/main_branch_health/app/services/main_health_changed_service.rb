@@ -38,8 +38,16 @@ class MainHealthChangedService
   # failures main no longer had. Close it; if the new head is still broken,
   # the ordinary health flow opens a repair for that commit. A repair that has
   # begun implementing is left alone -- it may already be fixing the head.
+  #
+  # While main is still broken the repair carries over instead: a moved head
+  # does not make the breakage go away, and closing the repair on every
+  # landing meant a busy repository never kept one long enough for its agent
+  # to start -- main stayed red for a day with nobody fixing it. A repair that
+  # turns out to be unneeded is closed once main reads healthy
+  # (supersede_unneeded_preflight_repairs!).
   def self.supersede_stale_preflight_repairs!(repository, head_sha:)
     return if head_sha.blank?
+    return if repository.main_health_broken?
 
     each_preflight_repair(repository) do |job, workflow|
       snapshot_sha = Syrus::Host::WorkflowSourceSnapshots.current_for(workflow)&.source_sha
@@ -535,7 +543,30 @@ class MainHealthChangedService
       attach_repair_context!(job)
       job.advance_after_triage! if job.may_advance_after_triage?
       job
-    end
+    end.tap { |job| seed_preflight_targets!(job) if job }
+  end
+
+  # Preflight re-runs only the graders failing on main
+  # (Steps::PreflightGraderFanout), so it settles in minutes instead of
+  # queueing the whole CI set behind landing work. The Workflow exists only
+  # once the Job's creation commits, hence after the transaction.
+  PREFLIGHT_TARGET_GRADERS_ARTIFACT = "preflight_target_grader_names".freeze
+
+  def seed_preflight_targets!(job)
+    names = failing_grader_names
+    return if names.empty?
+
+    workflow = job.latest_workflow
+    return unless workflow&.trigger_kind == "main_branch_repair"
+    return if workflow.steps.where(kind: "preflight_grader").exists?
+
+    workflow.set_artifact!(PREFLIGHT_TARGET_GRADERS_ARTIFACT, names)
+  rescue StandardError => e
+    Rails.logger.warn("[MainHealthChangedService] #{@repository.slug} could not scope preflight for #{job&.slug}: #{e.class}: #{e.message}")
+  end
+
+  def failing_grader_names
+    health_checks_for(checked_sha).flat_map { |check| Array(check.try(:grader_failed_names)) }.map(&:to_s).reject(&:blank?).uniq
   end
 
   def create_fix_job(user)

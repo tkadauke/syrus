@@ -193,6 +193,59 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(chunks).to include("[stub-ran] bundle install")
   end
 
+  describe "worker environment checks" do
+    before do
+      File.write(@ws_path.join(".syrus.yml"), "prepare:\n  - bundle install\n")
+      File.write(@ws_path.join("Gemfile.lock"), "GEM\n  specs:\n    mysql2 (0.5.7)\n")
+    end
+
+    def local_smoke(failed)
+      allow(WorkerCapabilities).to receive(:current).and_return(
+        capabilities: { "os" => [ "linux" ] },
+        diagnostics: { "environment_smoke" => {
+          "failed" => failed,
+          "checks" => failed.to_h { |name| [ name, { "status" => "failed", "reason" => "no mysql_config found" } ] }
+        } }
+      )
+    end
+
+    it "records what the repository's prepare plan needs from a worker" do
+      local_smoke([])
+      allow(handler).to receive(:run_shell).and_return(true)
+
+      handler.call
+
+      expect(job.repository.reload.worker_environment_requirements).to eq(%w[bundler c_compiler mysql_client ruby])
+    end
+
+    # Regression: `bundle install` failed to build mysql2 on a worker whose
+    # MySQL client libraries had gone, which read like a broken lockfile.
+    it "stops before running the plan, naming the failed check, when this worker cannot run it" do
+      local_smoke([ "mysql_client" ])
+      expect(handler).not_to receive(:run_shell)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /cannot run this repository's prepare plan; failed environment checks: mysql_client: no mysql_config found/) { |error|
+        # The worker's defect, routed like any other missing dependency.
+        expect(error.problem.code).to eq("worker_environment_missing")
+        expect(error.problem.evidence).to include(failed_checks: [ "mysql_client" ])
+      }
+      expect(workflow.reload.artifact("prepare_failure")).to include(
+        "environment_check_failures" => { "mysql_client" => "no mysql_config found" }
+      )
+      expect(job.repository.reload.worker_environment_requirements).to include("mysql_client")
+    end
+
+    it "only warns for a guessed plan" do
+      File.delete(@ws_path.join(".syrus.yml"))
+      File.write(@ws_path.join("Gemfile"), "")
+      local_smoke([ "mysql_client" ])
+      allow(handler).to receive(:run_shell).and_return(true)
+
+      expect { handler.call }.not_to raise_error
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("warning: this worker failed environment checks the guessed plan needs")
+    end
+  end
+
   # `bundle install --jobs 4` can start building a native extension before the
   # gem that extension needs *at build time* has finished installing. The same
   # command then succeeds, because the first attempt left the missing gem
@@ -245,6 +298,98 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 
       expect(fake_runner).to have_received(:run).once
+    end
+  end
+
+  # The step that ran the command declares why it failed, from the command's
+  # own exit status and output, so the run classifier never has to guess it
+  # back out of the logs.
+  describe "declaring why a command failed" do
+    def result(exit_status:, timed_out: false)
+      ProcessRunner::Result.new(
+        exit_status: exit_status, timed_out: timed_out, stopped: false,
+        silent_timed_out: false, operator_killed: false, aliveness_failed: false,
+        duration_s: 0.1, spawned_process_id: nil
+      )
+    end
+
+    def stub_command_output(output, exit_status:, timed_out: false)
+      fake_runner = instance_double(ProcessRunner)
+      sink = nil
+      allow(fake_runner).to receive(:run) do
+        sink&.call(output)
+        result(exit_status: exit_status, timed_out: timed_out)
+      end
+      stub_prepare_process_runner(fake_runner) { |kwargs| sink = kwargs.fetch(:on_output_chunk) }
+    end
+
+    def failure_problem
+      handler.call
+      raise "expected prepare to fail"
+    rescue Steps::Base::StepFailed => e
+      e.problem
+    end
+
+    before do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        prepare:
+          - bundle install --jobs 4
+      YAML
+    end
+
+    it "declares a native extension that cannot link the worker's missing dependency, naming the gem and library" do
+      stub_command_output(<<~OUT, exit_status: 5)
+        Fetching timeout 0.6.1
+        Installing mysql2 0.5.7 with native extensions
+        ld: library 'zstd' not found
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        /opt/syrus/rubies/3.4.10/lib/ruby/3.4.0/bundler/settings.rb:159:in
+        'Bundler::Settings#temporary'
+        An error occurred while installing mysql2 (0.5.7), and Bundler cannot continue.
+      OUT
+
+      problem = failure_problem
+
+      expect(problem.code).to eq("worker_environment_missing")
+      expect(problem.evidence).to include(command: "bundle install --jobs 4", failed_package: "mysql2 (0.5.7)", missing_name: "zstd")
+    end
+
+    it "declares a lockfile that does not resolve the repository's own non-retryable failure" do
+      stub_command_output("npm error code ERESOLVE\nnpm error ERESOLVE unable to resolve dependency tree\n", exit_status: 1)
+
+      problem = failure_problem
+      expect(problem.code).to eq("prepare_install_failed")
+      expect(problem).not_to be_retryable
+    end
+
+    it "declares a registry connection reset retryable" do
+      stub_command_output("npm error code ECONNRESET\nnpm error network aborted\n", exit_status: 1)
+
+      expect(failure_problem.code).to eq("prepare_network_transient")
+    end
+
+    it "declares a timed-out command a retryable timeout" do
+      stub_command_output("Installing nokogiri 1.19.7\n", exit_status: nil, timed_out: true)
+
+      expect(failure_problem.code).to eq("timeout")
+    end
+
+    it "declares an invalid prepare configuration a non-retryable user error" do
+      File.write(@ws_path.join(".syrus.yml"), "prepare: 42\n")
+
+      expect(failure_problem.code).to eq("validation_or_user_error")
+    end
+
+    it "records the declared code on the run's diagnostic" do
+      stub_command_output("ld: library 'zstd' not found\n", exit_status: 5)
+
+      begin
+        handler.call
+      rescue Steps::Base::StepFailed => e
+        CaptureRunDiagnostic.capture(run, e)
+      end
+
+      expect(run.reload.run_diagnostic.problem_code).to eq("worker_environment_missing")
     end
   end
 

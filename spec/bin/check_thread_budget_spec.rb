@@ -4,7 +4,7 @@ require "open3"
 require "rbconfig"
 require "spec_helper"
 
-RSpec.describe "bin/check-thread-budget", :ci_only do
+RSpec.describe "bin/check-thread-budget" do
   let(:root) { File.expand_path("../..", __dir__) }
   let(:script) { File.join(root, "bin/check-thread-budget") }
   let(:queue_concurrency_env) do
@@ -116,8 +116,59 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     )
 
     expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
-    expect(stdout).to include("threads=6, pool: 9, required: 9")
+    expect(stdout).to match(/threads=6, pool: \d+, required: 9/)
+    expect(stdout[/threads=6, pool: (\d+)/, 1].to_i).to be >= 9
     expect(stderr).to be_empty
+  end
+
+  # Regression: a 16-CPU compute pod claims 12 Runs at once, but the pool
+  # stayed at 9, so every Run thread past the ninth timed out waiting for a
+  # connection.
+  it "sizes the default MySQL pool to a large compute pod's run worker" do
+    stdout, stderr, status = spawn_clean(
+      "HOME" => ENV.fetch("HOME"),
+      "PATH" => ENV.fetch("PATH"),
+      # Pin the concurrency derived for a 16-CPU pod. A test process can have
+      # a smaller real cgroup quota, which correctly takes precedence over
+      # SYRUS_WORKER_CPU_LIMIT in production.
+      "JOB_CONCURRENCY" => "12",
+      "SYRUS_SQLITE" => nil
+    )
+
+    expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    expect(stdout).to match(/queue\.compute\.yml \(worst worker: queues=.* threads=12, pool: (\d+)/)
+    expect(stdout[/queue\.compute\.yml.*?pool: (\d+)/, 1].to_i).to be >= 15
+  end
+
+  # The check used to run as a standalone grader on whatever worker picked
+  # it up, so its verdict followed that worker's CPU count: the same commit
+  # passed on a 6-core worker and failed on a 16-core one. It now runs only
+  # here, against fixed pod sizes, so a pool that cannot cover any supported
+  # size fails on every run.
+  [ 4, 16, 32 ].each do |cpus|
+    it "fits every queue config on a #{cpus}-CPU pod" do
+      run_threads = (cpus * 0.8).floor
+      stdout, stderr, status = spawn_clean(
+        "HOME" => ENV.fetch("HOME"),
+        "PATH" => ENV.fetch("PATH"),
+        "JOB_CONCURRENCY" => run_threads.to_s,
+        "SYRUS_SQLITE" => nil
+      )
+
+      expect(status).to be_success, "#{cpus} CPUs: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout.scan("[check-thread-budget] ok").size).to eq(3)
+    end
+  end
+
+  it "keeps an explicit DB_POOL" do
+    stdout, _stderr, _status = spawn_clean(
+      "HOME" => ENV.fetch("HOME"),
+      "PATH" => ENV.fetch("PATH"),
+      "DB_POOL" => "40",
+      "SYRUS_SQLITE" => nil
+    )
+
+    expect(stdout).to include("pool: 40")
   end
 
   it "finds gems when BUNDLE_PATH is set to an empty Syrus worker path (main grader scenario)" do

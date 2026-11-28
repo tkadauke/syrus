@@ -19,7 +19,7 @@ module SpendingInsights
           # Reading the user's own spending is research. Essential: evaluated and audited, never deniable.
           essential: true
         }
-        definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
+        definition.merge(capability_descriptor: Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition))
       end
     end
 

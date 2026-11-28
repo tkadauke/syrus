@@ -1,0 +1,41 @@
+# A Codex implement session finished its work and exited 1 without reporting
+# an outcome. It was classified an unretryable application error and its
+# failed Job stranded every Job stacked on it for days.
+name: bare agent exit implement retries
+repository:
+  owner: simulation
+  name: bare-agent-exit-implement-retries
+jobs:
+  exited:
+    title: Agent exited non-zero without an outcome
+    state: running
+    agent_provider: codex
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: failed
+          run:
+            state: failed
+            agent_provider: codex
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "agent exited 1"
+        - kind: summarize
+          state: queued
+        - kind: pr_open
+          state: queued
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+success_states:
+  exited:
+    - implemented

@@ -14,7 +14,7 @@ RSpec.describe Django::Engine do
       unless Syrus::PluginRegistry.registered_names.include?("django")
         Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name:        "django",
-          version:     Syrus::PluginApi.default_version,
+          version:     Syrus::Host::PluginApi.default_version,
           description: "Django framework intelligence: preview hosting via manage.py runserver, " \
                         "migrate + fixtures seeding",
           homepage:    "https://github.com/tkadauke/syrus",

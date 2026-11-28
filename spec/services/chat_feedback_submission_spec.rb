@@ -28,6 +28,24 @@ RSpec.describe ChatFeedbackSubmission do
     expect(job.reload).to be_implemented
   end
 
+  it "preempts landing and withdraws approval before accepting feedback" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    job.approve!(via: "operator")
+    job.start_landing!
+    job.save!
+    landing = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+    landing.update_columns(state: "running", started_at: 1.minute.ago)
+    landing.work_unit.update_columns(state: "running")
+
+    result = described_class.call(job: job, feedback: "This revision needs another fix.", allowed_states: %w[implemented approved])
+
+    expect(result).to be_success
+    expect(job.reload).to be_implemented
+    expect(job.approved_at).to be_nil
+    expect(landing.reload).to be_cancelled
+    expect(result.workflow).to have_attributes(trigger_kind: "chat_feedback")
+  end
+
   it "returns an error for a job in a disallowed state" do
     job = Factories.job_record(user: user, repository: repository, state: "queued")
 
@@ -125,6 +143,19 @@ RSpec.describe ChatFeedbackSubmission do
       expect(result).to be_success
       expect(job.job_attachments.count).to eq(1)
       expect(job.job_attachments.first).to have_attributes(kind: "pending_snapshot", source_url: "snapshot:#{snapshot.id}")
+    end
+
+    it "does not attach media when the job state rejects the feedback" do
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      snapshot = whiteboard_snapshot
+
+      result = described_class.call(
+        job: job, feedback: "See the attached whiteboard.", allowed_states: %w[implemented approved],
+        chat_session: chat_session, media: [ "snapshot:#{snapshot.id}" ]
+      )
+
+      expect(result).not_to be_success
+      expect(job.job_attachments).to be_empty
     end
 
     it "does nothing when media is blank" do

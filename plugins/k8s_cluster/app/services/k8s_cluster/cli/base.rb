@@ -2,7 +2,7 @@
 
 module K8sCluster
   module Cli
-    class Base < Syrus::Plugin::CliCommandHandler
+    class Base < Syrus::Host::CliCommandHandler
       private
 
       def authorize!(user)
@@ -10,9 +10,9 @@ module K8sCluster
       end
 
       def cluster_for(value)
-        return KubernetesCluster.find(value) if value.present?
+        return Syrus::Host::KubernetesCluster.find(value) if value.present?
 
-        clusters = KubernetesCluster.order(:label).to_a
+        clusters = Syrus::Host::KubernetesCluster.order(:label).to_a
         raise ArgumentError, "no Kubernetes clusters are registered" if clusters.empty?
         raise ArgumentError, "multiple clusters are registered; pass --cluster ID (see `syrus k8s clusters`)" if clusters.many?
 
@@ -20,7 +20,7 @@ module K8sCluster
       end
 
       def service(type, cluster, user)
-        type.new(cluster, context: McpToolContext.new(surface: :admin, role: nil, user: user), tool_name: ClusterCredential::ADMIN_TOOL_NAME)
+        type.new(cluster, context: Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: user), tool_name: ClusterCredential::ADMIN_TOOL_NAME)
       end
 
       def value_or_dash(value) = value.to_s.strip.presence || "-"

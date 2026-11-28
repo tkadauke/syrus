@@ -79,8 +79,24 @@ class WorkerCapabilities
           "env_key" => ENV_KEY,
           "worker_pool_name" => presence(ENV["SYRUS_WORKER_POOL_NAME"]),
           "admission_capacity" => RunHostAdmissionCapacity.snapshot
-        ).merge(overlayfs_diagnostics).merge(cgroup_delegation_diagnostics)
+        ).merge(overlayfs_diagnostics).merge(cgroup_delegation_diagnostics).merge(environment_smoke_diagnostics)
       }
+    end
+
+    # Whether this worker's toolchain actually works (WorkerEnvironmentSmoke).
+    # Published with the capabilities so every place that records them --
+    # the instance heartbeat, health samples -- records it too, and
+    # RunQueueResolver can keep work off a worker whose required check failed.
+    # Guarded like the probes above: a failing smoke run never takes
+    # capability reporting down, and only worker processes publish one.
+    def environment_smoke_diagnostics
+      return {} unless defined?(Rails) && defined?(WorkerEnvironmentSmoke)
+      return {} unless WorkerEnvironmentSmoke.publishable?
+
+      { WorkerEnvironmentSmoke::DIAGNOSTIC_KEY => WorkerEnvironmentSmoke.current }
+    rescue StandardError => e
+      debug_log { "[WorkerCapabilities] environment smoke failed: #{e.class}: #{e.message}" }
+      {}
     end
 
     # Why grader fan-out can or cannot mount overlayfs on this worker. Resolved

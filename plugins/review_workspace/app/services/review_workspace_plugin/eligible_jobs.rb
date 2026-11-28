@@ -9,10 +9,9 @@ module ReviewWorkspacePlugin
 
     def call
       jobs = candidate_scope.includes(:repository, :epic, dependencies: [ :depends_on_job, :depends_on_epic ]).to_a
-      blocking_ids = Syrus::Host::Jobs.approval_blocking_job_ids(jobs.map(&:id))
 
       jobs
-        .select { |job| approvable_by_user?(job) && !blocking_ids.include?(job.id) }
+        .select { |job| approvable_by_user?(job) }
         .sort_by { |job| ordering_key(job) }
     end
 

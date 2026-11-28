@@ -35,7 +35,7 @@ module Ruby
       summary = parse_summary
       cases   = parse_failures
 
-      JunitXmlParser::ParsedRun.new(
+      Syrus::Host::TestRunResult.new(
         total_count: summary[:total],
         passed_count: summary[:passed],
         failed_count: summary[:failed],
@@ -126,7 +126,7 @@ module Ruby
         &.reject(&:empty?) || []
       failure_message = msg_lines.join("\n").presence
 
-      JunitXmlParser::ParsedCase.new(
+      Syrus::Host::TestCaseResult.new(
         name: name,
         suite_name: file_path.presence || "unknown",
         file_path: file_path,

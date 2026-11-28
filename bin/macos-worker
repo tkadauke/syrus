@@ -54,10 +54,11 @@ elif [[ "${SYRUS_WORKER_ENV_FILE:-}" || "$ENV_FILE" != "$DEFAULT_ENV_FILE" ]]; t
   exit 2
 fi
 
-# shellcheck source=bin/macos-ruby-env
-source "$ROOT/bin/macos-ruby-env"
+# shellcheck source=bin/macos-runtime-env
+source "$ROOT/bin/macos-runtime-env"
 SHARED_DIR="${SYRUS_MACOS_SHARED_DIR:-/opt/syrus/shared}"
 RUBY_VERSION_PIN="$(syrus_macos_ruby_version "$ROOT")"
+NODE_VERSION_PIN="$(syrus_macos_node_version "$ROOT")"
 
 export RAILS_ENV="${RAILS_ENV:-production}"
 export SYRUS_ROLE="worker"
@@ -68,11 +69,12 @@ export SOLID_QUEUE_SKIP_RECURRING="1"
 # budget compute pods get from their termination grace period.
 export SOLID_QUEUE_SHUTDOWN_TIMEOUT="${SOLID_QUEUE_SHUTDOWN_TIMEOUT:-3540}"
 
-# This worker reaches MySQL through a `kubectl port-forward` tunnel. When a
-# forwarded stream dies the local socket is never reset, so a query on that
-# connection would wait forever: an MCP tool call blocked that way timed out
-# in the agent while the daemon still waited on the database. Bound every
-# socket operation so a dead connection fails, and Rails reconnects, instead.
+# A Mac worker reaches MySQL across the network, outside the cluster. When a
+# connection dies without the local socket being reset -- as it routinely did
+# through the retired `kubectl port-forward` tunnels -- a query on it would
+# wait forever: an MCP tool call blocked that way timed out in the agent while
+# the daemon still waited on the database. Bound every socket operation so a
+# dead connection fails, and Rails reconnects, instead.
 # Well above the 10s lock-wait ceiling (config/database.yml).
 export DB_CONNECT_TIMEOUT="${DB_CONNECT_TIMEOUT:-10}"
 export DB_READ_TIMEOUT="${DB_READ_TIMEOUT:-30}"
@@ -106,9 +108,9 @@ require_env "SYRUS_WORKER_POOL_NAME"
 require_env "SYRUS_WORKER_CAPABILITIES"
 
 # Everything below, including the jobs Solid Queue runs and every agent or
-# grader they spawn, inherits the release's pinned Ruby from PATH.
+# grader they spawn, inherits the release's pinned Ruby and Node from PATH.
 if [[ "$DRY_RUN" != "1" ]]; then
-  syrus_macos_ruby_activate "$ROOT" "$SHARED_DIR"
+  syrus_macos_runtime_activate "$ROOT" "$SHARED_DIR"
 fi
 
 if [[ "$RUN_CHECK" == "1" ]]; then
@@ -119,7 +121,11 @@ cd "$ROOT"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   printf 'RUBY=%s\n' "$(syrus_macos_ruby_prefix "$RUBY_VERSION_PIN")/bin/ruby"
-  printf 'BUNDLE_PATH=%s\n' "$(syrus_macos_bundle_path "$SHARED_DIR" "$RUBY_VERSION_PIN")"
+  printf 'NODE=%s\n' "$(syrus_macos_node_prefix "$NODE_VERSION_PIN")/bin/node"
+  printf 'AGENT_CLIS=%s\n' "$SYRUS_MACOS_AGENT_CLI_PREFIX/bin"
+  printf 'MISE=%s\n' "$(syrus_macos_mise_bin "$ROOT")"
+  syrus_macos_browser_env "$ROOT"
+  syrus_macos_bundle_env "$ROOT" "$SHARED_DIR"
   printf 'RAILS_ENV=%s\n' "$RAILS_ENV"
   printf 'SYRUS_ROLE=%s\n' "$SYRUS_ROLE"
   printf 'GIT_SHA=%s\n' "$GIT_SHA"

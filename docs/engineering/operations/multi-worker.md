@@ -39,18 +39,13 @@ queues across two worker configs and select one per pod with the
 
 ## Native macOS compute workers
 
-Native macOS workers are supported as external **compute** workers for Xcode,
-iOS simulator, and other host-native work that cannot run inside Linux k3s.
-They are not Kubernetes nodes, and they must not consume chat, polling,
-indexing, cleanup, or control-plane queues.
+Native Mac hosts are external, launchd-managed **compute-only** workers for
+Xcode, SwiftPM, and iOS simulator work. They are not Kubernetes nodes. A
+Linux VM on Mac hardware may join k3s as Linux capacity, but it cannot stand
+in for native Xcode. Everything about them (install, env file, updates,
+troubleshooting) lives behind the [macOS workers hub](macos-workers.md).
 
-In a k3s production topology, keep web, the single home worker, Linux compute,
-MySQL, object/artifact storage, ingress, and search/data volumes in Linux or
-managed infrastructure. Attach Mac minis as outbound external workers under
-launchd. A Linux VM on Mac hardware may join k3s as Linux capacity, but it is
-not a substitute for native Xcode/simulator execution.
-
-Example hybrid layout:
+How the tiers split across queues in a hybrid layout:
 
 | Tier | Location | Queue/role boundary |
 | --- | --- | --- |
@@ -60,174 +55,7 @@ Example hybrid layout:
 | Mac mini pool | external launchd | `runs-macos-arm64`, `merges-macos-arm64`, compatible `resume-<worker-storage-key>` queues |
 | Data services | k3s or managed | MySQL, storage, release artifacts, search/data volumes |
 
-Mac workers need outbound access to the production database, object/artifact
-storage if used, the Syrus app/API host, GitHub and configured remotes, model
-provider APIs, package registries, release artifact storage, and any internal
-services the target repositories require for builds, tests, signing, or
-deploys. The cluster should not need inbound SSH to the Mac pool for normal
-operation.
-
-The supported entrypoint is:
-
-```bash
-/opt/syrus/current/bin/macos-worker --env-file /etc/syrus/worker.env
-```
-
-`bin/macos-worker` sources the env file, then forces the role and queue
-partition that make the process a compute-only worker:
-
-```dotenv
-RAILS_ENV=production
-SYRUS_ROLE=worker
-SOLID_QUEUE_CONFIG=config/queue.compute.yml
-SOLID_QUEUE_SKIP_RECURRING=1
-SYRUS_DATA_ROOT=/var/lib/syrus
-SYRUS_APP_HOST=syrus.example.internal
-SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
-GIT_SHA=<release sha>
-```
-
-If `GIT_SHA` is absent, the wrapper derives it from the release checkout with
-`git rev-parse --short HEAD`; immutable package installs should set it
-explicitly. The same env file must also contain the normal production Rails
-credentials: `SYRUS_APP_HOST`; `SECRET_KEY_BASE`; either `RAILS_MASTER_KEY` or all three
-`ACTIVE_RECORD_ENCRYPTION_*` keys; MySQL settings such as `DB_HOST` and
-`SYRUS_DATABASE_PASSWORD` unless this is a SQLite local-mode install; and S3 or
-MinIO attachment credentials (`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
-`S3_BUCKET`, `S3_ENDPOINT`) unless `SYRUS_SQLITE` is set.
-Include `SYRUS_MACOS_WORKER_TOKEN` when the updater polls Syrus directly or
-reports activation state. If the installation uses private artifact storage, include
-the credentials and trust material needed to download and verify the worker
-release archive. GitHub and model credentials belong in the env file only when
-the deployment intentionally uses process-level credentials rather than
-per-user encrypted credentials.
-
-Release builds publish a source artifact named
-`syrus-worker-macos-arm64-<git_sha>.tar.gz` with
-`SHA256SUMS-macos-worker.txt`. The archive contains the tracked app source,
-`bin/macos-worker`, `bin/macos-worker-check`, `config/launchd/com.syrus.worker.plist`,
-Gemfile and lockfiles, package manifests, `GIT_SHA`, `SYRUS_VERSION`, and
-`config/syrus-worker-release.json` metadata. It deliberately does not bundle
-native gems, npm installs, workflow workspaces, logs, storage, or local release
-output; activation on each Mac installs host-specific dependencies into the
-shared paths below. Verify the checksum before switching `/opt/syrus/current`.
-Mac workers must not run database migrations. Deploy the k3s cluster first,
-let it run migrations, and only then roll Mac workers onto a schema-compatible
-artifact.
-
-Before enabling launchd, run:
-
-```bash
-/opt/syrus/current/bin/macos-worker-check --env-file /etc/syrus/worker.env
-```
-
-The check does not boot Rails or start Solid Queue. It validates Ruby/Bundler,
-Node/npm, Git, Xcode Command Line Tools, full Xcode selection, available simulator
-runtimes, the macOS worker env contract, and production credentials. It exits
-nonzero with `FAIL` lines for missing requirements, so it is safe for release
-cutover scripts.
-
-A launchd template lives at `config/launchd/com.syrus.worker.plist`. Install it
-as a root-managed LaunchDaemon after creating a dedicated unprivileged user:
-
-```bash
-SYRUS_WORKER_ID=450 # choose an unused local uid/gid for this host
-sudo dscl . -create /Groups/syrus-worker
-sudo dscl . -create /Groups/syrus-worker PrimaryGroupID "$SYRUS_WORKER_ID"
-sudo dscl . -create /Users/syrus-worker
-sudo dscl . -create /Users/syrus-worker UniqueID "$SYRUS_WORKER_ID"
-sudo dscl . -create /Users/syrus-worker PrimaryGroupID "$SYRUS_WORKER_ID"
-sudo dscl . -create /Users/syrus-worker UserShell /usr/bin/false
-sudo dscl . -create /Users/syrus-worker NFSHomeDirectory /var/lib/syrus
-
-sudo mkdir -p /opt/syrus/releases /opt/syrus/shared /var/lib/syrus /var/log/syrus /etc/syrus
-sudo chown -R root:wheel /opt/syrus
-sudo chown -R syrus-worker:syrus-worker /opt/syrus/shared /var/lib/syrus /var/log/syrus
-sudo chmod 750 /var/lib/syrus /var/log/syrus
-sudo chown root:syrus-worker /etc/syrus/worker.env
-sudo chmod 640 /etc/syrus/worker.env
-
-sudo install -o root -g wheel -m 644 /opt/syrus/current/config/launchd/com.syrus.worker.plist /Library/LaunchDaemons/com.syrus.worker.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.syrus.worker.plist
-sudo launchctl kickstart -k system/com.syrus.worker
-```
-
-The expected filesystem layout is:
-
-| Path | Purpose |
-| --- | --- |
-| `/opt/syrus/releases/<sha>` | root-owned, immutable release checkout; the worker cannot modify privileged code |
-| `/opt/syrus/current` | symlink to the active release |
-| `/opt/syrus/rubies/<version>` | root-owned Ruby a release pins in `.ruby-version`, installed by mise as a self-contained prebuilt binary |
-| `/opt/syrus/shared/bundles/ruby-<version>` | Bundler install path reused by every release on that Ruby version |
-| `/usr/local/libexec/syrus/syrus-macos-updater` | root-owned updater executed by launchd, outside the release tree |
-| `/usr/local/libexec/syrus/macos-ruby-env` | root-owned copy of the pinned-Ruby helper the updater sources |
-| `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces (`workflows/<workflow_id>`), per-workflow grader scratch beside them (`workflow-scratch/<workflow_id>`: grader checkouts, prepare caches, archive staging), version/capability probe scratch (`runtime-probes/`), search SQLite file if configured there, and `.syrus-worker-storage-id` |
-| `/var/log/syrus/worker.log` / `worker.err.log` | launchd stdout/stderr logs |
-| `/etc/syrus/worker.env` | root-owned env file with app, DB, storage, and worker capability credentials |
-
-Mac workers never run Homebrew's Ruby. `bin/macos-worker`, the installer, and
-the updater all source `bin/macos-ruby-env`, which puts the release's pinned
-Ruby first on `PATH` and points Bundler at that Ruby's own bundle, the same
-Ruby version the Linux image uses. The worker refuses to start if that Ruby is
-missing rather than falling back to a host Ruby, and `bin/macos-worker-check`
-fails if the Ruby on `PATH` does not match `.ruby-version`. A Ruby bump is a
-`.ruby-version` change: the installer or updater installs the new version
-before preparing the release, and the previous Ruby and bundle stay in place
-for rollback.
-
-Release cleanup should keep the current release, at least one rollback release,
-and any release that still has a running `bin/jobs` process. Workspace cleanup
-is handled by Syrus through normal per-worker pruning; do not delete
-`/var/lib/syrus` while Runs are active unless you intend to force fresh
-checkouts and lose resume affinity.
-
-`InstanceVersionSupervisor` and `RestartWatcher` behave like they do in
-containers because the entrypoint uses `SYRUS_ROLE=worker` and `bin/jobs`.
-Admin restart remains role-wide: a worker restart request can terminate every
-worker-role process, including native macOS workers, so rolling pool updates
-should still use launchd drain/restart procedure rather than relying on the
-admin button alone.
-
-Worker storage identity is fully supported on macOS. The first boot writes
-`$SYRUS_DATA_ROOT/.syrus-worker-storage-id`, and the compute queue config
-consumes the matching `resume-<worker-storage-key>` queue for sticky retries.
-
-Known telemetry gap: `WorkerHostHealthSampler` currently reads Linux `/proc`
-files for CPU, memory, and load metrics. On Linux workers, pressure metrics
-prefer the worker's cgroup v2 `cpu.pressure`/`io.pressure` files and fall back
-to `/proc/pressure/*` only when the cgroup files are absent; the sample's
-`raw_metrics` records which source/path was used. On macOS those fields are
-reported as absent rather than synthesized. Data-root disk usage, worker
-capabilities, version, role, hostname, storage key, Solid Queue heartbeats, and
-health sample rows still record normally, so the worker is visible in admin
-surfaces even though Linux pressure charts are empty.
-
-### Native macOS worker troubleshooting
-
-When a macOS-capability Workflow is blocked with no capable worker, check Admin
-Workers or `read_queue` for a fresh Mac worker heartbeat, matching
-`os:macos` capability, and consumption of `runs-macos-arm64` or the expected
-`resume-<worker-storage-key>` queue. A drained or updating Mac worker is
-intentionally excluded from compatible capacity until the update completes.
-
-If the worker version is stale, inspect updater status on the worker-health
-surface, confirm `SYRUS_MACOS_WORKER_TOKEN` can read desired release metadata,
-verify the artifact URL and SHA-256, and compare the worker's heartbeat
-`git_sha` with the desired release. Mac workers should be rolled only after the
-k3s/web deployment has run migrations.
-
-If `bin/macos-worker-check --env-file /etc/syrus/worker.env` reports Xcode
-failures, fix Command Line Tools or `xcode-select`, install full Xcode, accept
-the Xcode license, and install the required simulator runtimes. Missing
-simulators are reported by the worker check and capability diagnostics; workers
-advertise `runtime:ios_simulator` only when the simulator probe succeeds.
-
-For Keychain and signing failures, validate the launchd user rather than an
-interactive admin shell: the worker user must be able to unlock or access the
-signing keychain, certificates, provisioning profiles, and any internal signing
-or notarization services required by the target repository.
+## Home worker and chat affinity
 
 **The home worker MUST be a single pod** (`replicas: 1`, `strategy: Recreate`).
 Chat workspaces (`ChatWorkspace`, at

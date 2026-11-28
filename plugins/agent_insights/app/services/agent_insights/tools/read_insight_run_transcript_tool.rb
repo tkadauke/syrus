@@ -30,22 +30,22 @@ module AgentInsights
       )
 
       class << self
-        include McpToolPayloads::WorkflowPayload
+        include Syrus::Host::WorkflowPayload
 
         DEFAULT_PER = 50
         MAX_PER = 200
 
         def call(run_id:, server_context:, page: nil, per: nil)
-          context_run = Mcp::Tools.run_from_context(server_context)
-          target_run = Run
+          context_run = Syrus::Host::McpTools.run_from_context(server_context)
+          target_run = Syrus::Host::RunRecord
             .joins(step: { workflow: :job })
             .includes(:job, :step)
             .where(jobs: { repository_id: context_run.job.repository_id, user_id: context_run.job.user_id })
             .find_by(id: run_id)
 
-          return Mcp::Tools.invalid("run_id is outside this repository scope") unless target_run
+          return Syrus::Host::McpTools.invalid("run_id is outside this repository scope") unless target_run
 
-          page_num = Mcp::Pagination.normalize_page(page)
+          page_num = Syrus::Host::McpPagination.normalize_page(page)
           per_page = normalized_per(per)
           logs = target_run.job_logs.order(:sequence)
           total_chunks = logs.count
@@ -93,7 +93,7 @@ module AgentInsights
         end
 
         def redact(value)
-          ::Mcp::Tools::EvidenceRedactor.call(value)
+          Syrus::Host::EvidenceRedactor.call(value)
         end
       end
     end

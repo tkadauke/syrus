@@ -1,51 +1,61 @@
 # macOS worker updates
 
+How a Mac host moves from one release to the next. This page owns the
+deploy phase, the signing key and worker token, the updater, the release
+artifact, and the manual drain flow. Host setup lives in
+[macOS worker host](macos-worker-host.md), and failures in
+[troubleshooting](macos-worker-troubleshooting.md). Start at the
+[hub](macos-workers.md).
+
 ## Every deploy updates the Mac workers
 
 Mac workers run outside the cluster, so `bin/deploy` updates them as part of
 every deploy that includes production (`Deploy::MacosWorkers`):
 
 1. **Before any cluster changes**, it builds the source artifact for the
-   revision being deployed (`bin/release-macos-worker`), signs it with the
-   release signing key, and uploads it to the production Syrus
-   (`POST /api/v1/admin/macos_worker_releases`). A missing key,
-   token, or `SYRUS_APP_HOST` stops the deploy here, with every cluster
-   untouched.
-2. **Right after production's migrations**, before any pod is pinned to the
-   new image, it activates the release
-   (`POST /api/v1/admin/macos_worker_releases/activate`). From then on, a Mac worker on
-   another revision takes no new work: `RunQueueResolver` stops counting it as
-   capacity, and a Run it has already claimed is handed back by `RunJob`
-   until it runs the active release.
-3. **After every cluster has converged**, it waits for each live Mac worker to
-   report the revision (`GET /api/v1/admin/macos_worker_releases/status`, bounded by
-   `MACOS_WORKER_UPDATE_TIMEOUT`, 15 minutes by default). A Mac worker that does
-   not catch up, or whose updater reports a failure, fails the deploy. Nothing
-   is rolled back: the cluster rollout stands, and the skew guard keeps the
-   outdated Mac worker idle until it updates. Mac workers that are offline are
-   listed but not waited for; they update when they next poll.
+   commit being deployed (`bin/release-macos-worker`, pinned through
+   `SYRUS_RELEASE_GIT_REF`), signs it, and uploads it
+   (`POST /api/v1/admin/macos_worker_releases`). A missing signing key, admin
+   token, or `SYRUS_APP_HOST` stops the deploy here, before any cluster has
+   been touched.
+2. **Right after production's migrations**, before any pod moves to the new
+   image, it activates the release
+   (`POST /api/v1/admin/macos_worker_releases/activate`). From then on, a Mac
+   on another revision takes no new work: `RunQueueResolver` stops counting it
+   as capacity, and `RunJob` hands back a Run it has already claimed, retrying
+   every minute until the worker runs the active release.
+3. **After every cluster has converged**, it polls
+   `GET /api/v1/admin/macos_worker_releases/status` until every live Mac
+   reports the revision. The wait is bounded by `MACOS_WORKER_UPDATE_TIMEOUT`
+   (15 minutes by default) and checks every 10 seconds. The deploy fails if a
+   Mac does not catch up or its updater reports `failed`. Nothing is rolled
+   back: the cluster rollout stands, and the skew guard keeps the outdated Mac
+   idle. A Mac seen in the last seven days but not heartbeating now is listed
+   as offline and not waited for; it updates when it next polls.
 
-An activated release rolls out immediately rather than through the drain flow
-below. The updater installs it and restarts the worker, which drains its
-in-flight runs on SIGTERM for up to an hour (`SOLID_QUEUE_SHUTDOWN_TIMEOUT`,
-within the launchd `ExitTimeOut`), the same budget compute pods get. The
-updater reports the activation before that restart, and a host whose updater
-has activated the release counts as updated while its old worker drains.
+An activated release has `rollout: immediate`, so every updater installs it
+on its next poll; there is no drain. The updater reports `restarting` and then
+restarts the worker. The old worker drains its in-flight Runs for up to an
+hour ([graceful restarts](macos-workers.md#invariants)), and launchd then
+starts it on the new release. While the old worker drains, the host counts as
+updated, because its updater has activated the release and the skew guard
+keeps new work away.
 
-Syrus serves the artifact itself (`GET /api/v1/app/admin/macos_worker_update/artifact`), over
-the same HTTPS host and scoped `SYRUS_MACOS_WORKER_TOKEN` the updater already
-uses, so Mac hosts need no other download source.
+The deploy machine needs:
 
-The deploy needs `SYRUS_APP_HOST` (the production Syrus URL), an admin API
-token (`SYRUS_API_TOKEN`, or `~/.config/syrus/api-token`), and the release
-signing key (`~/.config/syrus/macos-worker-update-signing.pem`, or
-`SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE`). `SYRUS_DEPLOY_MACOS_WORKERS=0` skips the
-phase, for an installation without Mac workers.
+- `SYRUS_APP_HOST`, the production Syrus URL;
+- an admin API token, `SYRUS_API_TOKEN` or `~/.config/syrus/api-token`;
+- the signing key, `~/.config/syrus/macos-worker-update-signing.pem` or
+  `SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE`.
 
-### One-time setup
+`SYRUS_DEPLOY_MACOS_WORKERS=0` skips the phase, for an installation without
+Mac workers. The deploy-wide ordering is described in
+[deploying Syrus](deploying-syrus.md#macos-workers).
 
-Generate the signing keypair on the machine you deploy from, keep the private
-key there, and install the public key on every Mac worker host:
+## One-time setup
+
+**Signing keypair.** Generate it on the machine you deploy from and keep the
+private key there, backed up. Install only the public key on each Mac:
 
 ```bash
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
@@ -58,108 +68,102 @@ sudo install -o root -g wheel -m 644 macos-worker-update-public.pem \
   /etc/syrus/macos-worker-update-public.pem
 ```
 
-The Mac host also needs `SYRUS_MACOS_WORKER_TOKEN` in `/etc/syrus/worker.env`
-(see below) and a worker installed with `bin/install-macos-worker`.
+**Worker token.** In production, run `bin/rails syrus:macos_worker_token`
+(`DAYS=<n>` sets the lifetime; the default is 30). Put the result in each
+host's `/etc/syrus/worker.env` as `SYRUS_MACOS_WORKER_TOKEN`. The token is
+scoped to the updater endpoints. The updater still accepts `SYRUS_API_TOKEN`
+as a legacy fallback, but a host should never carry a person's full admin
+token. When the token expires, the host stops updating. Issue a new one before
+then.
+
+The host also needs a worker installed with
+[`bin/install-macos-worker`](macos-worker-host.md#install).
 
 ## How the updater works
 
-Native macOS workers use a pull-based updater instead of SSH-first
-deployment. Each host runs `com.syrus.updater` under launchd. The updater
-reads the same `/etc/syrus/worker.env` file as `com.syrus.worker`, polls
-Syrus or `SYRUS_UPDATE_METADATA_URL` for desired release metadata, including
-its hostname and worker storage identity when polling Syrus directly, and
-activates releases locally.
+`com.syrus.updater` runs `/usr/local/libexec/syrus/syrus-macos-updater` as
+root and reads the same env file as the worker. On each poll it:
 
-Required metadata:
+1. fetches `GET /api/v1/app/admin/macos_worker_update`, sending its hostname
+   and worker storage key, from `SYRUS_APP_HOST`
+   (`SYRUS_UPDATE_METADATA_URL` overrides the URL);
+2. stops if `enabled` is false, if the drain directive holds it back (see
+   [below](#drain-aware-manual-updates)), or if it already runs `git_sha`;
+3. downloads `artifact_url`, which by default is
+   `GET /api/v1/app/admin/macos_worker_update/artifact` on Syrus itself, with
+   the same token;
+4. verifies the detached RSA/SHA-256 `artifact_signature` against
+   `/etc/syrus/macos-worker-update-public.pem`, then the `artifact_sha256`;
+5. unpacks it root-owned into `/opt/syrus/releases/<sha>` and installs any
+   toolchain the release pins that the host lacks
+   ([pinned toolchain](macos-worker-host.md#pinned-toolchain));
+6. as `syrus-worker`, runs `bundle install` (frozen), `npm ci`, and
+   `bin/macos-worker-check`;
+7. reinstalls itself and its helper from the release, switches
+   `/opt/syrus/current` atomically, reports `restarting`, and runs
+   `launchctl kickstart -k system/com.syrus.worker`;
+8. prunes old releases, keeping the active one plus a rollback window
+   (`retention_count`, default 3), then reports `current`.
 
-- `git_sha`: desired worker release SHA.
-- `artifact_url`: URL for the `syrus-worker-macos-*.tar.gz` artifact.
-- `artifact_sha256`: SHA-256 of the artifact.
-- `artifact_signature`: base64-encoded RSA/SHA-256 detached signature of the
-  artifact.
+Both metadata and artifact downloads require HTTPS. `file://` URLs work only
+with the test override `SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1`. The poll
+interval comes from the metadata: Syrus sends 60 seconds for an activated
+release, and the fallback is 300.
 
-Optional metadata:
+At every stage the updater posts its state (`updating`, `restarting`,
+`current`, or `failed`, with a message) to
+`POST /api/v1/app/admin/macos_worker_update/report`. Syrus stores it on the
+worker's `InstanceVersion` (`macos_updater_status`, `desired_version`). The
+deploy's status check and the admin worker views read it from there.
 
-- `version`, `full_git_sha`, `artifact_name`, and `built_at` for display.
-- `retention_count` to bound rollback releases; default is `3`.
-- `poll_interval_seconds` for the service loop; default is `300`.
+`SYRUS_DATA_ROOT`, the storage identity, logs, credentials, and the shared
+bundle and node trees all live outside release directories, so they survive
+rollouts and rollbacks.
 
-The artifact is source-only. The updater requires HTTPS for metadata and
-artifact downloads, verifies the detached signature against the independently
-provisioned `/etc/syrus/macos-worker-update-public.pem`, and then checks the
-SHA-256 digest. `file://` transport is disabled unless the explicit
-`SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1` test override is present.
+### Release artifact
 
-During activation the updater installs the release root-owned and non-writable
-by the worker under `/opt/syrus/releases/<sha>`. If the release pins a Ruby in
-`.ruby-version` that the host does not have yet, the updater installs it with
-mise under `/opt/syrus/rubies/<version>`. It then runs host-local dependency
-setup (`bundle install` into that Ruby's bundle, `npm ci`, and
-`bin/macos-worker-check`) as the `syrus-worker` account, atomically replaces
-`/opt/syrus/current`, and restarts `system/com.syrus.worker` with
-`launchctl kickstart -k`.
+`bin/release-macos-worker [VERSION]` produces the artifact
+`syrus-worker-macos-arm64-<git_sha>.tar.gz`, plus `SHA256SUMS-macos-worker.txt`.
+When `SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE` is set, it also writes a `.sig`.
+The archive is source only:
 
-The privileged updater itself is installed root-owned at
-`/usr/local/libexec/syrus/syrus-macos-updater`; launchd never executes updater
-code from the worker release tree. To produce a signature alongside a release,
-set `SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE` when running
-`bin/release-macos-worker`, then put the generated `.sig` contents in the
-desired release's `artifact_signature`. Keep that private key off worker hosts;
-provision only its public key at the pinned path above.
+- it contains the tracked app source, the Mac binstubs, the launchd plists,
+  the lockfiles, `GIT_SHA`, `SYRUS_VERSION`, and
+  `config/syrus-worker-release.json`;
+- it never contains native gems, `node_modules`, workspaces, or logs, which
+  each host builds during activation.
 
-`SYRUS_DATA_ROOT`, worker storage identity, logs, credentials, shared bundle
-cache, and environment remain outside release directories, so they survive
-rollouts and rollbacks. Old release directories are pruned after activation
-while keeping the active release and the configured rollback window.
+Syrus stores uploaded releases in Active Storage under
+`macos-worker/releases/<sha>` (`MacosWorkerRelease`).
 
-Workers report update state to
-`POST /api/v1/app/admin/macos_worker_update/report` with a scoped macOS worker
-bearer token in `SYRUS_MACOS_WORKER_TOKEN`. Generate one with
-`bin/rails syrus:macos_worker_token`; set `DAYS=<n>` to choose a lifetime
-other than the default 30 days. The updater still accepts `SYRUS_API_TOKEN` as
-a legacy fallback, but workers should not carry a human admin's full API token.
-The live `InstanceVersion` row and retained
-`WorkerHostHealthSample` rows include `desired_version`,
-`macos_updater_status`, and `macos_updater_state`, allowing admin surfaces to
-show `current`, `updating`, `failed`, or `stale` workers.
+## Drain-aware manual updates
 
-## Drain-aware rolling updates
+The drain flow updates one host at a time, by hand. Deploys do not use it.
+A `MacosWorkerDrain` row, keyed by worker storage key and hostname, removes
+that host from compatible capacity while it finishes its active Runs. It is
+separate from the role-wide restart. If every Mac is draining or updating, new
+Mac-capability Runs block as `no_capable_worker`.
 
-Mac pool updates use `MacosWorkerDrain` rows keyed by worker storage identity
-and hostname. A drain is separate from the role-wide restart poison pill:
-draining or updating Mac workers remain alive for their active Runs and
-spawned processes, but queue resolution stops counting them as compatible
-capacity for new macOS/Xcode Runs. If every Mac worker is draining or
-updating, Syrus blocks new Mac-capability Runs with the same no-capable-worker
-vocabulary used for missing workers rather than advertising capacity that is
-not currently claimable.
+All the endpoints are under `/api/v1/app/admin/macos_worker_update`:
 
-`POST /api/v1/app/admin/macos_worker_update/advance` advances one worker at a
-time: select an outdated Mac worker, mark it draining, wait for active work to
-settle, ask the updater to activate the desired `git_sha`, wait for a fresh
-heartbeat at that SHA, verify the worker still advertises macOS and Xcode
-capabilities, then complete the drain and move on to the next worker.
+- `POST .../advance` takes the next outdated Mac through the whole cycle: it
+  marks the host draining, waits for its work to settle, lets the updater
+  install the desired `git_sha`, waits for a fresh heartbeat at that SHA, and
+  checks that the host still advertises macOS and Xcode.
+- `POST .../drain` starts a drain for one `worker_storage_key` or `hostname`.
+- `POST .../clear` marks a stuck drain completed.
+- `POST .../force_terminate` tells the updater to restart even with work
+  still running. Runs it kills are classified as retryable Mac-update
+  failures.
 
-Repair affordances:
+How the metadata response decides whether a host updates:
 
-- `POST /api/v1/app/admin/macos_worker_update/drain` starts a drain for a
-  specific `worker_storage_key` or `hostname`.
-- `POST /api/v1/app/admin/macos_worker_update/clear` marks a stuck active drain
-  completed.
-- `POST /api/v1/app/admin/macos_worker_update/force_terminate` sets a force
-  flag on the drain. The updater directive tells the host to restart even if
-  active work remains; resulting worker deaths are classified as retryable
-  Mac-update failures.
+- **`enabled`** is true when the desired release is complete and either its
+  `rollout` is `immediate` (every release a deploy activates) or this host's
+  drain permits the update.
+- **`drain`** is one of `none`, `draining`, `updating`, or `failed`. The
+  updater holds back only while the drain is in some state other than `none`
+  or `updating` and has not been forced. A deploy's release, which has drain
+  `none`, is therefore never held back.
 
-`GET /api/v1/app/admin/macos_worker_update` accepts `worker_storage_key` and
-`hostname` query parameters. Its response includes a `drain` directive
-(`none`, `draining`, `updating`, or `failed`) so a polling updater can tell the
-difference between ordinary release metadata and an operator-requested rolling
-update step. Desired release metadata is published for visibility, but
-`enabled` is true only for the selected worker once its drain reaches
-`updating` or an operator has requested forced termination.
-
-This design avoids assuming the cluster can initiate SSH sessions into Mac
-hardware. The k3s control plane only publishes desired release metadata and
-receives status; each Mac host performs download, verification, activation,
-and service restart from its own network and credential context.
+Return to the [macOS workers hub](macos-workers.md).

@@ -60,6 +60,32 @@ RSpec.describe LandingFailureHandler do
       expect(job.user.reload).not_to be_landing_paused
     end
 
+    # Regression: a runaway-protected Job an operator had approved deferred a
+    # deterministically failing landing (a prepare that could not build) as
+    # transient on every attempt, and the queue relaunched it for hours --
+    # runaway protection had already stopped counting failed workflows.
+    it "fails instead of deferring once runaway protection is active" do
+      job = landing_job
+      job.update!(runaway_protection: "too_many_failed_workflows", runaway_protection_at: Time.current)
+
+      described_class.call(job: job, reason: "Steps::Base::StepFailed: prepare command failed (exit 5): bundle install")
+
+      expect(job.reload).to be_implemented
+      expect(job.approved_at).to be_nil
+      expect(job.landing_failure_code).to eq(LandingFailureCode::TRANSIENT_BLOCKER)
+    end
+
+    # Only the transient deferral is a relaunch with no budget of its own; a
+    # capability hold waits for a worker rather than retrying.
+    it "still holds a runaway-protected Job's landing that found no capable worker" do
+      job = landing_job
+      job.update!(runaway_protection: "too_many_failed_workflows", runaway_protection_at: Time.current)
+
+      described_class.call(job: job, reason: "#{LandingFailureCode::NO_CAPABLE_WORKER}: no live worker for macos")
+
+      expect(job.reload).to be_approved
+    end
+
     it "still fails a genuine grader rejection" do
       job = landing_job
 

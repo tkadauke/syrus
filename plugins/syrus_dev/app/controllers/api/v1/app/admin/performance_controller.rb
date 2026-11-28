@@ -2,23 +2,23 @@ module Api
   module V1
     module App
       module Admin
-        class PerformanceController < BaseController
+        class PerformanceController < Syrus::Host::AppAdminController
           def show
             return render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found unless SyrusDev.enabled?
 
-            render json: PerformanceLogging.suppress { ::SyrusDev::PerformancePayload.new(params: request.query_parameters).as_json }
+            render json: Syrus::Host::PerformanceLogging.suppress { ::SyrusDev::PerformancePayload.new(params: request.query_parameters).as_json }
           end
 
           def events
             return render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found unless SyrusDev.enabled?
 
-            render json: PerformanceLogging.suppress { ::SyrusDev::PerformancePayload.new(params: request.query_parameters).events_json }
+            render json: Syrus::Host::PerformanceLogging.suppress { ::SyrusDev::PerformancePayload.new(params: request.query_parameters).events_json }
           end
 
           def explain
             return render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found unless SyrusDev.enabled?
 
-            result = PerformanceLogging.suppress do
+            result = Syrus::Host::PerformanceLogging.suppress do
               ::SyrusDev::SqlExplain.call(
                 sql: params.require(:sql),
                 analyze: params[:analyze],

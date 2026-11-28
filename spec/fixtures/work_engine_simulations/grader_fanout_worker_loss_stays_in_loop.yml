@@ -79,7 +79,8 @@ expect:
     active_work_units: empty
   events:
     - grader_fanout -> worker_died
-    - retryable_run_failure
+    # The dispatcher reruns a step whose worker died in place, so recovery
+    # no longer waits for the reconciler's retryable_run_failure repair.
     - grader_fanout -> success
     - grader -> success
     - grader_collect -> success

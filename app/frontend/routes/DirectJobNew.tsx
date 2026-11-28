@@ -17,12 +17,14 @@ import type { ProviderRoutingOptions } from "../api/providerRoutingRules"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { providerIconSrc } from "../lib/pluginIcon"
+import { QuestionEagernessFields, type QuestionEagerness } from "../components/QuestionEagernessFields"
 
 type DirectJobFormState = {
   repositoryId: string
   agentProvider: string
   model: string
   effortLevel: string
+  questionEagerness: QuestionEagerness | null
   epicId: string
   title: string
   prompt: string
@@ -255,6 +257,12 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <SectionHeading>{t("form_section_prompt")}</SectionHeading>
+        <QuestionEagernessFields
+          eagerness={values.questionEagerness}
+          onChange={(questionEagerness) => setValues({ ...values, questionEagerness })}
+          timeoutSeconds={null}
+          showTimeout={false}
+        />
         <Field label={t("form_title_label")}>
           <Form.Input
             name="title"
@@ -361,6 +369,7 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
     agentProvider: payload.selected_agent_provider || "",
     model: payload.selected_model || "",
     effortLevel: payload.selected_effort_level || "",
+    questionEagerness: payload.selected_question_eagerness || null,
     epicId: payload.selected_epic_id || "",
     title: "",
     prompt: "",

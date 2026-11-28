@@ -3,11 +3,11 @@ module MetricsDashboard
   # RetentionPolicyRegistry via the `:retention_policy` extension point,
   # instead of core hand-listing the plugin's model or executor by name.
   class RetentionPolicy
-    include Syrus::Plugin::RetentionPolicy
+    include Syrus::Host::RetentionPolicy
 
     def self.retention_definitions
       [
-        RetentionPolicyRegistry::Definition.new(
+        Syrus::Host::RetentionPolicyRegistry::Definition.new(
           key: :metrics_dashboard_sample,
           model: "MetricsDashboard::Sample",
           table_name: "metrics_dashboard_samples",

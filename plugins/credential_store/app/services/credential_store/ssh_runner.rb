@@ -9,7 +9,7 @@ module CredentialStore
 
     def self.call(env:, argv:, timeout: nil)
       current_run = Thread.current[:syrus_current_run]
-      capture = ProcessRunner.new(
+      capture = Syrus::Host::ProcessRunner.new(
         env: env, command: argv, mounts: capture_mounts, network: "agent",
         timeout: timeout || 10.minutes, kind: "chat_shell_command", run: current_run, workflow: current_run&.workflow,
         chat_session: Thread.current[:syrus_current_chat_session], kill_grace_seconds: KILL_GRACE_SECONDS
@@ -19,11 +19,11 @@ module CredentialStore
     end
 
     def self.capture_mounts
-      ProcessRunner.mounts(capture_workdir)
+      Syrus::Host::ProcessRunner.mounts(capture_workdir)
     end
 
     def self.capture_workdir
-      WorkflowWorkspace.data_root.join(CAPTURE_SCRATCH_DIR).tap { |dir| FileUtils.mkdir_p(dir) }
+      Syrus::Host::WorkflowWorkspace.data_root.join(CAPTURE_SCRATCH_DIR).tap { |dir| FileUtils.mkdir_p(dir) }
     rescue SystemCallError
       Pathname.new(Dir.tmpdir)
     end

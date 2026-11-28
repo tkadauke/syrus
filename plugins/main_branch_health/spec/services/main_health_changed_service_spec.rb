@@ -784,11 +784,11 @@ RSpec.describe MainHealthChangedService, :ci_only do
       # blocking repair (the Job was failed, for an older SHA) and spawned a
       # second repair Job; the retry then relaunched the first. Two repairs ran
       # at once, each with a full preflight grader fan-out.
-      # A repair superseded because main moved past its preflight snapshot did
-      # not fail and was not abandoned: its diagnosis was simply for an older
-      # commit. If the new head is still broken, it needs its own repair now,
-      # not after the cooldown that follows a cancelled repair.
-      it "spawns a fix Job for a still-broken head right after superseding a stale preflight repair" do
+      # Regression: a repair still in preflight was closed every time main
+      # moved, and a busy repository never kept one long enough for its agent
+      # to start. While main is still broken the repair carries over to the
+      # new head, and no second repair is opened beside it.
+      it "carries a preflight repair over to a still-broken new head instead of superseding it" do
         stale = repository.jobs.create!(
           user: user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
           issue_title: "stale repair", issue_body: "Main branch health is broken.", agent_provider: "claude",
@@ -800,14 +800,25 @@ RSpec.describe MainHealthChangedService, :ci_only do
         WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: fanout, source_sha: "0" * 40,
                                         source_ref: "refs/heads/main", tree_sha: "t" * 40)
         head = repository.reload.last_health_checked_sha
+        expect(repository).to be_main_health_broken
+
         described_class.supersede_stale_preflight_repairs!(repository, head_sha: head)
-        expect(stale.reload).to have_attributes(state: "closed", closure_reason: "superseded")
+        expect(stale.reload).not_to be_closed
+
+        expect { described_class.on_health_change!(repository) }
+          .not_to(change { repository.jobs.where(kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count })
+      end
+
+      it "scopes a new repair's preflight to the graders failing on main" do
+        MainBranchHealth::HealthCheck.record_grader_workflow(
+          repository: repository, sha: repository.reload.last_health_checked_sha,
+          grader_health: "broken", grader_failed_names: %w[e2e-1-of-3 rspec-ci-2-of-4]
+        )
 
         described_class.on_health_change!(repository)
 
-        replacement = repository.jobs.where(kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR)
-                                .where.not(id: stale.id).where.not(state: "closed")
-        expect(replacement).to exist
+        repair = repository.jobs.where(kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).order(:id).last
+        expect(repair.latest_workflow.artifact("preflight_target_grader_names")).to eq(%w[e2e-1-of-3 rspec-ci-2-of-4])
       end
 
       it "does not spawn another fix Job while a failed repair has a pending auto-retry" do
@@ -2249,6 +2260,16 @@ RSpec.describe MainHealthChangedService, :ci_only do
       repair_workflow(job, snapshot_sha: "b" * 40)
 
       described_class.supersede_stale_preflight_repairs!(repository, head_sha: "b" * 40)
+
+      expect(job.reload).not_to be_closed
+    end
+
+    it "supersedes a stale preflight repair only once main is no longer broken" do
+      job = repair_job
+      repair_workflow(job, snapshot_sha: "a" * 40)
+      repository.update_columns(main_branch_health_enabled: true, grader_health: "broken")
+
+      described_class.supersede_stale_preflight_repairs!(repository.reload, head_sha: "b" * 40)
 
       expect(job.reload).not_to be_closed
     end

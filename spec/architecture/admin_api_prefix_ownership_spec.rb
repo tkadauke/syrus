@@ -134,6 +134,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/stuck api/v1/admin/overview#stuck
     GET /api/v1/admin/activity api/v1/admin/workflow_activity#index
     GET /api/v1/admin/reconciler_activity api/v1/admin/reconciler_activity#index
+    GET /api/v1/admin/invariants api/v1/admin/invariants#index
     GET /api/v1/admin/browser_errors api/v1/admin/browser_errors#index
     GET /api/v1/admin/backend_exceptions api/v1/admin/backend_exceptions#index
     GET /api/v1/admin/worker_health api/v1/admin/worker_health#show

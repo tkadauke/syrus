@@ -2,7 +2,7 @@ require "test_insights/parser"
 require "test_insights/data_cleanup"
 
 module TestInsights
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "test_insights" do
     experimental false

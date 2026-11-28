@@ -1,0 +1,49 @@
+# Prepare declares why a dependency install failed from the command's own
+# exit status and output tail. A mysql2 native extension that cannot link
+# zstd fails the same way on every attempt, so it is declared
+# prepare_install_failed and the Job fails without spending retries -- even
+# though its log reads like a timeout ("Fetching timeout 0.6.1", "execution
+# expired") and a transient provider failure (a wrapped
+# "Bundler::Settings#temporary" frame), which is how the text classifier
+# misread it and retried it a dozen times an hour.
+name: declared prepare install failure is not retried
+max_ticks: 40
+repository:
+  owner: simulation
+  name: declared-prepare-install-failure-is-not-retried
+runner:
+  auto_retry_failed_jobs: false
+jobs:
+  broken_build:
+    title: Prepare cannot link a native gem
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+  steps:
+    prepare:
+      - status: failure
+        problem_code: prepare_install_failed
+        error_message: "prepare command failed (exit 5): bundle install\nOutput tail:\nFetching timeout 0.6.1\nInstalling mysql2 0.5.7 with native extensions\nld: library 'zstd' not found\n/opt/syrus/rubies/3.4.10/lib/ruby/3.4.0/bundler/settings.rb:159:in\n'Bundler::Settings#temporary'\nRetrying after execution expired\nAn error occurred while installing mysql2 (0.5.7), and Bundler cannot continue."
+expect:
+  jobs:
+    broken_build:
+      - failed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  # The pin: the declaration is what the Run was classified as. Read from the
+  # text instead, the same failure classifies `timeout` -- retryable.
+  run_evidence:
+    - job: broken_build
+      step: prepare
+      classification: prepare_install_failed
+  absent_events:
+    - "auto retry"
+    - "implement ->"
+success_states:
+  broken_build:
+    - failed

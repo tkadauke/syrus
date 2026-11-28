@@ -74,6 +74,94 @@ RSpec.describe BroadcastsJobProgress do
     )
   end
 
+  it "broadcasts a landing-lanes invalidation when a grader changes state in an occupied lane" do
+    collaborator = Factories.user(admin: false)
+    team = Team.create!(name: "Landing operators")
+    team.team_memberships.create!(user: collaborator, role: "member")
+    team.team_repositories.create!(repository:, role: "admin")
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    intent = WorkIntent.create!(
+      kind: "auto_merge", state: "requested", repository:, scope_type: "job", scope_id: job.id,
+      actor: user, source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent, workflow:, kind: "auto_merge", state: "running", repository:,
+      scope_type: "job", scope_id: job.id
+    )
+    unit.work_unit_members.create!(job:, role: "primary")
+    unit.work_unit_locks.create!(lock_key: "landing:repository:#{repository.id}")
+    grader = Step.create!(workflow:, kind: "grader", position: 1, details: { "name" => "rspec", "timeout_minutes" => 10 })
+    RSpec::Mocks.space.proxy_for(AppUserChannel).reset
+    allow(AppUserChannel).to receive(:broadcast_to)
+
+    grader.start!
+    grader.save!
+
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "landing_lanes.updated",
+        "resource" => "landing_lanes",
+        "id" => repository.id,
+        "payload" => include("path" => "/api/v1/app/landing_lanes", "repository_id" => repository.id)
+      )
+    )
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      collaborator,
+      hash_including(
+        "type" => "landing_lanes.updated",
+        "resource" => "landing_lanes",
+        "id" => repository.id
+      )
+    )
+  end
+
+  it "broadcasts a landing-lanes invalidation after a terminal workflow releases its lane" do
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    intent = WorkIntent.create!(
+      kind: "auto_merge", state: "requested", repository:, scope_type: "job", scope_id: job.id,
+      actor: user, source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent, workflow:, kind: "auto_merge", state: "running", repository:,
+      scope_type: "job", scope_id: job.id
+    )
+    unit.work_unit_members.create!(job:, role: "primary")
+    lock = unit.work_unit_locks.create!(lock_key: "landing:repository:#{repository.id}")
+    RSpec::Mocks.space.proxy_for(AppUserChannel).reset
+    allow(AppUserChannel).to receive(:broadcast_to)
+
+    workflow.cancel!
+    workflow.save!
+
+    expect(unit.reload).to be_cancelled
+    expect(lock.reload).not_to be_active
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "landing_lanes.updated",
+        "resource" => "landing_lanes",
+        "id" => repository.id
+      )
+    )
+  end
+
+  it "does not inspect landing ownership for a non-landing workflow update" do
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    step = Step.create!(workflow:, kind: "implement", position: 0)
+    queries = []
+    subscriber = ->(_name, _started, _finished, _id, event) do
+      queries << event[:sql] unless event[:name] == "SCHEMA" || event[:cached]
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      step.start!
+      step.save!
+    end
+
+    expect(queries.grep(/work_unit_locks/i)).to be_empty
+  end
+
   it "does not broadcast for heartbeat-only Run updates" do
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
     step = Step.create!(workflow: workflow, kind: "implement", position: 0)

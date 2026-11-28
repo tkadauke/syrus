@@ -2,9 +2,9 @@ require "digest"
 
 module CredentialStore
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ].freeze
     ASK_DEFAULTS = ROLES.index_with { :ask }.freeze
 
     class << self
@@ -164,9 +164,9 @@ module CredentialStore
       end
 
       def safe_review_command(command)
-        reviewed = ToolPayloadRedactor.redact_text(command.to_s)
-        if reviewed.blank? || reviewed == ToolPayloadRedactor::REDACTED
-          raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "SSH command cannot be represented safely for review"
+        reviewed = Syrus::Host::ToolPayloadRedactor.redact_text(command.to_s)
+        if reviewed.blank? || reviewed == Syrus::Host::ToolPayloadRedactor::REDACTED
+          raise Syrus::Host::McpAuthorizationSupport::AuthorizationError, "SSH command cannot be represented safely for review"
         end
         reviewed
       end
@@ -198,11 +198,11 @@ module CredentialStore
 
     register_capability(
       capability: "credential.metadata@v1", operation: "credential.metadata/list@v1",
-      presentation: Permissions::CapabilityPresentation.for(capability: "credential.metadata@v1", operation: "credential.metadata/list@v1"),
+      presentation: Syrus::Host::CapabilityPresentation.for(capability: "credential.metadata@v1", operation: "credential.metadata/list@v1"),
       effects: %i[confidential_read], risk: :low, deniable_reason: :confidential_cross_boundary,
       requestable_roles: ROLES, defaults: ROLES.index_with { :allow },
       maximum_autonomy: :permanent,
-      authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
+      authority_durations: Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS,
       resource_scope: { type: :none },
       classifier: ->(_arguments) { { operation: "credential.metadata/list@v1", effects: %i[confidential_read], risk: :low, confidence: :certain } },
       fingerprint_normalizer: ->(arguments) { arguments.to_h.deep_stringify_keys },
@@ -211,7 +211,7 @@ module CredentialStore
 
     register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/read@v1",
-      presentation: Permissions::CapabilityPresentation.for(capability: "ssh.execute@v1", operation: "ssh.execute/read@v1"),
+      presentation: Syrus::Host::CapabilityPresentation.for(capability: "ssh.execute@v1", operation: "ssh.execute/read@v1"),
       effects: %i[network_read confidential_read credential_use operational],
       risk: :high, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
@@ -226,7 +226,7 @@ module CredentialStore
 
     register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1",
-      presentation: Permissions::CapabilityPresentation.for(capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1"),
+      presentation: Syrus::Host::CapabilityPresentation.for(capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1"),
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
@@ -244,7 +244,7 @@ module CredentialStore
       description: "Ask for each exact SSH command against a selected credential and destination.",
       rules: %w[ssh.execute/read@v1 ssh.execute/risky@v1].map do |operation|
         { capability: "ssh.execute@v1", operation:,
-          role: AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {} }
+          role: Syrus::Host::AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {} }
       end
     )
   end

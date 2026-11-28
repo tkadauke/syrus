@@ -18,7 +18,7 @@ module Whiteboard
         scene = Canvas.read(chat_session)
 
         if scene.fetch("elements").empty?
-          return Mcp::Tools.success(
+          return Syrus::Host::McpTools.success(
             saved: false,
             reason: "canvas is empty",
             name: name,
@@ -34,7 +34,7 @@ module Whiteboard
           name: name
         )
 
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           saved: true,
           snapshot_id: snapshot.id,
           name: snapshot.name,
@@ -43,7 +43,7 @@ module Whiteboard
           version: scene.fetch("version")
         )
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

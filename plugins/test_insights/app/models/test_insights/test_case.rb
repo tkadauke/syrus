@@ -2,7 +2,7 @@ module TestInsights
   class TestCase < ApplicationRecord
     self.table_name = "test_insight_cases"
 
-    include HasConfigurableRetention
+    include Syrus::Host::HasConfigurableRetention
 
     configurable_retention setting_key: :test_insight_case_retention_days, unit: :days
 
@@ -207,7 +207,7 @@ module TestInsights
 
     def self.score_scope_for(repository:, suite_name:, name:, exclude_workflow:)
       scope = history_scope_for(repository: repository, suite_name: suite_name, name: name)
-      workflow_id = exclude_workflow.is_a?(::Workflow) ? exclude_workflow.id : exclude_workflow
+      workflow_id = exclude_workflow.is_a?(Syrus::Host::WorkflowRecord) ? exclude_workflow.id : exclude_workflow
       return scope if workflow_id.blank?
 
       scope.left_joins(test_run: { run: :step })

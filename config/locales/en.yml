@@ -28,9 +28,19 @@
 #       enabled: "ON"
 
 en:
+  agent_questions:
+    recorded: "Question(s) recorded. End your turn now."
+    answered: "Answer submitted. The workflow will continue."
+    errors:
+      exactly_one_owner: "must belong to either a chat session or a run"
+      questions_malformed: "must be an array of 1 to 4 well-formed questions"
+      defaults_malformed: "must provide one non-blank default per question"
+      answers_malformed: "Answers must match every question."
+      inactive: "The question is no longer active."
   unlanding:
     disabled: "Unlanding is not enabled for this instance."
   notifications:
+    agent_question_asked: "Waiting for your answer on %{job}"
     approval_request:
       one: "Approval needed: %{purpose}"
       other: "%{count} approval requests need your attention."
@@ -45,6 +55,8 @@ en:
   hello: "Hello world"
 
   server:
+    detach_job:
+      confirmation: "Detach %{job} from its inferred parent and restack PR #%{pr_number} onto %{destination_base}?"
     permissions:
       coworker_request_waiting: "Waiting for the owner to decide the required permissions."
       policy_evaluated: "Canonical permission policy evaluated"
@@ -84,6 +96,8 @@ en:
         session_mismatch: "must belong to the resumable user and match the session provider"
         run_mismatch: "must belong to the Run user and provider"
         workflow_mismatch: "must belong to the Workflow user and provider"
+      recovery_intervention:
+        failure_evidence_must_be_object: "must be an object"
       plugin_installation:
         release_name_mismatch: "must match the release name"
         invalid_roles_shape: "must be an array of non-empty names"
@@ -158,6 +172,32 @@ en:
       telemetry:
         message: "Workflow outcome failed, overridden"
         transcript: "Workflow outcome failed, overridden: %{gate_kind} %{gate_identity} at %{candidate_head_sha} (evidence %{evidence_digest})."
+    invariants:
+      landing_progress:
+        title: "Approved and landing work progresses"
+        violation: "%{job} has been %{state} for %{hours}h with no active Run, no active WorkUnit, and no named landing blocker."
+      slot_holders:
+        title: "Concurrency slots are held only by runnable work"
+        violation: "%{unit} holds the %{slot} slot in %{repository} but cannot run (%{reason})."
+      retry_storms:
+        title: "Deterministic failures are not retried as transient"
+        violation: "%{job} failed its %{step} step %{count} times in %{window_minutes} minutes with the same failure (%{classification})."
+      failed_blockers:
+        title: "Failed Jobs do not silently block other work"
+        violation: "%{job} has been failed for %{hours}h and blocks %{count} Job(s): %{blocked}."
+      zombie_workflows:
+        title: "Workflow and Job state describe real work"
+        violation: "%{subject} is %{state}, but nothing has advanced it for %{hours}h (%{condition})."
+      abandoned_blockers:
+        title: "Dependencies that can no longer succeed do not silently block work"
+        violation: "%{blocker} finished without succeeding %{hours}h ago and still blocks %{count} Job(s): %{blocked}."
+      wait_cycles:
+        title: "Blocked work does not wait on itself"
+        violation: "%{units} wait on each other in a cycle (%{reasons}); none of them can start."
+      alert:
+        title: "Syrus invariants are violated."
+        message: "%{count} invariant violation(s) are open: %{summary}."
+        action: "Inspect GET /api/v1/admin/invariants for the affected records and their evidence."
 
   errors:
     messages:
@@ -444,6 +484,7 @@ en:
         workflow_not_found: "Workflow not found."
         workflow_not_failed: "Workflow is not in a failed state."
         workspace_cleaned_up: "Workspace already cleaned up - use Start over."
+        active_work_lock: "Available after active work finishes."
         no_failed_step: "No failed step to retry."
         workspace_unavailable: "Workspace is not available for this workflow."
         diagnose_requires_active_run: "Diagnose is only available for active runs."
@@ -638,6 +679,8 @@ en:
     user_time_zones:
       invalid_mode: "mode must be automatic or manual"
     admin:
+      invariants:
+        unknown_invariant: "Unknown invariant: %{key}. Known invariants: %{known}."
       plugin_disable:
         workflow_steps_in_flight: "A non-terminal workflow contains steps owned by %{plugin}. Wait for it to finish before disabling the plugin."
     chat_shell_commands:
@@ -654,6 +697,8 @@ en:
         coding_checkout_not_found: "No active coding checkout for this chat."
         containment_required: "Shell commands are disabled while contained chat execution is required: they would run on the worker, outside the container the chat agent is confined to. An administrator can change this under Settings."
         local_daemon_disconnected: "Local daemon not connected. Run `syrus local` in your repo to continue."
+    landing_lanes:
+      feature_disabled: "Landing lanes are not enabled on this instance."
     chats:
       groups:
         shared_with_me: "Shared with me"
@@ -955,6 +1000,7 @@ en:
       prompt_blank: "Prompt can't be blank."
       agent_not_configured: "That agent is not configured for the repository owner."
       invalid_priority: "Priority must be one of: %{priorities}."
+      invalid_question_eagerness: "Question eagerness is invalid."
       epic_not_found: "Epic not found in that repository."
       owner_not_found: "Owner user not found."
       created: "Direct job created."
@@ -1047,11 +1093,11 @@ en:
       host_surface:
         scan_failed: "Host API scan failed: %{error}"
         unsupported: "%{count} unsupported host API reference(s)"
-        legacy: "%{count} non-public host API reference(s)"
         dynamic: "%{count} dynamic non-public host API reference(s)"
         minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Fix Job %{slug} filed. This Job will resume after it lands."
       direct_only: "Only direct Jobs can be started manually."
       thread_closed: "Thread is closed - reopen it before starting work."
       backlogged: "Job is in backlog - release it before starting work."

@@ -83,7 +83,10 @@ module Steps
         publish_command_completed!(step_kind: "prepare", label: command)
         next if result.success? && !result.timed_out
 
-        raise StepFailed, "prepare target #{label} failed (#{prepare_dependency_status(result)}): #{command}"
+        # Fully qualified: inside this module a bare StepFailed resolves
+        # lexically to Steps::PrepareTargetExecution::StepFailed, so a failed
+        # prepare target surfaced as a NameError instead of its own failure.
+        raise Steps::Base::StepFailed, "prepare target #{label} failed (#{prepare_dependency_status(result)}): #{command}"
       end
 
       record_prepare_target_mutation_warning!(

@@ -35,3 +35,14 @@ expect:
     # third attempt is the observable pin.
     - "auto retry 3"
     - "-> started"
+invariants:
+  expected:
+    # The scenario is a deterministic timeout retried until the budget runs
+    # out, which is a retry storm by definition: each attempt also reruns the
+    # step in place for the retryable timeout before the workflow fails, so
+    # the failures pass retry_storms' threshold long before the budget stops
+    # them.
+    - invariant: retry_storms
+      job: first
+      required: true
+      reason: a deterministic failure retried as transient until the budget is spent

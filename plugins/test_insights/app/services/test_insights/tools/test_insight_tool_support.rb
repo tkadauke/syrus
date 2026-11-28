@@ -4,7 +4,7 @@ module TestInsights
       private
 
       def current_context(server_context)
-        McpToolContext.from_server_context(server_context)
+        Syrus::Host::ToolContext.from_server_context(server_context)
       end
 
       def repository_for(context, repository: nil, repository_id: nil)
@@ -22,20 +22,20 @@ module TestInsights
       end
 
       def job_for(context, job_id:)
-        scope = context.user.admin? ? Job.visible_to(context.user, scope: Job.all) : Job.visible_to(context.user)
+        scope = context.user.admin? ? Syrus::Host::JobRecord.visible_to(context.user, scope: Syrus::Host::JobRecord.all) : Syrus::Host::JobRecord.visible_to(context.user)
         scope = scope.where(repository_id: context.repository.id) if context.run? && context.repository
         scope.find(normalize_numeric_ref(job_id, prefix: "job"))
       end
 
       def run_for(context, run_id:)
-        visible_jobs = context.user.admin? ? Job.visible_to(context.user, scope: Job.all) : Job.visible_to(context.user)
-        scope = Run.joins(job: :repository).merge(visible_jobs)
+        visible_jobs = context.user.admin? ? Syrus::Host::JobRecord.visible_to(context.user, scope: Syrus::Host::JobRecord.all) : Syrus::Host::JobRecord.visible_to(context.user)
+        scope = Syrus::Host::RunRecord.joins(job: :repository).merge(visible_jobs)
         scope = scope.where(jobs: { repository_id: context.repository.id }) if context.run? && context.repository
         scope.find(normalize_numeric_ref(run_id, prefix: "run"))
       end
 
       def repository_scope_for(context)
-        base = context.user.admin? ? Repository.all : Repository.accessible_to(context.user)
+        base = context.user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(context.user)
         base = base.where(id: context.repository.id) if context.run? && context.repository
         base
       end

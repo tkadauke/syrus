@@ -93,6 +93,26 @@ class GraderResourceGrant
     )
   end
 
+  # Whether this host's CPUs are already handed out to the point where one
+  # more whole-host grader would only share them. Every whole-host grader is
+  # granted at least half the host, so two book it fully. A third one placed
+  # here anyway ran its rspec shard at a fraction of the host for 40+ minutes
+  # beside five peers while 12-core workers each ran a single shard -- the
+  # merge train waited on the slowest shard.
+  def cpu_booked?
+    return false unless request.unbounded_cpu?
+
+    booked_cpu_cores + whole_host_floor > host_capacity
+  end
+
+  def booked_cpu_cores
+    fixed_claim_cores + (unbounded_claimant_count * whole_host_floor)
+  end
+
+  def whole_host_floor
+    (host_capacity / 2.0).ceil
+  end
+
   private
 
   attr_reader :run, :request, :hostname
@@ -102,16 +122,38 @@ class GraderResourceGrant
 
     cores =
       if request.unbounded_cpu?
-        # Every unbounded claimant gets an equal share of what the bounded
-        # claims leave behind, so two concurrent `cpu: all` graders split the
-        # remainder instead of both taking it.
-        [ remainder / (unbounded_claimant_count + 1), 1 ].max
+        # An equal share of what the bounded claims leave behind, but never
+        # less than half the host (or cpu_min). The grant is fixed at spawn:
+        # a shard that started beside two others on a busy host got one core,
+        # ran `-n 1` for over an hour after its peers had finished, and held
+        # its whole merge train. CPU contention only slows processes down --
+        # the scheduler shares the cores -- so overlapping grants cost little
+        # while the floor keeps a late starter from running serially. Real
+        # memory, the resource that kills, bounds it below.
+        fair = [ remainder / (unbounded_claimant_count + 1), 1 ].max
+        [ fair, (host_capacity / 2.0).ceil, request.cpu_min.to_i ].max
       else
         # Leave one core per unbounded claimant rather than starving it.
         [ [ request.cpu, remainder - unbounded_claimant_count ].min, 1 ].max
       end
 
-    cores.clamp(1, host_capacity)
+    cores = cores.clamp(1, host_capacity)
+    memory_bound = memory_bounded_cores
+    memory_bound ? [ cores, memory_bound ].min : cores
+  end
+
+  # Parallel workers each load the application; this many per worker process
+  # is what one costs in practice. Measured headroom, not a reservation.
+  PARALLEL_PROCESS_MEMORY_BYTES = 750 * 1024**2
+
+  def memory_bounded_cores
+    limit = RunProcessParallelism.effective_memory_limit_bytes
+    current = RunProcessParallelism.current_memory_bytes
+    return unless limit&.positive? && current
+
+    [ (limit - current) / PARALLEL_PROCESS_MEMORY_BYTES, 1 ].max
+  rescue StandardError
+    nil
   end
 
   def resolve_memory_bytes

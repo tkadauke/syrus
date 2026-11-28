@@ -123,6 +123,30 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(execution.message).to eq("Step is waiting for an in-place retry")
       expect(step.reload).to be_running
     end
+
+    # Regression: the plan was made while the Step was running with only a
+    # failed Run. Before it applied, the failure was recorded and a retry
+    # reopened the Step. Applying it anyway failed the reopened Step and
+    # retried it a second time, so two Runs of one prepare Step ran at once.
+    it "skips a Step a retry reopened after its latest terminal Run" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      step = workflow.steps.create!(kind: "prepare", position: 99, state: "running", started_at: 5.minutes.ago)
+      step.runs.create!(
+        job: job, trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider, state: "failed", finished_at: 1.minute.ago
+      )
+      plan = repair_plan(action: "reconcile_step_from_terminal_run", target: step)
+      # The failure and the retry's reopen, without their propagation.
+      step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+      StateTransition.create!(subject: step, from_state: "failed", to_state: "queued", event_name: "reopen", source: "aasm")
+
+      expect(StepDispatcher).not_to receive(:fail_from)
+      execution = described_class.call(result: RepairResult.new([ plan ])).sole
+
+      expect(execution).to have_attributes(status: "skipped", message: "Step was reopened after its latest terminal Run")
+      expect(step.reload).to be_queued
+      expect(StateTransition.where(subject_type: "Step", subject_id: step.id, event_name: "fail")).to be_empty
+    end
   end
 
   describe "recover_missing_workspace" do
@@ -261,6 +285,29 @@ RSpec.describe WorkEngine::RepairExecutor do
       # Persisting that must not replace the repair's confident verdict.
       expect(RunFailureClassifier.persist!(run)).to have_attributes(
         classification: "workspace_recovery_failed", retryable: true, confidence: 1.0
+      )
+    end
+
+    # Regression: the Run this repair ends is often a grader it killed
+    # mid-run, whose "grader X failed" re-classified as a non-retryable
+    # grader_failure and made AutoRetryJob skip the retry scheduled here.
+    it "marks its verdict so re-classifying a killed grader cannot downgrade it" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      run = workflow.runs.last
+      run.step.update_columns(kind: "grader")
+      recovery_fails_with("durable head validation failed")
+
+      described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      )
+      RunDiagnostic.where(run_id: run.id).delete_all
+      RunDiagnostic.insert!({ run_id: run.id, error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1)",
+                              created_at: Time.current, updated_at: Time.current })
+
+      expect(run.reload.run_failure_classification).to be_written_by_repair
+      expect(RunFailureClassifier.classify(run)).to have_attributes(classification: "grader_failure")
+      expect(RunFailureClassifier.persist!(run)).to have_attributes(
+        classification: "workspace_recovery_failed", retryable: true
       )
     end
 

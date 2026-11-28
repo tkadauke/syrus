@@ -1,7 +1,7 @@
 module K8sCluster
   # Per-cluster authorization for agent-issued (workflow/chat MCP tool)
   # access, mirroring MysqlDbBrowser::AgenticAccess - both delegate their
-  # gating logic to the shared Syrus::Plugin::AgenticConnection concern. Every
+  # gating logic to the shared Syrus::Host::AgenticConnection concern. Every
   # agentic tool call names a KubernetesCluster id in its params, and this is
   # the single place that resolves it and enforces that cluster's own
   # `agentic_access_enabled` flag before any tool touches the external
@@ -9,9 +9,9 @@ module K8sCluster
   # manifest-build time (ChatToolSet/WorkflowToolSet#available_for? only ever
   # sees the surface, never an individual call's params) - so each tool calls
   # this from inside its own #call, mirroring
-  # Mcp::Tools::AuthorizationSupport's find_*! pattern for first-party tools.
+  # Syrus::Host::McpAuthorizationSupport's find_*! pattern for first-party tools.
   class AgenticAccess
-    extend Syrus::Plugin::AgenticConnection
+    extend Syrus::Host::AgenticConnection
 
     class ClusterNotFound < StandardError; end
     class AccessDisabled < StandardError; end
@@ -30,7 +30,7 @@ module K8sCluster
     ].freeze
 
     def self.safe_cluster_metadata(context:)
-      clusters = KubernetesCluster.where(agentic_access_enabled: true).order(:label, :id).to_a
+      clusters = Syrus::Host::KubernetesCluster.where(agentic_access_enabled: true).order(:label, :id).to_a
       clusters.select! { |cluster| coworker_cluster_in_scope?(cluster, context) }
       credentials = ClusterCredential.credentials_by_id_for(clusters)
       clusters.filter_map do |cluster|
@@ -48,7 +48,7 @@ module K8sCluster
     end
 
     def self.cluster!(id, context: Thread.current[:k8s_cluster_mcp_context])
-      cluster = KubernetesCluster.find_by(id: id)
+      cluster = Syrus::Host::KubernetesCluster.find_by(id: id)
       unless cluster && usable_by?(cluster, context, credential: ClusterCredential.credential_for(cluster))
         raise ClusterNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
       end
@@ -57,7 +57,7 @@ module K8sCluster
       end
 
       find_agentic!(
-        KubernetesCluster, id,
+        Syrus::Host::KubernetesCluster, id,
         resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
         not_found_error: ClusterNotFound, access_disabled_error: AccessDisabled
       )
@@ -79,7 +79,7 @@ module K8sCluster
     end
 
     def self.coworker_cluster_in_scope?(cluster, context)
-      return true unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+      return true unless context&.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
       return false if cluster.credential_store_credential_id.blank?
 
       context.capability_scopes["k8s.read"].to_s == cluster.id.to_s

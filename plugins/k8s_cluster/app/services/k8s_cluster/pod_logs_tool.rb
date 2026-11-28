@@ -72,7 +72,7 @@ module K8sCluster
             timestamps: !!timestamps
           )
           context = Thread.current[:k8s_cluster_mcp_context]
-          result[:log] = ToolPayloadRedactor.redact_text(result[:log]) if context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          result[:log] = Syrus::Host::ToolPayloadRedactor.redact_text(result[:log]) if context&.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
           result
         end
       end

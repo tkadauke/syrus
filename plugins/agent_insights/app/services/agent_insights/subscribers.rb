@@ -6,7 +6,7 @@ module AgentInsights
   # -- an Active Record callback in core, calling a service in core, for a
   # feature that is not core's. It is a job.closed subscriber now.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       { "job.closed" => :on_job_closed }
@@ -17,7 +17,7 @@ module AgentInsights
       # schedule the next sweep, or sweeps would chain forever.
       return if event[:kind].to_s == "agent_insight"
 
-      repository = Repository.find_by(id: event[:repository_id])
+      repository = Syrus::Host::RepositoryRecord.find_by(id: event[:repository_id])
       return if repository.nil?
 
       config = AgentInsights::ScheduleConfig.for_repository(repository)

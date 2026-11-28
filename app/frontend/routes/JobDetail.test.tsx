@@ -36,7 +36,8 @@ describe("VisualEvidenceGallery", () => {
     page: { path: "/dashboard", title: "Dashboard" },
     viewport: { width: 390, height: 844 },
     submission_failed: true,
-    image_url: "/api/v1/app/jobs/1/visual_evidence/evidence-1"
+    original_url: "/api/v1/app/jobs/1/visual_evidence/evidence-1",
+    thumbnail_url: "/api/v1/app/jobs/1/visual_evidence/evidence-1/thumbnail"
   }
 
   it("defaults to curated evidence and previews retained captures in a modal", () => {
@@ -51,7 +52,7 @@ describe("VisualEvidenceGallery", () => {
     expect(screen.queryByRole("img", { name: "Dashboard" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "View captured screenshots" }))
     const thumbnail = screen.getByRole("img", { name: "Dashboard" })
-    expect(thumbnail).toHaveAttribute("src", captured.image_url)
+    expect(thumbnail).toHaveAttribute("src", captured.thumbnail_url)
     expect(thumbnail).toHaveClass("max-h-72", "max-w-full")
     expect(thumbnail.closest("figure")).toHaveClass("max-w-lg")
     expect(thumbnail.closest("button")).not.toBeNull()
@@ -60,8 +61,8 @@ describe("VisualEvidenceGallery", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Dashboard" }))
     const preview = screen.getByRole("dialog", { name: "Preview of Dashboard" })
-    expect(within(preview).getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", captured.image_url)
-    expect(within(preview).getByRole("link", { name: "Open raw" })).toHaveAttribute("href", captured.image_url)
+    expect(within(preview).getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", captured.original_url)
+    expect(within(preview).getByRole("link", { name: "Open raw" })).toHaveAttribute("href", captured.original_url)
     expect(within(preview).getByRole("link", { name: "Open raw" })).toHaveAttribute("target", "_blank")
 
     fireEvent.click(within(preview).getByRole("button", { name: "Close preview" }))
@@ -72,6 +73,38 @@ describe("VisualEvidenceGallery", () => {
     const { container } = render(<VisualEvidenceGallery approved gallery={{ captured_count: 0, submitted_count: 0, screenshots: [] }} />)
     expect(container).toBeEmptyDOMElement()
     expect(screen.queryByText("Visual evidence")).not.toBeInTheDocument()
+  })
+
+  it("mounts bounded thumbnails for a large gallery and replaces the sole original during navigation", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const screenshots = Array.from({ length: 11 }, (_, index) => ({
+      ...captured,
+      id: `evidence-${index + 1}`,
+      sequence: index + 1,
+      status: "submitted" as const,
+      page: { path: `/capture-${index + 1}`, title: `Capture ${index + 1}` },
+      original_url: `/original-${index + 1}.png`,
+      thumbnail_url: `/thumbnail-${index + 1}.png`
+    }))
+    render(
+      <QueryClientProvider client={client}>
+        <VisualEvidenceGallery approved gallery={{ captured_count: 11, submitted_count: 11, screenshots }} />
+      </QueryClientProvider>
+    )
+
+    expect(screen.getAllByRole("img")).toHaveLength(11)
+    expect(screen.getAllByRole("img").map((image) => image.getAttribute("src"))).toEqual(screenshots.map((shot) => shot.thumbnail_url))
+
+    fireEvent.click(screen.getByRole("button", { name: "Capture 1" }))
+    let dialog = screen.getByRole("dialog", { name: "Preview of Capture 1" })
+    expect(within(dialog).getAllByRole("img")).toHaveLength(1)
+    expect(within(dialog).getByRole("img")).toHaveAttribute("src", "/original-1.png")
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next evidence" }))
+    dialog = screen.getByRole("dialog", { name: "Preview of Capture 2" })
+    expect(within(dialog).getAllByRole("img")).toHaveLength(1)
+    expect(within(dialog).getByRole("img")).toHaveAttribute("src", "/original-2.png")
+    expect(screen.queryByRole("img", { name: "Capture 1" })?.closest("[role=dialog]")).toBeNull()
   })
 })
 
@@ -5674,6 +5707,29 @@ describe("Job Detail keyboard shortcuts", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry_implementation", expect.objectContaining({ method: "POST", body: JSON.stringify({}) }))
     })
+  })
+
+  it("does not expose the failed-step header shortcut while active work blocks recovery", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
+    renderJobDetail({
+      ...payload,
+      actions: {
+        ...payload.actions,
+        retry_failed_step_action: null,
+        retry_implementation_action: null,
+        retry_failed_step_blocker: {
+          reason_code: "active_work_lock",
+          workflow_slug: "WF-987",
+          message: "Available after WF-987 finishes."
+        }
+      }
+    })
+
+    fireEvent.keyDown(window, { key: "r", altKey: true })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it("does not register the retry shortcut when no retry action is available", () => {

@@ -148,12 +148,20 @@ class Feature < ApplicationRecord
     enabled?(:unlanding)
   end
 
+  def self.landing_lanes_enabled?
+    enabled?(:landing_lanes)
+  end
+
   def self.execution_request_assertions_enabled?
     enabled?(:execution_request_assertions)
   end
 
   def self.coworker_connected_accounts_enabled?
     enabled?(:coworker_connected_accounts)
+  end
+
+  def self.coworker_custom_environments_enabled?
+    enabled?(:coworker_custom_environments)
   end
 
   def effective_enabled?

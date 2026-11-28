@@ -1,5 +1,5 @@
 module DesignDocs
-  class AgentRunJob < PluginJob
+  class AgentRunJob < Syrus::Host::PluginJob
     plugin :design_docs
     DEFAULT_TIMEOUT_SECONDS = 2.minutes.to_i
     DEFAULT_MAX_TURNS = 2
@@ -36,11 +36,11 @@ module DesignDocs
 
     def execute(run)
       broadcast(run)
-      agent = Agent.find_or_create_for!(run)
-      result = AgentProviders.run_one_shot(
+      agent = Syrus::Host::AgentRecord.find_or_create_for!(run)
+      result = Syrus::Host::AgentProviderRegistry.run_one_shot(
         provider: run.agent_provider,
         user: run.requested_by_user,
-        runner: self.class.agent_runner || RunJob.agent_runner,
+        runner: self.class.agent_runner || Syrus::Host::RunJob.agent_runner,
         scope: "design-doc-agent-runs",
         prompt: DesignDocs::AgentRunPrompt.new(run: run).to_s,
         log_sink: ->(*, **) { },

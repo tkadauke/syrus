@@ -1,5 +1,5 @@
 module SyrusBrowser
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "browser" do
     experimental false
@@ -10,7 +10,7 @@ module SyrusBrowser
       "Plugin Runtime service. Navigation is hard-restricted to " \
       "127.0.0.1/loopback URLs — the browser can only drive a step's own " \
       "in-step preview, never an arbitrary network destination."
-    long_description "Browser gives workflow agents a constrained Playwright browser for visual review and preview validation, and gives Coding Mode chats the same browser_* tools through a Coding Mode RuntimeSession. Agents can navigate, click, fill forms, capture screenshots, and submit visual artifacts while Syrus restricts navigation to the current session's own loopback preview.\n\nThe plugin is designed for UI work where code review alone is not enough. It keeps browser automation auditable and local to the owning Run or chat so agents can inspect visible behavior without gaining arbitrary network access.\n\nWhen Plugin Runtime is enabled, Browser can offload Chromium into its own container-backed service instead of a per-Run stdio subprocess; it falls back to the bundled subprocess automatically whenever that service is unavailable."
+    long_description "Browser gives workflow agents a constrained Playwright browser for visual review and preview validation, and gives interactive chats the same Playwright-backed interactions through a Runtime Session. Runtime lifecycle and leases use the runtime_* contract; the compatibility runtime_input adapter delegates to semantic click, fill, keyboard, and drag/drop implementations rather than synthesizing DOM events. Agents can navigate, fill forms, capture screenshots, and submit visual artifacts while Syrus restricts navigation to the current session's own loopback preview.\n\nThe plugin is designed for UI work where code review alone is not enough. It keeps browser automation auditable and local to the owning Run or chat so agents can inspect visible behavior without gaining arbitrary network access.\n\nWhen Plugin Runtime is enabled, Browser can offload Chromium into its own container-backed service instead of a per-Run stdio subprocess; it falls back to the bundled subprocess automatically whenever that service is unavailable."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/browser.svg"
     author "Thomas Kadauke"
@@ -33,6 +33,10 @@ module SyrusBrowser
           agent_role: "workflow:visual_reviewer",
           required_mcp_tools: %w[submit_visual_review],
           resource_profile_fallback_step_kinds: %w[implement],
+          # Workers prove playwright-mcp starts before claiming visual review
+          # (@playwright/mcp's CLI answers --version and exits; the check is
+          # bounded by a timeout should a future release not).
+          worker_checks: [ { name: "browser", command: %w[playwright-mcp --version] } ],
           review_gate: {
             artifact_key: "visual_review_iterations",
             exit_verdicts: %w[approved skipped],
@@ -42,7 +46,8 @@ module SyrusBrowser
         {
           kind: "visual_diff", handler: "SyrusBrowser::VisualDiffStep",
           label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
-          required_mcp_tools: %w[submit_visual_artifact]
+          required_mcp_tools: %w[submit_visual_artifact],
+          worker_checks: [ { name: "browser", command: %w[playwright-mcp --version] } ]
         }
       ]
     )

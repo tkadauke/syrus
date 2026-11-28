@@ -12,7 +12,7 @@ module SdlcPipeline
         key: "landed",
         label: "Landed",
         kind: "lifecycle",
-        matcher: ->(job) { job.landed_sha.present? || job.no_change_needed? || (job.closed? && Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason)) }
+        matcher: ->(job) { job.landed_sha.present? || job.no_change_needed? || (job.closed? && Syrus::Host::Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason)) }
       )
     ].freeze
 

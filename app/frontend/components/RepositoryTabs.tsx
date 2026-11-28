@@ -2,6 +2,7 @@ import { withRoutePrefix } from "../lib/routing"
 import type { RepositoryTab } from "../api/repositories"
 import { useT } from "../hooks/useT"
 import { UnderlineTabs } from "./Tabs"
+import { AttentionBadge } from "./AttentionBadge"
 
 export function RepositoryTabs({ active, prefix, tabs }: { active: string; prefix: string; tabs: RepositoryTab[] }) {
   const { t } = useT("nav")
@@ -17,7 +18,9 @@ export function RepositoryTabs({ active, prefix, tabs }: { active: string; prefi
         key: tab.key,
         label: tab.label,
         to: withRoutePrefix(tab.path, prefix),
-        badge: tab.badge ? <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-2xs leading-none text-white">{tab.badge}</span> : null
+        badge: tab.badge ? (
+          <AttentionBadge className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs leading-none">{tab.badge}</AttentionBadge>
+        ) : null
       }))}
     />
   )

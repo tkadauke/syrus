@@ -28,7 +28,7 @@ module AgentInsights
 
       class << self
         def call(id:, server_context:)
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
           insight = visible_scope(context).find_by(id: id)
 
           unless insight
@@ -62,7 +62,7 @@ module AgentInsights
         end
 
         def admin_chat?(context)
-          context.user.admin? && !context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          context.user.admin? && !context.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
         end
 
         def full_payload(insight, include_repository:)

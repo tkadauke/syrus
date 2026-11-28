@@ -12,6 +12,7 @@ import { useActivity } from "./activity/ActivityContext"
 import { ActivityState } from "./activity/ActivityState"
 import { Button } from "./Button"
 import { noticePopoverSurfaceClass } from "./noticeStyles"
+import { AttentionBadge } from "./AttentionBadge"
 
 export const notificationsQueryKey = ["notifications"] as const
 
@@ -356,9 +357,9 @@ function bellButtonClass() {
 
 function NotificationBadge({ children }: { children: ReactNode }) {
   return (
-    <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-center text-2xs font-semibold leading-none text-white">
+    <AttentionBadge className="absolute -right-1 -top-1 min-w-5 rounded-full px-1.5 py-0.5 text-center text-2xs font-semibold leading-none">
       {children}
-    </span>
+    </AttentionBadge>
   )
 }
 

@@ -16,7 +16,7 @@ module AgentInsights
       class << self
         def call(insight_id: nil, insight_ids: nil, reason:, server_context:)
           ids, error = Mutations::Base.validate_ids(id: insight_id, ids: insight_ids)
-          return Mcp::Tools.invalid(error) if error
+          return Syrus::Host::McpTools.invalid(error) if error
 
           _context, chat, owner, audit_actor, scope = mutation_context(server_context)
           mutation = Mutations::Dismiss.new(ids: ids, actor: owner, audit_actor: audit_actor, repository_scope: scope, reason: reason)

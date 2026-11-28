@@ -21,7 +21,7 @@ class GraderFanoutAdmission
 
   def initialize(workflow:, steps:, now: Time.current)
     @workflow = workflow
-    @steps = steps.sort_by { |step| [ step.position, step.id ] }
+    @steps = steps.sort_by { |step| [ critical_path_rank(step), step.position, step.id ] }
     @now = now
   end
 
@@ -52,6 +52,18 @@ class GraderFanoutAdmission
   private
 
   attr_reader :workflow, :steps, :now
+
+  # Release whole-host graders (the rspec shards: `resources: cpu: all`) ahead
+  # of the rest. They are the longest graders and finished last in 18 of 23
+  # measured landing rounds, so releasing them in position order -- behind
+  # dozens of minute-long plugin graders -- put their queue wait straight onto
+  # the critical path.
+  def critical_path_rank(step)
+    request = GraderResourceRequest.from_details(step.details.to_h["resources"])
+    request&.unbounded_cpu? ? 0 : 1
+  rescue ArgumentError
+    1
+  end
 
   # Each live, not critically pressured worker contributes a fixed number of
   # ready graders per CPU. This only paces how many grader Runs exist at once;

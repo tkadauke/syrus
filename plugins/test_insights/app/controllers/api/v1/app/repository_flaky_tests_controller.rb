@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class RepositoryFlakyTestsController < BaseController
+      class RepositoryFlakyTestsController < Syrus::Host::AppController
         def index
           repository = find_repository
           lookback   = params.fetch(:lookback, TestInsights::TestCase::FLAKINESS_LOOKBACK).to_i.clamp(5, 100)
@@ -19,7 +19,7 @@ module Api
         private
 
         def find_repository
-          Repository.accessible_to(Current.user).find(params[:repository_id])
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
         end
 
         def flaky_test_json(test)

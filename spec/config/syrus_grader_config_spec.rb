@@ -24,7 +24,6 @@ RSpec.describe "Syrus grader configuration" do
     expect(plan.graders.map(&:name)).to eq(%w[
       migration-collisions
       migration-lint
-      thread-budget
       feature-slugs
       plugin-model-namespaces
       plugin-boundaries
@@ -36,6 +35,44 @@ RSpec.describe "Syrus grader configuration" do
       command: "npm run typecheck",
       required: true
     )
+  end
+
+  # The thread budget is checked by spec/bin/check_thread_budget_spec.rb at
+  # fixed pod sizes. As a grader its verdict followed whichever worker ran
+  # it, so the same commit passed on a small worker and failed on a large one.
+  it "does not check the thread budget as a host-dependent grader" do
+    commands = RepoGradePlan.for(Rails.root).graders.map(&:command)
+
+    expect(commands.grep(/check-thread-budget/)).to be_empty
+  end
+
+  # The migration and boot graders each pay a checkout and bundle check per
+  # round; a diff that touches none of their inputs selects none of them,
+  # while the unconditional unland smoke graders stay.
+  describe "path-filtered infrastructure graders" do
+    let(:graph) { TargetGraph::Compiler.compile(Rails.root) }
+    let(:filtered) { %w[migration-collisions migration-lint migration-baselines eager-load production-build-boot fresh-production-db-prepare] }
+
+    def selected(changed_files)
+      RepoGradePlan.for(Rails.root).graders.map(&:name).select do |name|
+        graph.affected("//:grade/#{name}", changed_files: changed_files).affected
+      end
+    end
+
+    it "skips them all for a frontend-only change" do
+      expect(selected([ "app/frontend/routes/Dashboard.tsx" ]) & filtered).to be_empty
+      expect(selected([ "app/frontend/routes/Dashboard.tsx" ])).to include("plugin-boundaries", "feature-slugs")
+    end
+
+    it "runs the boot graders but not the migration graders for a Ruby change" do
+      expect(selected([ "app/models/job.rb" ]) & filtered)
+        .to contain_exactly("eager-load", "production-build-boot", "fresh-production-db-prepare")
+    end
+
+    it "runs every one of them for a migration" do
+      expect(selected([ "db/migrate/20261127000000_add_thing.rb" ]) & filtered).to match_array(filtered)
+      expect(selected([ "plugins/coworkers/db/migrate/20261127000000_add_thing.rb" ]) & filtered).to match_array(filtered)
+    end
   end
 
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
@@ -93,6 +130,15 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
+  # Shared frontend modules can make Vitest's related-test graph select nearly
+  # the full SPA suite while also collecting focused coverage.
+  it "gives focused React tests enough time for broad dependency graphs" do
+    config = YAML.safe_load_file(Rails.root.join(".syrus.yml"))
+    grader = config.fetch("grade").find { |entry| entry["name"] == "react-tests" }
+
+    expect(grader.fetch("focused_timeout_minutes")).to eq(30)
+  end
+
   it "allows every e2e shard to dismiss failures inherited from the base revision" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
     shards = config.grade.steps.select { |step| step.name.start_with?("e2e-") }
@@ -132,7 +178,7 @@ RSpec.describe "Syrus grader configuration" do
   it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
     shards = RepoGradePlan.for(Rails.root).graders.select { |entry| entry.name.start_with?("rspec-ci-") }
 
-    expect(shards.map(&:name)).to eq(%w[rspec-ci-1-of-4 rspec-ci-2-of-4 rspec-ci-3-of-4 rspec-ci-4-of-4 rspec-ci-serial])
+    expect(shards.map(&:name)).to eq((1..8).map { |index| "rspec-ci-#{index}-of-8" } + %w[rspec-ci-serial])
     shards.each { |grader| expect(grader).to have_attributes(phases: [ "ci" ], timeout_minutes: 150) }
   end
 

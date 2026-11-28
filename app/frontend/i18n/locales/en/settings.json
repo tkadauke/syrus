@@ -529,6 +529,7 @@
     "description": "Choose which Syrus events create notifications for your account.",
     "loading": "Loading notification preferences...",
     "section_label": "Notifications",
+    "pref_agent_question_asked": "Notify me when an agent is waiting for my answer",
     "pref_chat_mention": "Notify me when someone mentions me in a chat",
     "pref_job_failed": "Notify me when a job fails",
     "pref_job_implemented": "Notify me when a PR is ready for review",
@@ -2137,5 +2138,19 @@
     "requested_by": "Requested by",
     "duration": "Requested for",
     "technical_details": "Technical details"
+  },
+  "question_eagerness": {
+    "title": "Question eagerness",
+    "slider": "Question eagerness level",
+    "inherit": "Use default",
+    "timeout": "Answer timeout (minutes)",
+    "timeout_help": "Optional. After this time the agent continues with its stated default.",
+    "levels": {
+      "autonomous": { "label": "Autonomous", "description": "Ask only when work truly cannot continue." },
+      "independent": { "label": "Independent", "description": "Also ask before costly-to-reverse decisions." },
+      "balanced": { "label": "Balanced", "description": "Ask when reasonable readings lead to clearly different outcomes." },
+      "collaborative": { "label": "Collaborative", "description": "Also ask about scope, UX, and copy choices." },
+      "inquisitive": { "label": "Inquisitive", "description": "Ask whenever anything is not entirely clear." }
+    }
   }
 }

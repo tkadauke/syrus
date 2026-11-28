@@ -1204,6 +1204,27 @@ metadata, local probes (for example Xcode, iOS simulators, and Docker),
 and `SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new
 capacity.
 
+Capabilities are positive claims; `WorkerEnvironmentSmoke` is the negative
+evidence beside them. Each worker runs fast, side-effect-free toolchain checks
+at boot and on the heartbeat (data-root flock/hardlink/rename and free space,
+temp space, CLIs, a C extension build, the MySQL client mysql2 builds against,
+plus checks plugins contribute through step kinds' `worker_checks` and agent
+providers' `worker_environment_check`) through ProcessRunner, exactly like a
+prepare command, and publishes the report under
+`capability_diagnostics["environment_smoke"]`. It is deliberately not a
+capability dimension: requirements never name it, so an older worker without
+a report stays eligible and nothing about existing placement changes.
+`WorkerEnvironmentSmoke::Requirements` derives the checks a step needs (base
+checks for every Run, the agent CLI and break-glass `gh` for agentic steps,
+step-kind declarations, and the repository's recorded prepare needs from
+`WorkerEnvironmentSmoke::RepositoryNeeds`). `RunQueueResolver` treats a
+worker that failed one of those as ineligible, blocks with
+`worker_environment_check_failed` when every otherwise-eligible worker failed
+(on the shared Linux queue only when all of them report the failure), and
+`locally_satisfied?` lets RunJob hand a claimed Run back. Failing closed is per
+check: a worker that failed the MySQL client check keeps taking everything
+that does not need it.
+
 Before execution begins, operators can replace a Job's planned placement
 with a named `ExecutionPlacementProfile`. `PlannedExecutionOverrides::Operation`
 permits this only for triaging/backlog Jobs with no execution history or a
@@ -2515,14 +2536,15 @@ session outcome.
   cache directory still has usable shims before the shared cache
   populates.
 - Native macOS compute workers are external launchd services, not Kubernetes
-  nodes. They run `bin/macos-worker` from a versioned source artifact, consume
-  only compute queues through `config/queue.compute.yml`, advertise capabilities
-  such as `os:macos`, `arch:arm64`, and `toolchains:xcode`, and keep workflow
-  data under their own `SYRUS_DATA_ROOT`. A pull-based updater activates
-  `syrus-worker-macos-arm64-<sha>.tar.gz` releases after local dependency
-  setup and `bin/macos-worker-check`; drain-aware rolling updates stop routing
-  new Mac-capability Runs to a host while it finishes active work and switches
-  releases.
+  nodes. They run `bin/macos-worker` from a signed source artifact on a
+  release-pinned toolchain under `/opt/syrus` (never Homebrew), consume only
+  compute queues through `config/queue.compute.yml`, advertise capabilities
+  such as `os:macos`, `arch:arm64`, and `toolchain:xcode`, and keep workflow
+  data under their own `SYRUS_DATA_ROOT`. Every production deploy activates a
+  release after migrations; a pull-based updater installs it immediately and
+  restarts the worker gracefully, and a Mac on another revision takes no work
+  until it has. Drain-aware updates remain for manual one-host updates. See
+  the [macOS workers hub](../operations/macos-workers.md).
 - A shared **sccache** compiler cache backs C/C++ (and other
   sccache-supported) compilation during `prepare`/grader commands: the
   worker image symlinks `cc`/`c++`/`gcc`/`g++`/`clang`/`clang++` ahead of

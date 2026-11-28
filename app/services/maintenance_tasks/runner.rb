@@ -63,7 +63,7 @@ module MaintenanceTasks
         )
       end
 
-      MaintenanceTaskRunJob.perform_later(@task.id) if @task.reload.state == "running"
+      MaintenanceTaskRunJob.set(wait: next_batch_delay).perform_later(@task.id) if @task.reload.state == "running"
     rescue StandardError => e
       @task.update!(state: "failed", last_error: "#{e.class}: #{e.message}") if @task.persisted?
       @task.log!("#{e.class}: #{e.message}", level: "error") if @task.persisted?
@@ -71,6 +71,31 @@ module MaintenanceTasks
     end
 
     private
+
+    # Busy MySQL: this many statements executing at once means foreground
+    # work is already competing, so background batches step aside.
+    BUSY_THREADS_RUNNING = 12
+    BUSY_BACKOFF = 60.seconds
+
+    # Batches used to run back-to-back with no pause at all. A one-off
+    # backfill over ~50 million rows did that for hours, held MySQL at its
+    # memory limit, and took production down when the database stopped
+    # answering its health probe. Each batch now waits its definition's
+    # pause, and a full minute while the database is visibly busy.
+    def next_batch_delay
+      pause = @definition.class.definition_pause_between_batches.to_f
+      database_busy? ? [ pause, BUSY_BACKOFF.to_f ].max : pause
+    end
+
+    def database_busy?
+      connection = ActiveRecord::Base.connection
+      return false unless connection.adapter_name.match?(/mysql/i)
+
+      row = connection.select_rows("SHOW GLOBAL STATUS LIKE 'Threads_running'").first
+      row.present? && row.last.to_i >= BUSY_THREADS_RUNNING
+    rescue StandardError
+      false
+    end
 
     def eta_seconds(completed, total, elapsed, processed)
       return nil if total.to_i <= 0 || completed.to_i <= 0 || processed.to_i <= 0

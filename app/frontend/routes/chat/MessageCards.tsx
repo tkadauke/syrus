@@ -1218,7 +1218,6 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
   return (
     <details className="group/tool min-w-0 max-w-full overflow-hidden" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <CollapsedToolGroupHeader
-        count={item.calls.length > 1 ? item.calls.length : undefined}
         details={details}
         outcome={outcome}
         outcomeTone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}
@@ -1324,7 +1323,6 @@ function LazyToolContent({ path }: { path: string }) {
 }
 
 type CollapsedToolGroupHeaderProps = {
-  count?: number
   details: string
   onClick: (event: MouseEvent<HTMLElement>) => void
   outcome: string
@@ -1344,7 +1342,7 @@ function collapsedPreview(value: string) {
 // details belong only in the expanded state. Preserve the contract tests in
 // MessageCards.test.tsx, e2e/chat-tool-group-layout.spec.ts, and
 // spec/architecture/collapsed_tool_group_header_design_lock_spec.rb.
-function CollapsedToolGroupHeader({ count, details, onClick, outcome, outcomeTone, summary }: CollapsedToolGroupHeaderProps) {
+function CollapsedToolGroupHeader({ details, onClick, outcome, outcomeTone, summary }: CollapsedToolGroupHeaderProps) {
   const preview = collapsedPreview(details)
 
   return (
@@ -1362,11 +1360,6 @@ function CollapsedToolGroupHeader({ count, details, onClick, outcome, outcomeTon
       <Pill className="shrink-0 text-xs" tone={outcomeTone}>
         {outcome}
       </Pill>
-      {count ? (
-        <Pill className="shrink-0 text-xs" tone="neutral">
-          {count}
-        </Pill>
-      ) : null}
       <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400" data-testid="tool-group-preview" title={preview || undefined}>
         {preview}
       </span>

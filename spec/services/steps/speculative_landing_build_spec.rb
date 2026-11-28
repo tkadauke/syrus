@@ -175,4 +175,46 @@ RSpec.describe "speculative landing build steps" do
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /snapshot mismatch/)
   end
+
+  describe "declaring why a member could not be integrated" do
+    let(:member) { Factories.job_record(user: user, repository: repository, state: "approved", pr_number: 3, branch_name: "syrus/member") }
+    let(:handler) do
+      build_handler(
+        Steps::SpeculativeMergeTrainBuild,
+        "speculative_merge_train_build",
+        member,
+        source_artifacts.merge("prefetch_merge_train_member_job_ids" => [ member.id ]),
+        trigger_kind: "merge_train_validation"
+      )
+    end
+
+    before do
+      snapshot = double(source_sha: "source-head", tree_sha: "source-tree")
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(GithubAuthenticatedGit).to receive(:run).and_yield("https://example.test/repo.git")
+      allow(GitMergeDrivers).to receive(:register!)
+      allow(git).to receive(:run).and_return("")
+      allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: workspace_path.to_s).and_return("source-head\n")
+      allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD^{tree}", chdir: workspace_path.to_s).and_return("source-tree\n")
+      allow(LandingValidationPrefetchSource).to receive(:with_bundle).and_yield(snapshot, "/tmp/source.bundle")
+    end
+
+    it "keeps a rebase conflict in the merge-train vocabulary" do
+      allow(git).to receive(:run).with("rebase", anything, chdir: workspace_path.to_s)
+        .and_raise(GitRunner::GitError.new(%w[rebase train], 1, "CONFLICT (content): Merge conflict in app.rb\nerror: could not apply abc123... change"))
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not integrate/) { |error|
+        expect(error.problem.code).to eq("merge_train_rebase_conflict")
+      }
+    end
+
+    it "declares a member fetch that lost its connection retryable transport noise, not a conflict" do
+      allow(git).to receive(:run).with("fetch", "https://example.test/repo.git", "refs/heads/syrus/member", chdir: workspace_path.to_s)
+        .and_raise(GitRunner::GitError.new(%w[fetch origin], 128, "fatal: early EOF\nfatal: fetch-pack: invalid index-pack output"))
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not integrate/) { |error|
+        expect(error.problem.code).to eq("git_transport_transient")
+      }
+    end
+  end
 end

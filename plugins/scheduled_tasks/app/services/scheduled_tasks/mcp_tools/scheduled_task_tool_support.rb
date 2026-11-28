@@ -9,10 +9,10 @@ module ScheduledTasks
 
       def find_scheduled_task(chat_session, scheduled_task_id)
         task_id = Integer(scheduled_task_id, exception: false)
-        return [ nil, Mcp::Tools.invalid("scheduled_task_id is required") ] unless task_id
+        return [ nil, Syrus::Host::McpTools.invalid("scheduled_task_id is required") ] unless task_id
 
         task = scheduled_tasks_for(chat_session).find_by(id: task_id)
-        return [ nil, Mcp::Tools.invalid("scheduled task not found: #{task_id}") ] unless task
+        return [ nil, Syrus::Host::McpTools.invalid("scheduled task not found: #{task_id}") ] unless task
 
         [ task, nil ]
       end
@@ -20,8 +20,8 @@ module ScheduledTasks
       def find_mutable_scheduled_task(chat_session, scheduled_task_id)
         task, error = find_scheduled_task(chat_session, scheduled_task_id)
         return [ nil, error ] if error
-        unless RepositoryPolicy.new(chat_session.user, task.repository).write?
-          return [ nil, Mcp::Tools.invalid("repository write access is required to change this scheduled task") ]
+        unless Syrus::Host::RepositoryPolicy.new(chat_session.user, task.repository).write?
+          return [ nil, Syrus::Host::McpTools.invalid("repository write access is required to change this scheduled task") ]
         end
 
         [ task, nil ]

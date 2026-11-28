@@ -75,14 +75,17 @@ require_command() {
   fi
 }
 
-# Pinned-Ruby helpers. The updater sources its own installed copy, next to
-# itself, never one from a release tree.
+# Pinned-toolchain helpers. The updater sources its own installed copy, next
+# to itself, never one from a release tree.
 UPDATER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUBY_ENV_LIB="${SYRUS_MACOS_RUBY_ENV_LIB:-$UPDATER_DIR/macos-ruby-env}"
+RUNTIME_ENV_LIB="${SYRUS_MACOS_RUNTIME_ENV_LIB:-$UPDATER_DIR/macos-runtime-env}"
 export SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-$INSTALL_ROOT/rubies}"
-if [[ -f "$RUBY_ENV_LIB" ]]; then
-  # shellcheck source=bin/macos-ruby-env
-  source "$RUBY_ENV_LIB"
+export SYRUS_MACOS_NODES_ROOT="${SYRUS_MACOS_NODES_ROOT:-$INSTALL_ROOT/nodes}"
+export SYRUS_MACOS_TOOLS_ROOT="${SYRUS_MACOS_TOOLS_ROOT:-$INSTALL_ROOT/tools}"
+export SYRUS_MACOS_AGENT_CLI_PREFIX="${SYRUS_MACOS_AGENT_CLI_PREFIX:-$INSTALL_ROOT/agent-clis}"
+if [[ -f "$RUNTIME_ENV_LIB" ]]; then
+  # shellcheck source=bin/macos-runtime-env
+  source "$RUNTIME_ENV_LIB"
   # The updater's own small scripts run on the active release's Ruby when it
   # is installed; otherwise on whatever `ruby` PATH has (macOS ships one).
   if current_ruby_version="$(syrus_macos_ruby_version "$CURRENT_LINK" 2>/dev/null)" &&
@@ -329,39 +332,46 @@ running_as_root() {
 
 prepare_release() {
   local release_path="$1"
-  local command node_deps_path ruby_version ruby_bin bundle_path
+  local command node_deps_path runtime_path line
+  local bundle_env=()
   node_deps_path="$SHARED_DIR/node/$TARGET_SHA"
 
-  # Install the Ruby the new release pins before anything runs on it.
-  if ! declare -F syrus_macos_ruby_install >/dev/null; then
-    echo "syrus-macos-updater: $RUBY_ENV_LIB is missing; reinstall with bin/install-macos-worker" >&2
+  # Install the toolchain the new release pins -- mise, the MySQL client,
+  # Ruby, Node -- before anything runs on it; nothing here uses Homebrew.
+  if ! declare -F syrus_macos_bundle_env >/dev/null; then
+    echo "syrus-macos-updater: $RUNTIME_ENV_LIB is missing or outdated; reinstall with bin/install-macos-worker" >&2
     return 1
   fi
-  ruby_version="$(syrus_macos_ruby_version "$release_path")" || return 1
-  syrus_macos_ruby_install "$ruby_version" || return 1
-  ruby_bin="$(syrus_macos_ruby_prefix "$ruby_version")/bin"
-  bundle_path="$(syrus_macos_bundle_path "$SHARED_DIR" "$ruby_version")"
+  syrus_macos_runtimes_install "$release_path" || return 1
+  runtime_path="$(syrus_macos_runtime_path "$release_path")" || return 1
+  while IFS= read -r line; do bundle_env+=("$line"); done < <(syrus_macos_bundle_env "$release_path" "$SHARED_DIR")
+  if [[ ${#bundle_env[@]} -eq 0 ]]; then
+    echo "syrus-macos-updater: could not determine the Bundler settings for $release_path" >&2
+    return 1
+  fi
 
   # Frozen: a host Bundler newer than the lockfile's BUNDLED WITH otherwise
   # tries to rewrite Gemfile.lock, which the service user cannot write.
-  command='cd "$1" && BUNDLE_FROZEN=true bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci && cd "$1" && bin/macos-worker-check --env-file "$3"'
+  # The local Bundler config outranks BUNDLE_BUILD__MYSQL2, so a build.mysql2
+  # entry left there by an older setup (a Homebrew mysql_config) would win and
+  # link mysql2 against a client this host may no longer have.
+  command='cd "$1" && bundle config unset --local build.mysql2 && BUNDLE_FROZEN=true bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci && cd "$1" && bin/macos-worker-check --env-file "$3"'
 
   if running_as_root; then
-    mkdir -p "$node_deps_path"
-    cp "$release_path/package.json" "$release_path/package-lock.json" "$node_deps_path/"
-    chown -R "$SERVICE_USER:$SERVICE_USER" "$node_deps_path"
+    mkdir -p "$node_deps_path" || return 1
+    cp "$release_path/package.json" "$release_path/package-lock.json" "$node_deps_path/" || return 1
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$node_deps_path" || return 1
     sudo -H -u "$SERVICE_USER" env \
-      HOME="${SYRUS_DATA_ROOT:-/var/lib/syrus}" PATH="$ruby_bin:$PATH" \
-      BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$bundle_path" \
-      bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
-    chown -R root:wheel "$release_path"
-    chmod -R go-w "$release_path"
-    rm -rf "$release_path/node_modules"
-    ln -s "$node_deps_path/node_modules" "$release_path/node_modules"
+      HOME="${SYRUS_DATA_ROOT:-/var/lib/syrus}" PATH="$runtime_path:$SYRUS_MACOS_SYSTEM_PATH" "${bundle_env[@]}" \
+      bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE" || return 1
+    chown -R root:wheel "$release_path" || return 1
+    chmod -R go-w "$release_path" || return 1
+    rm -rf "$release_path/node_modules" || return 1
+    ln -s "$node_deps_path/node_modules" "$release_path/node_modules" || return 1
   else
     node_deps_path="$release_path"
-    PATH="$ruby_bin:$PATH" BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$bundle_path" \
-      bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
+    env PATH="$runtime_path:$SYRUS_MACOS_SYSTEM_PATH" "${bundle_env[@]}" \
+      bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE" || return 1
   fi
 }
 
@@ -369,7 +379,7 @@ activate_release() {
   local release_path="$1"
   local tmp_link
   tmp_link="$CURRENT_LINK.next.$$"
-  ln -s "$release_path" "$tmp_link"
+  ln -s "$release_path" "$tmp_link" || return 1
   ruby -e 'File.rename(ARGV.fetch(0), ARGV.fetch(1))' "$tmp_link" "$CURRENT_LINK"
 }
 
@@ -386,8 +396,8 @@ install_privileged_updater() {
   local release_path="$1"
   running_as_root || return 0
 
-  install -o root -g wheel -m 755 "$release_path/bin/syrus-macos-updater" "$PRIVILEGED_UPDATER_PATH"
-  install -o root -g wheel -m 644 "$release_path/bin/macos-ruby-env" "$(dirname "$PRIVILEGED_UPDATER_PATH")/macos-ruby-env"
+  install -o root -g wheel -m 755 "$release_path/bin/syrus-macos-updater" "$PRIVILEGED_UPDATER_PATH" || return 1
+  install -o root -g wheel -m 644 "$release_path/bin/macos-runtime-env" "$(dirname "$PRIVILEGED_UPDATER_PATH")/macos-runtime-env"
 }
 
 prune_releases() {
@@ -420,15 +430,25 @@ prune_releases() {
     done
 }
 
+# Every step below checks its own status: run_once is called as an `if`
+# condition, where bash ignores `set -e`, so an unchecked failure would carry
+# on and activate a release that never finished installing.
 run_once() {
-  local metadata_file tmp_dir artifact extracted_root signature_file
+  local metadata_file tmp_dir artifact extracted_root signature_file metadata_values
 
   tmp_dir="$(mktemp -d)"
   metadata_file="$tmp_dir/metadata.json"
   trap 'rm -rf "$tmp_dir"' RETURN
 
-  fetch_metadata "$(metadata_url)" > "$metadata_file"
-  eval "$(extract_metadata "$metadata_file")"
+  if ! fetch_metadata "$(metadata_url)" > "$metadata_file"; then
+    echo "syrus-macos-updater: could not fetch the desired release metadata" >&2
+    return 1
+  fi
+  if ! metadata_values="$(extract_metadata "$metadata_file")"; then
+    echo "syrus-macos-updater: could not read the desired release metadata" >&2
+    return 1
+  fi
+  eval "$metadata_values"
 
   if [[ "$UPDATE_ENABLED" != "1" ]]; then
     echo "syrus-macos-updater: no desired macOS worker release configured"
@@ -469,13 +489,13 @@ run_once() {
   fi
 
   report_state "updating" "downloading release"
-  mkdir -p "$RELEASES_DIR" "$SHARED_DIR"
+  mkdir -p "$RELEASES_DIR" "$SHARED_DIR" || return 1
   artifact="$tmp_dir/$ARTIFACT_NAME"
   if [[ "$ARTIFACT_URL" == file://* ]]; then
     cp "${ARTIFACT_URL#file://}" "$artifact"
   else
     curl -fL --proto '=https' --proto-redir '=https' "$ARTIFACT_URL" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -o "$artifact"
-  fi
+  fi || { report_state "failed" "artifact download failed"; return 1; }
   if ! verify_artifact "$artifact" "$ARTIFACT_SHA256"; then
     report_state "failed" "artifact checksum mismatch"
     return 1
@@ -486,28 +506,45 @@ run_once() {
     return 1
   fi
 
-  mkdir -p "$tmp_dir/extract"
-  tar -xzf "$artifact" -C "$tmp_dir/extract"
+  if ! mkdir -p "$tmp_dir/extract" || ! tar -xzf "$artifact" -C "$tmp_dir/extract"; then
+    report_state "failed" "artifact could not be extracted"
+    return 1
+  fi
   extracted_root="$(find "$tmp_dir/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
   if [[ -z "$extracted_root" ]]; then
     echo "syrus-macos-updater: artifact did not contain a release directory" >&2
     report_state "failed" "artifact did not contain a release directory"
     return 1
   fi
-  rm -rf "$RELEASE_PATH"
-  mv "$extracted_root" "$RELEASE_PATH"
+  if ! rm -rf "$RELEASE_PATH" || ! mv "$extracted_root" "$RELEASE_PATH"; then
+    report_state "failed" "release could not be unpacked"
+    return 1
+  fi
 
   report_state "updating" "preparing release dependencies"
-  prepare_release "$RELEASE_PATH"
-  install_privileged_updater "$RELEASE_PATH"
+  if ! prepare_release "$RELEASE_PATH"; then
+    echo "syrus-macos-updater: preparing $TARGET_SHA failed; staying on the current release" >&2
+    report_state "failed" "preparing release dependencies failed"
+    return 1
+  fi
+  if ! install_privileged_updater "$RELEASE_PATH"; then
+    report_state "failed" "installing the updater failed"
+    return 1
+  fi
   report_state "updating" "activating release"
-  activate_release "$RELEASE_PATH"
+  if ! activate_release "$RELEASE_PATH"; then
+    report_state "failed" "activating the release failed"
+    return 1
+  fi
   # Reported before the restart: the worker drains in-flight runs on SIGTERM
   # (for up to an hour, see the launchd ExitTimeOut), and launchd only starts
   # it on the new release once they finish. The release is installed and no
   # new work runs on the old revision, so this host counts as updated now.
   report_state "restarting" "activated release; worker restarting after in-flight runs drain"
-  restart_worker
+  if ! restart_worker; then
+    report_state "failed" "restarting the worker failed"
+    return 1
+  fi
   prune_releases "$RETENTION_COUNT"
   report_state "current" "activated release"
   echo "syrus-macos-updater: activated $TARGET_SHA"

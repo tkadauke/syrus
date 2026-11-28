@@ -42,6 +42,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     "cancel_stale_work" => { job_id: 1, reason: "Cancel stale work." },
     "reenqueue_work" => { job_id: 1, reason: "Re-enqueue queued work." },
     "force_rebase" => { job_id: 1, reason: "Bypass the landing queue proximity guard." },
+    "detach_job" => { job_id: 1, destination_base: "main", reason: "Repair accidental stack parent." },
     "restack_epic" => { epic_id: 1, reason: "Repair stale stack topology." },
     "force_landing_recheck" => { job_id: 1, reason: "Refresh stale landing metadata." },
     "manual_agentic_run" => { job_id: 1, base: "current_pr_branch", instructions: "Inspect one failing check.", reason: "Run focused manual repair." },

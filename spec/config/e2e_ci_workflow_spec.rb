@@ -22,6 +22,12 @@ RSpec.describe "e2e CI workflow" do
     expect(config).to match(/reporter:\s*process\.env\.GITHUB_ACTIONS\s*\?\s*\[\["github"\]/)
   end
 
+  it "allows lazy plugin routes to settle on shared workers" do
+    config = File.read(File.join(repo_root, "playwright.config.ts"), encoding: "UTF-8")
+
+    expect(config).to include("expect: { timeout: 15_000 }")
+  end
+
   it "exists and parses as a single e2e job" do
     expect(File).to exist(workflow_path)
     expect(workflow.dig("jobs", "e2e")).to be_present

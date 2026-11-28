@@ -5,11 +5,11 @@ require "digest/sha1"
 module WorkEngine
   module Simulation
     class ScenarioLoader
-      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime, :max_ticks)
+      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime, :max_ticks, :invariants)
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
         main_branch_repair_blocks_work landing_paused pr_check_gate
-        distributed_workflow_dag_enabled landing_concurrency
+        distributed_workflow_dag_enabled landing_concurrency worker_environment_requirements
       ].freeze
       JOB_UPDATE_KEYS = %w[
         state priority closure_reason pr_number branch_name pr_checks_state pr_checks_sha
@@ -18,7 +18,7 @@ module WorkEngine
         external_pr_number external_pr_author external_pr_fork mergeability_base_sha
         mergeability_head_sha mergeability_checked_at github_mergeable github_mergeable_state
         local_mergeable local_mergeable_state
-        triaging_reason classifier_attempts created_at updated_at
+        triaging_reason classifier_attempts created_at updated_at runaway_protection
       ].freeze
       WORKFLOW_UPDATE_KEYS = %w[
         worker_hostname worker_storage_key started_at finished_at cleaned_up_at
@@ -71,7 +71,8 @@ module WorkEngine
             reconciler: data.fetch("reconciler", {}),
             runner: data.fetch("runner", {}),
             runtime: data.fetch("runtime", {}),
-            max_ticks: data["max_ticks"]
+            max_ticks: data["max_ticks"],
+            invariants: data.fetch("invariants", {})
           )
         end
       end

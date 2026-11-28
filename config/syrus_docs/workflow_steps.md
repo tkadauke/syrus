@@ -122,7 +122,8 @@ After the agent turn returns, Syrus marks the Run, Step, and Workflow
 `blocked` rather than `failed`. Blocked Workflows are terminal for cleanup and
 dashboard grouping, but they do not trigger the failed-workflow auto-retry
 path. The Job remains open and attention-marked so an operator can review the
-warning, file follow-up work from it, or dismiss it. This preserves the
+warning, answer the generated free-text question to resume the same run, file
+follow-up work from it, or dismiss it. This preserves the
 surface-then-promote discipline used by `workflow_warnings`: workflow agents
 can surface the blocker and suggested fix, but they do not directly create
 Jobs or GitHub issues.
@@ -532,6 +533,8 @@ as evidence for the final revision.
 ### landing_fix
 
 Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. Runs only after final graders fail on the exact PR branch being landed; successful repairs are pushed before the merge API call.
+
+The grading round after a repair re-runs the graders that failed and the graders whose scope the repair touched. A CI-mode grader that already passed (for example the `rspec-ci-*` shards) is carried forward instead, and its focused counterpart (same grader type and project, `focused` mode) re-checks the files the repair changed. When the repair touches a suite-wide input -- `Gemfile`, `Gemfile.lock`, `package.json`, `package-lock.json`, `.syrus.yml`, `spec/rails_helper.rb`, `spec/spec_helper.rb`, `spec/support/`, `config/`, `db/schema.rb`, `vite.config.ts` or `tsconfig.json` -- the full CI grader re-runs. A regression the focused run misses surfaces in the main grader after landing.
 
 A `landing_fix` turn that legitimately finds nothing to fix does not fail the
 workflow. If the agent investigates the failing graders and confirms (by
@@ -1114,6 +1117,19 @@ implementation a prior visual review rejected.
 
 Non-agentic / Agentic / Non-agentic. Same as the single-PR rebase chain but operates across a dependent PR stack in dependency order.
 
+Publication is fail-closed for every open stack member. After any leased branch
+push and PR retarget, `stack_force_push` rereads the uncached remote branch and
+PR and verifies the intended head SHA, PR base, and Syrus stack parent. It then
+records the live mergeability/base identities, recomputes
+`commits_behind_base`, and refreshes landing blockers. A push, retarget, footer,
+provider/auth, refresh, or postcondition failure fails the step with a
+`stack_publication_failure` artifact; when the intended local output differs
+from the remote branch, it also records recoverable `branch_divergence`
+evidence. A branch rebase no-op is successful only when this publication check
+proves the requested topology is already live. The verified
+`stack_publication` artifact distinguishes `branch_publication: already_correct`
+from a rewritten publication.
+
 ## Landing steps
 
 ### mergeability_preflight
@@ -1199,7 +1215,7 @@ Non-agentic. Posts or updates the formatted dependency-audit comment on an exist
 
 ### preflight_grader_fanout
 
-Non-agentic. Materializes one `preflight_grader` Step per configured grader at the start of a `main_branch_repair` workflow. Unlike `grader_fanout`, this step:
+Non-agentic. Materializes one `preflight_grader` Step per configured grader at the start of a `main_branch_repair` workflow. When the repair was opened for specific failing graders (main branch health records them from main's grader run), only those are materialized, so preflight rechecks just what is broken on main in minutes; with no recorded failing graders, or none of them in the plan, it runs the full set. While main stays broken, a repair still in preflight carries over when main moves instead of being superseded; it is closed only once main reads healthy. Unlike `grader_fanout`, this step:
 
 - Runs **all** configured graders regardless of `when_files_changed` (no PR diff exists before the implement step)
 - Does **not** check the `GraderConclusionCache` for reuse (always runs fresh)

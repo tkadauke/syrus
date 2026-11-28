@@ -1013,7 +1013,56 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+    expect(screen.getByText("Failover: Codex")).toBeInTheDocument()
+  })
+
+  it("does not call an available original provider unavailable for policy-routed workflow cards", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [
+              {
+                id: 14,
+                slug: "WF-14",
+                path: "/jobs/1?tab=workflows#workflow-14",
+                trigger_kind: "retry",
+                agent_provider: "claude",
+                provider_failover: {
+                  mode: "policy_routing",
+                  automatic: false,
+                  original_provider: "codex",
+                  original_provider_label: "Codex",
+                  selected_provider: "claude",
+                  selected_provider_label: "Claude Code",
+                  routing: { matched_rule_id: 7, condition_results: { matched: true } }
+                },
+                state: "succeeded",
+                failure_count: 0,
+                artifacts: {},
+                cleaned_up_at: null,
+                retry_available: false,
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-01T12:01:00Z",
+                updated_at: null,
+                app_retry_step_path: "/workflows/14/retry",
+                app_push_commits_path: "/workflows/14/push_commits",
+                app_force_push_branch_path: "/workflows/14/force_push_branch",
+                app_discard_branch_output_path: "/workflows/14/discard_branch_output",
+                steps: []
+              }
+            ]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Policy: Claude Code")).toBeInTheDocument()
+    expect(screen.queryByText(/Codex unavailable/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Show provider routing details for Policy: Claude Code")).toBeInTheDocument()
   })
 
   it("labels operator-selected workflow providers separately from automatic failover", () => {
@@ -1061,7 +1110,7 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("Operator selected Codex for this workflow instead of Claude Code.")).toBeInTheDocument()
+    expect(screen.getByText("Operator: Codex")).toBeInTheDocument()
   })
 
   it("shows blocked WorkUnit reasons and details without requiring the nested Workflow to be open", () => {
@@ -1773,12 +1822,23 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("1 grader selected")).toBeInTheDocument()
     expect(screen.getByText("1 grader skipped")).toBeInTheDocument()
+    const skippedToggle = screen.getByRole("button", { name: "Show details for 1 skipped grader" })
+    expect(skippedToggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Plugins Rails Eslint")).not.toBeInTheDocument()
+    expect(screen.queryByText(/no matching files changed/)).not.toBeInTheDocument()
+
+    fireEvent.click(skippedToggle)
+    expect(screen.getByRole("button", { name: "Hide details for 1 skipped grader" })).toHaveAttribute("aria-expanded", "true")
     expect(screen.getByText("Plugins Rails Eslint")).toBeInTheDocument()
     expect(screen.getByText(/no matching files changed/)).toBeInTheDocument()
     // The selected grader already has its own sibling grader Step in the
     // group, so it's not re-listed here — only the skipped one is.
     expect(screen.getAllByRole("listitem")).toHaveLength(1)
     expect(screen.queryByText(/grader_target_selections/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide details for 1 skipped grader" }))
+    expect(screen.getByRole("button", { name: "Show details for 1 skipped grader" })).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Plugins Rails Eslint")).not.toBeInTheDocument()
   })
 
   it("prefers a skipped grader's resolved display_name over humanizing its machine name", () => {
@@ -1826,9 +1886,62 @@ describe("WorkflowsTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
     fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Show details for 1 skipped grader" }))
 
     expect(screen.getByText("rails plugin: RSpec (focused)")).toBeInTheDocument()
     expect(screen.queryByText("Plugins Rails Rspec Focused")).not.toBeInTheDocument()
+  })
+
+  it("does not mount a large skipped grader list until operators request its details", () => {
+    const skippedGraders = Array.from({ length: 125 }, (_, index) => ({
+      name: `skipped-grader-${index + 1}`,
+      target_label: `//large:grade/skipped-${index + 1}`,
+      required: true,
+      affected: false,
+      reason: "no matching files changed"
+    }))
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader_fanout",
+                display_name: "Plan graders",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: { grader_target_selections: skippedGraders },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
+
+    expect(screen.getByText("125 graders skipped")).toBeInTheDocument()
+    expect(screen.queryByText("Skipped Grader 125")).not.toBeInTheDocument()
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show details for 125 skipped graders" }))
+    expect(screen.getByText("Skipped Grader 125")).toBeInTheDocument()
+    expect(screen.getAllByRole("listitem")).toHaveLength(125)
   })
 
   it("omits body for grader_collect since the result is already shown on the sibling grader Steps", () => {
@@ -1868,6 +1981,95 @@ describe("WorkflowsTab", () => {
 
     expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
     expect(screen.queryByText(/transient_only_required_grader_failure/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Loop decision/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps the Result label while a grader collector is running", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader_collect",
+                display_name: "Aggregate graders",
+                display_status: "running",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "running",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: null,
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {},
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+
+    expect(screen.getByRole("button", { name: /Result/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Loop decision/ })).not.toBeInTheDocument()
+  })
+
+  it("labels only the recovery decision's source workflow as a loop decision", () => {
+    const failedCollector = (id: number) =>
+      ({
+        id,
+        kind: "grader_collect",
+        display_name: "Aggregate graders",
+        display_status: "failed",
+        position: 1,
+        iteration: null,
+        loop_id: null,
+        state: "failed",
+        started_at: "2026-08-25T12:00:00Z",
+        finished_at: "2026-08-25T12:01:00Z",
+        created_at: "2026-08-25T12:00:00Z",
+        updated_at: "2026-08-25T12:01:00Z",
+        details: {},
+        warnings: [],
+        latest: true,
+        runs: []
+      }) as JobDetailPayload["workflows"][number]["steps"][number]
+    const historicalWorkflow = { ...workflowWithStepDetails(failedCollector(30)), id: 9, slug: "WF-9", state: "failed" as const }
+    const sourceWorkflow = { ...workflowWithStepDetails(failedCollector(31)), id: 10, slug: "WF-10", state: "failed" as const }
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            actions: {
+              recovery_decision: {
+                kind: "grader_loop_no_progress",
+                recommended_action: "repair_with_guidance",
+                mode: "failed_step",
+                explanation: "Measured failures did not improve.",
+                evidence: { source_workflow_id: 10 }
+              }
+            } as JobDetailPayload["actions"],
+            workflows: [historicalWorkflow, sourceWorkflow]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    screen.getAllByRole("button", { name: /Grade/ }).forEach((button) => fireEvent.click(button))
+
+    expect(screen.getAllByRole("button", { name: /Result/ })).toHaveLength(1)
+    expect(screen.getAllByRole("button", { name: /Loop decision — stopped for no progress/ })).toHaveLength(1)
   })
 
   it("consolidates grader target id, gating status, description, and command into one metadata panel", () => {

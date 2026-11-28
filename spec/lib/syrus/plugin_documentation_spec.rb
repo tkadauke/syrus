@@ -37,7 +37,7 @@ RSpec.describe Syrus::PluginDocumentation do
     expect(described_class.plugin_spec).to include("## Capability families")
   end
 
-  it "documents the public host facades and legacy compatibility surface" do
+  it "documents only the public host facades" do
     host_api = described_class.host_api
     plugin_spec = described_class.plugin_spec
 
@@ -45,10 +45,8 @@ RSpec.describe Syrus::PluginDocumentation do
       expect(host_api).to include("### `#{api.name}`")
       expect(plugin_spec).to include("- `#{api.name}` (since #{api.since})")
     end
-    Syrus::PluginHostSurface.new.legacy_entries.each do |entry|
-      expect(host_api).to include("- `#{entry.name}`")
-    end
-    expect(plugin_spec).to include("#{Syrus::PluginHostSurface.new.legacy_entries.size} legacy core constants")
+    expect(host_api).not_to include("Legacy compatibility APIs")
+    expect(plugin_spec).not_to include("legacy core constants")
     expect(host_api).not_to include("Tier: `public`")
   end
 

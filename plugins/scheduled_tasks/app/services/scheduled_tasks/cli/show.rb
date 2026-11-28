@@ -2,10 +2,10 @@
 
 module ScheduledTasks
   module Cli
-    class Show < Syrus::Plugin::CliCommandHandler
+    class Show < Syrus::Host::CliCommandHandler
       def call(args:, flags:, user:)
         task = Task.where(user: user).includes(:repository).find(args.fetch(0))
-        recent_jobs = Job.visible_to(user, scope: task.jobs).order(created_at: :desc).limit(5)
+        recent_jobs = Syrus::Host::JobRecord.visible_to(user, scope: task.jobs).order(created_at: :desc).limit(5)
         lines = [
           "Schedule ##{task.id}: #{task.name}",
           "State: #{task.state}",

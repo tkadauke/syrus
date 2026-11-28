@@ -158,6 +158,7 @@ Rails.application.routes.draw do
         get "jobs/:id/agent_conversation", to: "jobs#agent_conversation", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/agent_conversation/nodes/:node_id", to: "jobs#agent_conversation_node", constraints: { id: /[a-zA-Z0-9_-]+/, node_id: /[a-z_]+-\d+/ }
         get "jobs/:id/visual_evidence/:evidence_id", to: "jobs#visual_evidence", constraints: { id: /[a-zA-Z0-9_-]+/, evidence_id: /[a-f0-9-]+/i }
+        get "jobs/:id/visual_evidence/:evidence_id/thumbnail", to: "jobs#visual_evidence_thumbnail", constraints: { id: /[a-zA-Z0-9_-]+/, evidence_id: /[a-f0-9-]+/i }
         get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /(?:\d+|latest)/ }
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/diff_review_comments", to: "diff_review_comments#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -204,6 +205,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reset", to: "job_lifecycle#reset", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/file_question_fix", to: "job_lifecycle#file_question_fix", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/workflows/:workflow_id/dismiss", to: "job_lifecycle#dismiss_workflow", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
         post "jobs/:job_id/stop_landing", to: "job_lifecycle#stop_landing", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/pause", to: "job_lifecycle#pause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -273,6 +275,7 @@ Rails.application.routes.draw do
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
+        get "landing_lanes", to: "landing_lanes#show"
         get "dashboard/controls", to: "dashboard#controls"
         get "permission_requests", to: "permission_requests#index"
         get "permission_requests/count", to: "permission_requests#count"
@@ -345,6 +348,8 @@ Rails.application.routes.draw do
         patch "chats/:id/scratchpad_items/:item_id", to: "chats#update_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         delete "chats/:id/scratchpad_items/:item_id", to: "chats#destroy_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
+        get "agent_questions", to: "agent_questions#index"
+        post "agent_questions/:id/answer", to: "agent_questions#answer", constraints: { id: /\d+/ }
         get "chats/:id/goal", to: "chats#show_goal", constraints: { id: /\d+/ }
         put "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }
         patch "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }
@@ -649,6 +654,8 @@ Rails.application.routes.draw do
         get "stuck",    to: "overview#stuck"
         get "activity", to: "workflow_activity#index"
         get "reconciler_activity", to: "reconciler_activity#index"
+        # Invariant monitor: live evaluation of every invariant check.
+        get "invariants", to: "invariants#index"
         get "browser_errors", to: "browser_errors#index"
         get "backend_exceptions", to: "backend_exceptions#index"
         get "worker_health", to: "worker_health#show"

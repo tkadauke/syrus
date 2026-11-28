@@ -4,7 +4,7 @@ module Api
       module Admin
         # The Plugin Services admin page: list plugin containers, stop, start,
         # restart them, and read their logs.
-        class PluginServicesController < BaseController
+        class PluginServicesController < Syrus::Host::AppAdminController
           before_action :require_plugin_runtime, except: :index
 
           def index

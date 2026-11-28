@@ -20,7 +20,10 @@ RSpec.describe "native macOS worker updater" do
     FileUtils.mkdir_p(File.join(release_root, "bin"))
     File.write(File.join(release_root, "GIT_SHA"), "#{sha}\n")
     File.write(File.join(release_root, ".ruby-version"), "#{pinned_ruby}\n")
-    FileUtils.cp(File.join(root, "bin/macos-ruby-env"), File.join(release_root, "bin/macos-ruby-env"))
+    File.write(File.join(release_root, ".node-version"), "#{pinned_node}\n")
+    FileUtils.cp(File.join(root, "bin/macos-runtime-env"), File.join(release_root, "bin/macos-runtime-env"))
+    FileUtils.mkdir_p(File.join(release_root, "config"))
+    FileUtils.cp(File.join(root, "config/macos_worker_toolchain.env"), File.join(release_root, "config/macos_worker_toolchain.env"))
     File.write(File.join(release_root, "package.json"), "{}\n")
     File.write(File.join(release_root, "package-lock.json"), %({"lockfileVersion":3,"packages":{}}\n))
     check_body = if command_log
@@ -77,19 +80,70 @@ RSpec.describe "native macOS worker updater" do
   end
 
   let(:pinned_ruby) { "3.4.10" }
+  let(:pinned_node) { "22.23.5" }
 
-  # Stands in for mise: "installs" a Ruby that reports the requested version
-  # to the helper's version probe and hands every other invocation (the
-  # updater's own scripts) to the real Ruby running this spec.
-  def write_fake_mise(dir)
-    path = File.join(dir, "fake-mise")
+  # Stands in for mise: "installs" a Ruby or Node that reports the requested
+  # version to the helper's version probe. The fake Ruby hands every other
+  # invocation (the updater's own scripts) to the real Ruby running this spec.
+  def toolchain_pin(key)
+    File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^#{key}=(.+)$/, 1]
+  end
+
+  # The toolchain is downloaded over HTTPS in production. Here the pinned mise
+  # and MySQL client are already installed under the tools root -- as on a host
+  # that ran an earlier release -- so the helper's checks find them in place.
+  def install_fake_tools(dir)
+    tools = File.join(dir, "tools")
+    mise_version = toolchain_pin("MISE_VERSION")
+    mysql_version = toolchain_pin("MYSQL_CLIENT_VERSION")
+    write_fake_mise(dir, File.join(tools, "mise", mise_version, "bin", "mise"), mise_version)
+    mysql = File.join(tools, "mysql-client", mysql_version)
+    write_executable(File.join(mysql, "bin", "mysql_config"), "#!/usr/bin/env bash\necho #{mysql_version}\n")
+    FileUtils.mkdir_p(File.join(mysql, "lib"))
+    FileUtils.touch(File.join(mysql, "lib", "libmysqlclient.24.dylib"))
+    install_fake_browser_tools(tools)
+    tools
+  end
+
+  # The browser tools as bin/macos-runtime-env installs them: one prefix per
+  # pinned Playwright + @playwright/mcp pair, with `chromium-headless-shell` linking into
+  # Playwright's browsers directory.
+  def install_fake_browser_tools(tools_root)
+    playwright = toolchain_pin("PLAYWRIGHT_VERSION")
+    mcp = toolchain_pin("PLAYWRIGHT_MCP_VERSION")
+    prefix = File.join(tools_root, "playwright", "#{playwright}-mcp-#{mcp}")
+    { "playwright" => playwright, "@playwright/mcp" => mcp }.each do |package, version|
+      FileUtils.mkdir_p(File.join(prefix, "lib", "node_modules", package))
+      File.write(File.join(prefix, "lib", "node_modules", package, "package.json"), %({\n  "name": "#{package}",\n  "version": "#{version}"\n}\n))
+    end
+    FileUtils.mkdir_p(File.join(prefix, "bin"))
+    File.write(File.join(prefix, "bin", "playwright-mcp"), "#!/usr/bin/env bash\nexit 0\n")
+    File.chmod(0o755, File.join(prefix, "bin", "playwright-mcp"))
+    browser = File.join(prefix, "ms-playwright", "chromium_headless_shell-1", "chrome-headless-shell-mac-arm64", "chrome-headless-shell")
+    FileUtils.mkdir_p(File.dirname(browser))
+    File.write(browser, "#!/usr/bin/env bash\nexit 0\n")
+    File.chmod(0o755, browser)
+    File.symlink("ms-playwright/chromium_headless_shell-1/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+      File.join(prefix, "chromium-headless-shell"))
+    prefix
+  end
+
+
+  def write_fake_mise(dir, path = File.join(dir, "fake-mise"), version = "0.0.0")
     write_executable(path, <<~BASH)
       #!/usr/bin/env bash
+      [[ "$1" == "--version" ]] && { echo "#{version} macos-arm64"; exit 0; }
       [[ "$1" == "install" ]] || exit 2
-      version="${2#ruby@}"
-      bin="$MISE_DATA_DIR/installs/ruby/$version/bin"
+      tool="${2%@*}"
+      version="${2#*@}"
+      bin="$MISE_DATA_DIR/installs/$tool/$version/bin"
       mkdir -p "$bin"
-      printf '%s\n' "$version" >> #{File.join(dir, "mise-installs.log").inspect}
+      printf '%s\n' "$tool@$version" >> #{File.join(dir, "mise-installs.log").inspect}
+      if [[ "$tool" == "node" ]]; then
+        printf '#!/usr/bin/env bash\necho v%s\n' "$version" > "$bin/node"
+        chmod 755 "$bin/node"
+        exit 0
+      fi
       cat > "$bin/ruby" <<RUBY
       #!/usr/bin/env bash
       if [[ "\\$1" == "-e" && "\\$2" == "print RUBY_VERSION" ]]; then printf '%s' "$version"; exit 0; fi
@@ -104,7 +158,8 @@ RSpec.describe "native macOS worker updater" do
     dir = File.dirname(metadata)
     File.write(path, <<~ENV)
       SYRUS_MACOS_RUBIES_ROOT=#{File.join(dir, "rubies")}
-      SYRUS_MACOS_MISE=#{write_fake_mise(dir)}
+      SYRUS_MACOS_TOOLS_ROOT=#{install_fake_tools(dir)}
+      SYRUS_MACOS_SYSTEM_PATH=#{File.join(dir, "bin")}:#{ENV.fetch("PATH")}
       SYRUS_UPDATE_METADATA_URL=file://#{metadata}
       SYRUS_MACOS_UPDATE_PUBLIC_KEY_FILE=#{File.join(File.dirname(metadata), "update-public.pem")}
       SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1
@@ -243,6 +298,66 @@ RSpec.describe "native macOS worker updater" do
     end
   end
 
+  # Regression: a release whose bundle install failed was activated anyway --
+  # run_once runs as an `if` condition, where bash ignores `set -e` -- and the
+  # worker crash-looped on missing gems.
+  it "stays on the current release and reports failure when preparing the new one fails" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      install_root = File.join(dir, "install")
+      releases_dir = File.join(install_root, "releases")
+      current_release = File.join(releases_dir, "aaa1111")
+      current_link = File.join(install_root, "current")
+      report_file = File.join(dir, "report.jsonl")
+      bundle_log = File.join(dir, "bundle.log")
+      FileUtils.mkdir_p(current_release)
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "bbb2222")
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "bbb2222")
+      write_env(env_file, metadata: metadata)
+      File.open(env_file, "a") do |file|
+        file.puts "SYRUS_UPDATE_REPORT_URL=https://syrus.example.test/report"
+        file.puts "SYRUS_API_TOKEN=test-token"
+      end
+      bin_dir = stub_prepare_commands(dir)
+      write_executable(File.join(bin_dir, "bundle"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\n' "$*" >> "#{bundle_log}"
+        [[ "$1" == "install" ]] && { echo "An error occurred while installing mysql2" >&2; exit 5; }
+        exit 0
+      BASH
+      write_executable(File.join(bin_dir, "curl"), <<~BASH)
+        #!/usr/bin/env bash
+        cat >> "#{report_file}"
+        printf '\\n' >> "#{report_file}"
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        {
+          "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}",
+          "SYRUS_MACOS_INSTALL_ROOT" => install_root,
+          "SYRUS_MACOS_CURRENT_LINK" => current_link
+        },
+        "bash", script, "--env-file", env_file, "--once", "--skip-restart"
+      )
+
+      expect(status.exitstatus).to eq(1), "expected failure, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(File.realpath(current_link)).to eq(current_release)
+      expect(stdout).not_to include("activated")
+      # A Homebrew build.mysql2 in the shared Bundler config would outrank
+      # BUNDLE_BUILD__MYSQL2, so it is cleared before the install.
+      expect(File.readlines(bundle_log, chomp: true).first(2))
+        .to eq([ "config unset --local build.mysql2", "install --jobs 1" ])
+      reports = File.readlines(report_file).map { |line| JSON.parse(line)["status"] }
+      expect(reports.map { |report| report["state"] }).not_to include("restarting", "current")
+      expect(reports).to include(a_hash_including("state" => "failed", "message" => "preparing release dependencies failed"))
+    end
+  end
+
   it "drops privileges for preparation and restores root ownership before installing the privileged updater" do
     Dir.mktmpdir do |raw_dir|
       dir = File.realpath(raw_dir)
@@ -271,7 +386,7 @@ RSpec.describe "native macOS worker updater" do
         write_executable(File.join(bin_dir, command), <<~BASH)
           #!/usr/bin/env bash
           printf '#{command} %s BUNDLE_FROZEN=%s\n' "$PWD $*" "${BUNDLE_FROZEN:-}" >> #{command_log.inspect}
-          printf '#{command} env ruby=%s bundle_path=%s\n' "$(command -v ruby)" "${BUNDLE_PATH:-}" >> #{command_log.inspect}
+          printf '#{command} env ruby=%s node=%s bundle_path=%s\n' "$(command -v ruby)" "$(command -v node)" "${BUNDLE_PATH:-}" >> #{command_log.inspect}
         BASH
       end
       write_executable(File.join(bin_dir, "chown"), <<~BASH)
@@ -312,9 +427,14 @@ RSpec.describe "native macOS worker updater" do
       expect(commands).to match(/^bundle .* BUNDLE_FROZEN=true$/)
       # The release's pinned Ruby is installed first and bundles into its own
       # per-version gem directory.
-      expect(File.read(File.join(dir, "mise-installs.log"))).to eq("#{pinned_ruby}\n")
-      expect(commands).to include("bundle env ruby=#{dir}/rubies/#{pinned_ruby}/bin/ruby bundle_path=#{install_root}/shared/bundles/ruby-#{pinned_ruby}")
-      expect(commands).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-ruby-env #{File.dirname(privileged_updater)}/macos-ruby-env")
+      # The release's pinned Ruby and Node are installed first, and bundling
+      # runs on them, not on whatever the host's Homebrew provides.
+      expect(File.read(File.join(dir, "mise-installs.log"))).to eq("ruby@#{pinned_ruby}\nnode@#{pinned_node}\n")
+      expect(commands).to include(
+        "bundle env ruby=#{dir}/rubies/#{pinned_ruby}/bin/ruby node=#{install_root}/nodes/#{pinned_node}/bin/node " \
+        "bundle_path=#{install_root}/shared/bundles/ruby-#{pinned_ruby}-mysql-#{toolchain_pin("MYSQL_CLIENT_VERSION")}"
+      )
+      expect(commands).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-runtime-env #{File.dirname(privileged_updater)}/macos-runtime-env")
       expect(commands).to include("npm #{install_root}/shared/node/bbb2222")
       expect(commands).to include("check --env-file #{env_file}")
       expect(commands).to include("chown -R root:wheel #{release_path}")

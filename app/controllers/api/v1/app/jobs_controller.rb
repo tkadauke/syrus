@@ -11,6 +11,25 @@ module Api
         LEGACY_TRANSCRIPT_MAX_BYTES = 1.megabyte
         GRAPH_MAX_NODES = 500
 
+        private def find_visual_evidence
+          evidence = WorkflowVisualEvidence.joins(:workflow)
+            .merge(find_job.workflows)
+            .find_by!(stable_id: params[:evidence_id])
+          raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
+
+          evidence
+        end
+
+        private def render_visual_evidence_storage_error(error)
+          raise error unless StorageConnectivity.transient_error?(error)
+          raise error if response.committed?
+
+          expires_now
+          response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+          render json: { error: { code: "storage_unavailable", message: "Visual evidence storage is temporarily unavailable. Please retry shortly." } },
+            status: :service_unavailable
+        end
+
         def index
           jobs = policy_scope(Job)
                    .includes(:epic, :repository, :deployment_stage_statuses)
@@ -80,21 +99,24 @@ module Api
         end
 
         def visual_evidence
-          job = find_job
-          evidence = WorkflowVisualEvidence.joins(:workflow)
-            .merge(job.workflows)
-            .find_by!(stable_id: params[:evidence_id])
-          raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
-
+          evidence = find_visual_evidence
           send_secure_blob(evidence.image.blob, immutable: true)
         rescue StandardError => e
-          raise unless StorageConnectivity.transient_error?(e)
-          raise if response.committed?
+          render_visual_evidence_storage_error(e)
+        end
 
-          expires_now
-          response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
-          render json: { error: { code: "storage_unavailable", message: "Visual evidence storage is temporarily unavailable. Please retry shortly." } },
-            status: :service_unavailable
+        def visual_evidence_thumbnail
+          evidence = find_visual_evidence
+          thumbnail = evidence.image.variant(resize_to_limit: [ 640, 480 ]).processed
+          send_secure_file(
+            thumbnail.download,
+            filename: "#{evidence.image.filename.base}-thumbnail#{evidence.image.filename.extension_with_delimiter}",
+            type: thumbnail.content_type,
+            etag: thumbnail.key,
+            immutable: true
+          )
+        rescue StandardError => e
+          render_visual_evidence_storage_error(e)
         end
 
         def unland_plan
@@ -137,11 +159,6 @@ module Api
           job = find_job
           return unless authorize_job_mutation!(job)
           return if reject_stale_job_revision?(job)
-          if params[:expected_revision].present? && job.approval_blocking_runtime_work?
-            render_error("stale_job", I18n.t("api.base.stale_job"), status: :conflict)
-            return
-          end
-
           result = ChatFeedbackSubmission.call(
             job: job,
             feedback: params[:body],
@@ -348,7 +365,7 @@ module Api
 
         def run_artifacts
           job = find_job_by_param(:job_id)
-          runs = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:step)
+          runs = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :prompt, :updated_at).includes(:step)
           run = if params[:run_id] == "latest"
             runs.reorder(created_at: :desc, id: :desc).first
           else

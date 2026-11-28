@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class SearchController < BaseController
+      class SearchController < Syrus::Host::AppController
         BUILT_IN_TYPES = %w[job epic chat repository].freeze
         BUILT_IN_TYPE_OPTIONS = [
           { type: "job", label: "Jobs" },
@@ -81,14 +81,14 @@ module Api
         end
 
         def legacy_search_query
-          raw_q = params[::Filters::QueryParam::PARAM_NAME].to_s
+          raw_q = params[Syrus::Host::Filters::QueryParam::PARAM_NAME].to_s
           return "" if raw_q.blank? || active_filter_tree.present?
 
           raw_q.strip
         end
 
         def active_filter_tree
-          @active_filter_tree ||= ::Filters::QueryParam.decode(params[::Filters::QueryParam::PARAM_NAME])
+          @active_filter_tree ||= Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME])
         end
 
         # Built-in types plus whatever enabled plugins contribute through
@@ -113,7 +113,7 @@ module Api
         end
 
         def self.search_source_providers
-          Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
+          Syrus::Host::PluginRegistry.providers_for("global_search:source").select do |provider|
             provider.respond_to?(:search_type) &&
               provider.respond_to?(:search_rows) &&
               provider.respond_to?(:result_json)
@@ -189,13 +189,13 @@ module Api
           source = source_for(type)
           return [] unless source
 
-          apply_filter_to_rows(type, Array(source.search_rows(query: query, user: Current.user, limit: limit)), source.row_id_key)
+          apply_filter_to_rows(type, Array(source.search_rows(query: query, user: Syrus::Host::Current.user, limit: limit)), source.row_id_key)
         end
 
         def job_search_rows(query, limit)
           rows = merge_slug_rows(
             ranked_accessible_rows(
-              type: "job", query: query, limit: limit, index: GlobalSearch::JobIndex, model: Job, id_key: :job_id
+              type: "job", query: query, limit: limit, index: GlobalSearch::JobIndex, model: Syrus::Host::JobRecord, id_key: :job_id
             ),
             job_slug_rows(query)
           )
@@ -205,7 +205,7 @@ module Api
         def epic_search_rows(query, limit)
           rows = merge_slug_rows(
             ranked_accessible_rows(
-              type: "epic", query: query, limit: limit, index: GlobalSearch::EpicIndex, model: Epic, id_key: :epic_id
+              type: "epic", query: query, limit: limit, index: GlobalSearch::EpicIndex, model: Syrus::Host::Epic, id_key: :epic_id
             ),
             epic_slug_rows(query)
           )
@@ -218,7 +218,7 @@ module Api
           batches_scanned = 0
 
           loop do
-            batch = ChatMessageSearchIndex.search_candidates(query, limit: FTS_BATCH_SIZE, offset: offset)
+            batch = Syrus::Host::ChatMessageSearchIndex.search_candidates(query, limit: FTS_BATCH_SIZE, offset: offset)
             batches_scanned += 1
             eligible_batch = reject_unsearchable_chat_rows(batch)
             rows.concat(apply_filter_to_rows("chat", eligible_batch, :chat_message_id))
@@ -234,13 +234,13 @@ module Api
 
         def repository_search_rows(query, limit)
           normalized_query = query.to_s.strip.downcase
-          repositories = Repository.accessible_to(Current.user)
+          repositories = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user)
             .where("LOWER(name) = ?", normalized_query)
 
           owner, name = normalized_query.split("/", 2)
           if owner.present? && name.present?
             repositories = repositories.or(
-              Repository.accessible_to(Current.user).where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name)
+              Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name)
             )
           end
 
@@ -263,11 +263,11 @@ module Api
         end
 
         def searchable_chat_messages
-          ChatMessage
+          Syrus::Host::ChatMessageRecord
             .active
             .joins(chat_session: :chat_participants)
-            .merge(ChatSession.active)
-            .where(chat_participants: { user_id: Current.user.id, hidden_at: nil })
+            .merge(Syrus::Host::ChatSessionRecord.active)
+            .where(chat_participants: { user_id: Syrus::Host::Current.user.id, hidden_at: nil })
         end
 
         def apply_filter_to_rows(type, rows, id_key)
@@ -284,7 +284,7 @@ module Api
 
         def accessible_rows(rows, model, id_key)
           ids = rows.filter_map { |row| row[id_key]&.to_i }
-          accessible_ids = model.accessible_to(Current.user).where(id: ids).pluck(:id).to_set
+          accessible_ids = model.accessible_to(Syrus::Host::Current.user).where(id: ids).pluck(:id).to_set
           rows.select { |row| accessible_ids.include?(row[id_key].to_i) }
         end
 
@@ -310,15 +310,15 @@ module Api
           source = source_for(type)
           raise ArgumentError, "unknown search result type: #{type.inspect}" unless source
 
-          source.filtered_scope(ids: ids, tree: tree, user: Current.user)
+          source.filtered_scope(ids: ids, tree: tree, user: Syrus::Host::Current.user)
         end
 
         def filter_tree_for_subject(tree, subject)
           pruned = prune_filter_node(tree, subject)
           return if pruned.blank?
 
-          serialized = ::Filters::Ast.serialize(::Filters::Ast.parse(pruned))
-          return if serialized == ::Filters::Ast.serialize(::Filters::Ast::EMPTY)
+          serialized = Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast.parse(pruned))
+          return if serialized == Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY)
 
           serialized
         end
@@ -340,15 +340,15 @@ module Api
             child = prune_filter_node(node["not"], subject)
             child ? { "not" => child } : nil
           elsif node["field"].present?
-            ::Filters::Registry.exists?(node["field"], subject: subject) ? node : nil
+            Syrus::Host::Filters::Registry.exists?(node["field"], subject: subject) ? node : nil
           end
         end
 
         def filter_schema(selected_types)
           if selected_types.length == 1
-            ::Filters::Schema.for(subject: filter_subjects.fetch(selected_types.first), user: Current.user)
+            Syrus::Host::Filters::Schema.for(subject: filter_subjects.fetch(selected_types.first), user: Syrus::Host::Current.user)
           else
-            COMMON_FILTER_FIELDS.map { |field| ::Filters::Schema.chip_for(field, user: Current.user, subject: :job) }
+            COMMON_FILTER_FIELDS.map { |field| Syrus::Host::Filters::Schema.chip_for(field, user: Syrus::Host::Current.user, subject: :job) }
           end
         end
 
@@ -373,7 +373,7 @@ module Api
           exact_slug = query.to_s.strip
           return [] if job_ids.empty? && exact_slug.blank?
 
-          jobs = Job.visible_to(Current.user)
+          jobs = Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user)
           jobs.where(id: job_ids)
             .or(jobs.where(slug: job_ids.map { |id| "JOB-#{id}" }))
             .or(jobs.where(slug: exact_slug))
@@ -391,7 +391,7 @@ module Api
           epic_numbers = query.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i).uniq
           return [] if epic_numbers.empty?
 
-          Epic.accessible_to(Current.user).where(number: epic_numbers).map do |epic|
+          Syrus::Host::Epic.accessible_to(Syrus::Host::Current.user).where(number: epic_numbers).map do |epic|
             {
               epic_id: epic.id,
               priority: -1,
@@ -423,7 +423,7 @@ module Api
         end
 
         def result_json(row)
-          source_for(row.fetch(:type))&.result_json(row: row, user: Current.user)
+          source_for(row.fetch(:type))&.result_json(row: row, user: Syrus::Host::Current.user)
         end
 
         def job_result_json(row)
@@ -517,11 +517,11 @@ module Api
         end
 
         def jobs_by_id
-          @jobs_by_id ||= Job.visible_to(Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
+          @jobs_by_id ||= Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
         end
 
         def epics_by_id
-          @epics_by_id ||= Epic.accessible_to(Current.user).includes(:repository).where(id: result_ids(:epic_id)).index_by(&:id)
+          @epics_by_id ||= Syrus::Host::Epic.accessible_to(Syrus::Host::Current.user).includes(:repository).where(id: result_ids(:epic_id)).index_by(&:id)
         end
 
         def chat_messages_by_id
@@ -533,11 +533,11 @@ module Api
         end
 
         def repositories_by_id
-          @repositories_by_id ||= Repository.accessible_to(Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
+          @repositories_by_id ||= Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
         end
 
         def chat_result_badges
-          @chat_result_badges ||= ChatResultBadges.for(chat_messages_by_id.values.map(&:chat_session))
+          @chat_result_badges ||= Syrus::Host::ChatResultBadges.for(chat_messages_by_id.values.map(&:chat_session))
         end
 
         def result_ids(key)
@@ -561,7 +561,7 @@ module Api
         end
 
         def chat_title(chat_session)
-          chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
+          chat_session.title.presence || Syrus::Host::ChatSessionRecord.fallback_title_for(chat_session.repository)
         end
 
         def grouped_chat_rows(rows)
@@ -613,14 +613,14 @@ module Api
         class JobSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:job_search_rows, query, limit)
           def row_id_key = :job_id
-          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(Job.visible_to(user).where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Syrus::Host::JobFilter.from_tree(tree, user: user).apply(Syrus::Host::JobRecord.visible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:job_result_json, row)
         end
 
         class EpicSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:epic_search_rows, query, limit)
           def row_id_key = :epic_id
-          def filtered_scope(ids:, tree:, user:) = Epics::Filter.from_tree(tree, user: user).apply(Epic.accessible_to(user).where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Syrus::Host::EpicFilter.from_tree(tree, user: user).apply(Syrus::Host::Epic.accessible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:epic_result_json, row)
         end
 
@@ -629,12 +629,12 @@ module Api
           def row_id_key = :chat_message_id
 
           def filtered_scope(ids:, tree:, user:)
-            ::Filters::Compiler.call(
-              ::Filters::Ast.parse(tree),
-              scope: ChatMessage
+            Syrus::Host::Filters::Compiler.call(
+              Syrus::Host::Filters::Ast.parse(tree),
+              scope: Syrus::Host::ChatMessageRecord
                 .active
                 .joins(chat_session: :chat_participants)
-                .merge(ChatSession.active)
+                .merge(Syrus::Host::ChatSessionRecord.active)
                 .where(chat_participants: { user_id: user.id, hidden_at: nil }, id: ids)
                 .distinct,
               user: user,
@@ -650,9 +650,9 @@ module Api
           def row_id_key = :repository_id
 
           def filtered_scope(ids:, tree:, user:)
-            ::Filters::Compiler.call(
-              ::Filters::Ast.parse(tree),
-              scope: Repository.accessible_to(user).where(id: ids),
+            Syrus::Host::Filters::Compiler.call(
+              Syrus::Host::Filters::Ast.parse(tree),
+              scope: Syrus::Host::RepositoryRecord.accessible_to(user).where(id: ids),
               user: user,
               subject: :repository
             )

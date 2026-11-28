@@ -121,12 +121,10 @@ class Workflow
     # hand-maintain their own copy of this list.
     ACTIVE_STATES = %w[queued running].freeze
 
-    # Maintenance/QA trigger kinds that never change what's under review — a
-    # rebase preserves the diff, a visual review/diff only inspects it. Their
-    # being queued/running against an already-`implemented` Job must not hide
-    # the Approve button, unlike an in-flight implementation workflow whose
-    # diff isn't settled yet.
-    NON_APPROVAL_BLOCKING_VALUES = %w[rebase stack_rebase manual_visual_review manual_post_implementation_review visual_diff].freeze
+    # Maintenance/QA trigger kinds whose lifecycle propagation is compatible
+    # with an already-implemented Job. This classification does not participate
+    # in approval eligibility; implemented state is sufficient for that.
+    IMPLEMENTED_STATE_COMPATIBLE_VALUES = %w[rebase stack_rebase manual_visual_review manual_post_implementation_review visual_diff].freeze
 
     module_function
 
@@ -214,10 +212,10 @@ class Workflow
       entries.select(&:feedback_kind).map(&:kind).freeze
     end
 
-    # Single source of truth for the NON_APPROVAL_BLOCKING_VALUES check above,
-    # so callers don't hand-roll `NON_APPROVAL_BLOCKING_VALUES.include?(...)`.
-    def non_approval_blocking?(kind)
-      NON_APPROVAL_BLOCKING_VALUES.include?(kind.to_s)
+    # Single source of truth for the IMPLEMENTED_STATE_COMPATIBLE_VALUES check above,
+    # so callers don't hand-roll `IMPLEMENTED_STATE_COMPATIBLE_VALUES.include?(...)`.
+    def implemented_state_compatible?(kind)
+      IMPLEMENTED_STATE_COMPATIBLE_VALUES.include?(kind.to_s)
     end
 
     # Trigger kinds whose workflow definitions own their parent Job's

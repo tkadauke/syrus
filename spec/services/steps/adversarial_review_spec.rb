@@ -68,6 +68,17 @@ RSpec.describe Steps::AdversarialReview do
     end
   end
 
+  # Regression: the review_evidence association was cached nil, so a second
+  # capture inserted a duplicate and failed with "Run has already been taken".
+  it "reuses evidence already frozen for this Run even when the association is cached empty" do
+    existing = instance_double(ReviewEvidence)
+    run.review_evidence
+    allow(ReviewEvidence).to receive(:find_by).with(run_id: run.id).and_return(existing)
+
+    expect(handler.send(:capture_review_evidence!)).to be(existing)
+    expect(ReviewEvidence::Capture).not_to have_received(:call)
+  end
+
   it "materializes opaque reviewer context through the plugin contributor" do
     review_step.update!(details: { "reviewer_target" => { "type" => "synthetic", "reference" => "7" } })
     context = { "manifest" => { "source" => "safe" }, "restricted_text" => "protected plugin context" }.freeze

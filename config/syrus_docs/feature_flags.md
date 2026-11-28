@@ -6,6 +6,10 @@ Syrus uses feature flags to gate experimental and operational behaviors. Flags a
 
 `coworker_connected_accounts` is off by default and must be enabled before a coworker can be bound to or use a connected account. Enable it only after coworker sandboxing, confirmation for edits to standing instruction files, and unified permission enforcement for coworkers are in place. Connected-account credential access checks the flag at use time.
 
+## Coworker custom environments
+
+`coworker_custom_environments` is off by default and gates every coworker environment behavior: seeding `environment/Dockerfile`, `environment/environment.yml`, and `environment/smoke-test` in a coworker's persistent workspace, validating that source, and capturing immutable source snapshots for builds. Edits to those files use the ordinary coworker workspace file tools.
+
 All flags are typed booleans. A declaration can also set `experimental: true`
 to mark a beta/experimental capability. Those flags stay visible in Admin →
 Features and carry a Beta/Experimental badge, but admins cannot enable them
@@ -219,3 +223,9 @@ Enforcement is server-side and converges on `Unlanding::Eligibility`, which `Unl
 Disabling the flag blocks only new unland operations. An existing rollback Job or unland Workflow stays visible, can be retried, and can finish; historical `unlanded_by` / `rollback_of` presentation is unaffected. The fast `unland` grader policy is unchanged.
 
 Engineering-only rollout and instrumentation flags are documented in the [feature-flag architecture reference](../../docs/engineering/architecture/feature-flags.md).
+
+## landing_lanes
+
+**Category:** Labs · **Off by default**
+
+Enables the landing-lanes observability experience: the compact dashboard strip, the full `/landing_lanes` page, and `GET /api/v1/app/landing_lanes`. When disabled, the strip is not rendered or fetched, direct page navigation shows the standard unavailable page, and the API returns a not-found `feature_disabled` response. The existing landing queue summary, repository landing concurrency, and all landing execution behavior remain available and unchanged.

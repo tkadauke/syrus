@@ -99,13 +99,16 @@ SYRUS_WORKER_POOL_NAME=macos-xcode
 SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 ```
 
-Before loading launchd, run:
+Provision each host with `bin/install-macos-worker`, which installs the
+release's pinned toolchain, validates the host, and loads launchd (see
+[macOS Workers](/docs/deployment/macos-workers)). To recheck a host later, run
+the check through the wrapper so it sees the pinned toolchain:
 
 ```bash
-/opt/syrus/current/bin/macos-worker-check --env-file /etc/syrus/worker.env
+sudo -u syrus-worker /opt/syrus/current/bin/macos-worker --check --env-file /etc/syrus/worker.env
 ```
 
-The check validates Ruby/Bundler, Node/npm, Git, Xcode Command Line Tools,
+The check (`bin/macos-worker-check`) validates Ruby/Bundler, Node/npm, Git, Xcode Command Line Tools,
 full Xcode selection, iOS simulator runtimes, required env, and production
 credentials without starting queue work.
 

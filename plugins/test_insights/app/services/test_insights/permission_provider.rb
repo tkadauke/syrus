@@ -1,8 +1,8 @@
 module TestInsights
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = (AgentRole::CHAT_ROLES + AgentRole::WORKFLOW_ROLES).uniq.freeze
+    ROLES = (Syrus::Host::AgentRole::CHAT_ROLES + Syrus::Host::AgentRole::WORKFLOW_ROLES).uniq.freeze
     CAPABILITY = "test_insights.evidence@v1"
     OPERATIONS = %w[
       list_repository_test_insights read_test_insight read_job_test_results
@@ -16,10 +16,10 @@ module TestInsights
 
     OPERATIONS.each_value do |operation|
       register_capability(
-        capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        capability: CAPABILITY, operation:, presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation:),
         essential: true, # research reads of test evidence
         effects: %i[local_read], risk: :low, requestable_roles: ROLES, defaults: ROLES.index_with(:allow),
-        maximum_autonomy: :permanent, authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
+        maximum_autonomy: :permanent, authority_durations: Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS,
         resource_scope: { type: :none }, classifier: classifier(operation), fingerprint_normalizer: method(:normalize), redactor: method(:normalize)
       )
     end

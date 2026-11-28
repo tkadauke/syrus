@@ -29,7 +29,7 @@ module GithubSource
 
     def scope
       @scope ||= begin
-        relation = GithubApiUsageRollup.where("bucket_started_at >= ?", hours.hours.ago)
+        relation = Syrus::Host::GithubApiUsageRollup.where("bucket_started_at >= ?", hours.hours.ago)
         relation = relation.where(operation: operation) if operation.present?
         relation = relation.where(resource: resource) if resource.present?
         relation = relation.where(auth_source: auth_source) if auth_source.present?

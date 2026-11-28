@@ -151,10 +151,10 @@ module Admin
     def results
       references.group_by(&:constant).map do |constant, refs|
         counts = refs.group_by(&:plugin).transform_values(&:count).sort.to_h
-        tier = if Syrus::Host.public?(constant)
+        tier = if @surface.public?(constant)
           "public"
-        elsif @surface.lookup(constant)
-          "legacy"
+        elsif @surface.allowed_internal?(constant)
+          "allowlisted"
         else
           "internal"
         end
@@ -275,10 +275,13 @@ module Admin
     end
 
     def parse(path)
-      result = Prism.parse_file(path.to_s)
-      raise ArgumentError, "could not parse #{relative(path)}: #{result.errors.map(&:message).join(', ')}" unless result.success?
+      @collectors ||= {}
+      @collectors[Pathname.new(path).expand_path] ||= begin
+        result = Prism.parse_file(path.to_s)
+        raise ArgumentError, "could not parse #{relative(path)}: #{result.errors.map(&:message).join(', ')}" unless result.success?
 
-      ConstantCollector.new.tap { |collector| collector.visit(result.value) }
+        ConstantCollector.new.tap { |collector| collector.visit(result.value) }
+      end
     end
 
     def relative(path) = Pathname.new(path).relative_path_from(@root).to_s

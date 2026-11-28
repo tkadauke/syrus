@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Coworker scheduled tasks" do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do
@@ -26,7 +28,7 @@ RSpec.describe "Coworker scheduled tasks" do
   def allow_schedule_tool
     definition = Coworkers::ChatToolSet.tool_definitions(tier: :essential)
       .find { |item| item[:name] == "manage_coworker_schedule" }
-    descriptor = Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition)
+    descriptor = Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition)
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
       subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
@@ -34,6 +36,12 @@ RSpec.describe "Coworker scheduled tasks" do
       resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
       policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
     )
+  end
+
+  def perform_poll
+    perform_enqueued_jobs(only: ScheduledTasks::FireDueTaskJob) do
+      PollScheduledTasksJob.perform_now
+    end
   end
 
   it "fires a coworker Job and coworker workflow without PR behaviors" do
@@ -158,7 +166,7 @@ RSpec.describe "Coworker scheduled tasks" do
     travel_to(Time.utc(2026, 11, 4, 3, 15)) do
       expect(journaling.reload).to be_due(now: Time.current)
 
-      PollScheduledTasksJob.perform_now
+      perform_poll
     end
 
     expect(journaling.reload).to have_attributes(
@@ -195,7 +203,7 @@ RSpec.describe "Coworker scheduled tasks" do
     now = Time.utc(2026, 11, 7, 0, 31)
     expect(schedules).to all(satisfy { |schedule| schedule.reload.due?(now: now) })
 
-    travel_to(now) { PollScheduledTasksJob.perform_now }
+    travel_to(now) { perform_poll }
 
     expect(fired_ids).to include(*schedules.map(&:id))
   end
@@ -229,7 +237,7 @@ RSpec.describe "Coworker scheduled tasks" do
     allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise(RuntimeError, "workspace locked")
 
     travel_to(Time.utc(2026, 11, 4, 3, 15)) do
-      expect { PollScheduledTasksJob.perform_now }.to change(BackendExceptionEvent, :count).by(1)
+      expect { perform_poll }.to change(BackendExceptionEvent, :count).by(1)
     end
 
     expect(journaling.reload).to have_attributes(
@@ -267,12 +275,12 @@ RSpec.describe "Coworker scheduled tasks" do
     )
     allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise("workspace locked")
 
-    travel_to(Time.utc(2026, 11, 4, 3, 15)) { PollScheduledTasksJob.perform_now }
+    travel_to(Time.utc(2026, 11, 4, 3, 15)) { perform_poll }
     expect(journaling.reload.last_fired_at).to eq(Time.utc(2026, 11, 4, 3, 15))
 
     expect(journaling).not_to be_due(now: Time.utc(2026, 11, 4, 3, 16))
     expect {
-      travel_to(Time.utc(2026, 11, 4, 3, 16)) { PollScheduledTasksJob.perform_now }
+      travel_to(Time.utc(2026, 11, 4, 3, 16)) { perform_poll }
     }.not_to change(BackendExceptionEvent, :count)
     expect(journaling).not_to be_due(now: Time.utc(2026, 11, 4, 3, 59))
     expect(journaling).to be_due(now: Time.utc(2026, 11, 4, 4, 15))
@@ -285,7 +293,7 @@ RSpec.describe "Coworker scheduled tasks" do
     allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise("workspace locked")
 
     [ Time.utc(2026, 11, 4, 1, 15), Time.utc(2026, 11, 4, 2, 15), Time.utc(2026, 11, 4, 3, 15) ].each do |time|
-      travel_to(time) { PollScheduledTasksJob.perform_now }
+      travel_to(time) { perform_poll }
     end
 
     expect(journaling.reload).to have_attributes(state: "scheduled", consecutive_failure_count: 3)

@@ -1,8 +1,8 @@
 require "json"
 
 module ChatProviders
-  class Muse < Base
-    include Syrus::Plugin::ChatProvider
+  class Muse < Syrus::Host::ChatProviderBase
+    include Syrus::Host::ChatProvider
 
     HELD_SESSION_WAIT_SECONDS = 10
     HELD_SESSION_POLL_SECONDS = 0.25
@@ -25,7 +25,7 @@ module ChatProviders
         session_id: session_id,
         max_model_steps: max_turns,
         transcript_policy: :exec_jsonl,
-        muse_home: ChatWorkspace.agent_home_for(chat_session, "muse"),
+        muse_home: Syrus::Host::ChatWorkspace.agent_home_for(chat_session, "muse"),
         mcp_server: mcp_server_for(mcp_config)
       ).run
     end
@@ -103,14 +103,14 @@ module ChatProviders
     end
 
     def held_session_process?
-      SpawnedProcess.live_agent.where(chat_session: chat).any? do |process|
+      Syrus::Host::SpawnedProcess.live_agent.where(chat_session: chat).any? do |process|
         process.command.to_s.match?(/(?:^|\s)muse\s+exec(?:\s|$)/)
       end
     end
 
     def held_session_result(session_id)
       detail = "The previous Muse turn is still running and holds this chat session. Your message was not sent; retry after that turn finishes."
-      AgentInvocation::Result.new(
+      Syrus::Host::InvocationResult.new(
         turns: 0,
         exit_status: nil,
         timed_out: false,
@@ -134,7 +134,7 @@ module ChatProviders
         model: chat.chat_model.presence,
         reasoning_effort: chat.chat_effort,
         transcript_policy: :exec_jsonl,
-        muse_home: ChatWorkspace.agent_home_for(chat, provider),
+        muse_home: Syrus::Host::ChatWorkspace.agent_home_for(chat, provider),
         mcp_server: self.class.mcp_server_for(mcp_config),
         stop_requested: stop_requested,
         process_started: process_started,
@@ -151,7 +151,7 @@ module ChatProviders
     end
 
     def prompt_with_system(prompt)
-      system = Prompts::ChatSystem.new(repository: chat.repository, chat_session: chat).to_s
+      system = Syrus::Host::AgentPrompts.chat_system(repository: chat.repository, chat_session: chat)
       "#{system}\n\n---\n\n#{prompt}"
     end
 
@@ -193,7 +193,7 @@ module ChatProviders
     end
 
     def self.transcript_context(transcript_jsonl)
-      ClaudeTranscript.new(transcript_jsonl).events.filter_map do |event|
+      Syrus::Host::AgentTranscript.new(transcript_jsonl).events.filter_map do |event|
         case event.kind
         when :user_prompt
           "user: #{event.data.fetch(:text)}"

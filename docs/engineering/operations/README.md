@@ -23,10 +23,17 @@ recovering Syrus itself. Operator feature instructions remain in
   testing, cluster-debugging, workflow, and deploy-target procedures.
 - [Release troubleshooting](../../release-troubleshooting.md)
 - [Releasing](../../releasing.md)
-- [macOS worker updates](macos_worker_updates.md)
 - [Docker Compose](docker_compose.md)
-- [Multi-worker operations](multi-worker.md) — queue partitioning, native
-  macOS workers, storage remediation, and capacity sizing.
+- [macOS workers](macos-workers.md) — start here for native Mac compute
+  hosts: topology, invariants, routing, and the health check.
+  - [Host](macos-worker-host.md) — prerequisites, env file, install,
+    filesystem, pinned toolchain, network, and reinstall.
+  - [Updates](macos_worker_updates.md) — the deploy phase, signing key and
+    token, the updater, the release artifact, and manual drains.
+  - [Troubleshooting](macos-worker-troubleshooting.md) — symptom, confirm,
+    cause, fix.
+- [Multi-worker operations](multi-worker.md) — queue partitioning, the
+  hybrid queue topology, storage remediation, and capacity sizing.
 - [External plugin operations](external-plugins.md) — install, replace,
   diagnose, and remove a dropped-in plugin directory.
 - [Metrics operations](metrics.md) — scrape authentication, readiness, alert
@@ -37,8 +44,8 @@ recovering Syrus itself. Operator feature instructions remain in
   wildcard routing, preview processes, and production setup.
 - [Admin recovery](admin-recovery.md) — deployed web and worker restart
   procedures and checks.
-- [iOS and macOS compute](ios-compute.md) — native worker installation,
-  launchd, environment, updates, and pool topology.
+- [iOS compute](ios-compute.md) — iOS repository configuration, Jobs,
+  placement, and missing-capability blockers (Mac hosts: see macOS workers).
 - [Speech-to-text](chat-speech-to-text.md) — transcription daemon deployment,
   configuration, logs, and diagnosis.
 - [External PR ingestion](external-pr-ingestion.md) — recover older preempted

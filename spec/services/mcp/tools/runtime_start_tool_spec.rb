@@ -203,6 +203,83 @@ RSpec.describe Mcp::Tools::RuntimeStartTool, full_chat_access: :all do
     end
   end
 
+  it "bounds a provider timeout, records evidence, and accepts a successful late completion" do
+    stub_const("RuntimeSessions::Operation::DEFAULT_TIMEOUT", 0.01.seconds)
+    release = Queue.new
+
+    with_workspace do
+      allow_any_instance_of(stub_runtime_provider_class).to receive(:start_session) do
+        release.pop
+        { pid: 456, port: 4001 }
+      end
+
+      response = call(provider: "stub")
+      session = RuntimeSession.last
+
+      expect(response).to be_error
+      expect(session.reload).to have_attributes(state: "failed")
+      expect(session.last_error).to include("timed out")
+      expect(session.current_runtime_operation).to include("state" => "timed_out", "outcome" => "retryable_timeout")
+      expect(session.runtime_operation_logs.map { |entry| entry.fetch("message") }).to include(a_string_including("started"), a_string_including("timed out"))
+
+      release << true
+      Timeout.timeout(2) { sleep 0.01 until session.reload.current_runtime_operation["outcome"] == "late_succeeded" }
+      expect(session).to have_attributes(state: "running", last_error: nil)
+      expect(session.metadata).to include("pid" => 456, "port" => 4001)
+    end
+  end
+
+  it "retries the existing failed session without duplicating its provider resource" do
+    with_workspace do
+      existing = RuntimeSession.create!(
+        repository: repository, chat_session: chat_session, workspace_ref: ChatWorkspace.runtime_workspace_for!(chat_session, repository).to_s,
+        provider_key: "stub", display_name: "Stub Provider", state: "failed", last_error: "timeout"
+      )
+
+      body = payload(call(provider: "stub"))
+
+      expect(body[:id]).to eq(existing.id)
+      expect(RuntimeSession.count).to eq(1)
+      expect(existing.reload.state).to eq("running")
+    end
+  end
+
+  it "reports an already-active persisted startup instead of duplicating it after a caller timeout" do
+    with_workspace do |workspace|
+      session = RuntimeSession.create!(
+        repository: repository, chat_session: chat_session, workspace_ref: workspace,
+        provider_key: "stub", display_name: "Stub Provider", state: "starting",
+        metadata: { "runtime_operation" => { "id" => "op-1", "kind" => "startup", "state" => "active", "deadline_at" => 1.minute.from_now.iso8601 } }
+      )
+      expect_any_instance_of(stub_runtime_provider_class).not_to receive(:start_session)
+
+      response = call(provider: "stub")
+      body = payload(response)
+
+      expect(response).not_to be_error
+      expect(body).to include(id: session.id, state: "starting")
+      expect(body[:operation]).to include(id: "op-1", kind: "startup", state: "active")
+      expect(RuntimeSession.count).to eq(1)
+    end
+  end
+
+  it "reconciles an expired persisted startup and retries the existing session" do
+    with_workspace do |workspace|
+      session = RuntimeSession.create!(
+        repository: repository, chat_session: chat_session, workspace_ref: workspace,
+        provider_key: "stub", display_name: "Stub Provider", state: "starting",
+        metadata: { "runtime_operation" => { "id" => "abandoned-op", "kind" => "startup", "state" => "active", "deadline_at" => 1.minute.ago.iso8601 } }
+      )
+
+      body = payload(call(provider: "stub"))
+
+      expect(body).to include(id: session.id, state: "running")
+      expect(RuntimeSession.count).to eq(1)
+      expect(session.reload.runtime_operation_logs.map { |entry| entry.fetch("message") }).to include(a_string_including("exceeded its durable deadline"))
+      expect(session.current_runtime_operation).to include("kind" => "startup", "outcome" => "succeeded")
+    end
+  end
+
   it "returns an error when Coding Mode is disabled" do
     enable_coding_mode!(enabled: false)
 

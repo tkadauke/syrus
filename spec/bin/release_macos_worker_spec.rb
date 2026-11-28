@@ -31,6 +31,37 @@ RSpec.describe "native macOS worker release artifact" do
     FileUtils.rm_rf(output_dir)
   end
 
+  # Regression: a deploy built the release from HEAD, so another session's
+  # commit landing mid-deploy changed the release's name and code under it.
+  it "packages the pinned commit, not HEAD, when one is given" do
+    # A commit with HEAD's tree but its own SHA: distinct from HEAD, yet it
+    # carries every file the release requires, whatever the history holds.
+    identity = {
+      "GIT_AUTHOR_NAME" => "Release Spec",
+      "GIT_AUTHOR_EMAIL" => "release-spec@example.test",
+      "GIT_COMMITTER_NAME" => "Release Spec",
+      "GIT_COMMITTER_EMAIL" => "release-spec@example.test"
+    }
+    pinned, status = Open3.capture2(
+      identity,
+      "git", "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "release spec pin",
+      chdir: root
+    )
+    expect(status).to be_success
+    pinned = pinned.strip
+    pinned_short = git("rev-parse", "--short", pinned)
+
+    stdout, stderr, status = Open3.capture3(
+      { "SYRUS_BUILT_AT" => "2026-10-03T12:34:56Z", "SYRUS_RELEASE_GZIP_LEVEL" => "1", "SYRUS_RELEASE_GIT_REF" => pinned },
+      "bash", script, version, chdir: root
+    )
+
+    expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    artifact_path = File.join(output_dir, "syrus-worker-macos-arm64-#{pinned_short}.tar.gz")
+    expect(File).to exist(artifact_path)
+    expect(tar_output("-xOzf", artifact_path, "syrus-worker-macos-arm64-#{pinned_short}/GIT_SHA").strip).to eq(pinned_short)
+  end
+
   it "packages the source checkout, worker metadata, and checksum file" do
     short_sha = git("rev-parse", "--short", "HEAD")
     full_sha = git("rev-parse", "HEAD")
@@ -56,8 +87,10 @@ RSpec.describe "native macOS worker release artifact" do
     expect(entries).to include("#{root_entry}/bin/install-macos-worker")
     expect(entries).to include("#{root_entry}/bin/syrus-macos-updater")
     expect(entries).to include("#{root_entry}/bin/macos-worker-check")
-    expect(entries).to include("#{root_entry}/bin/macos-ruby-env")
+    expect(entries).to include("#{root_entry}/bin/macos-runtime-env")
     expect(entries).to include("#{root_entry}/.ruby-version")
+    expect(entries).to include("#{root_entry}/.node-version")
+    expect(entries).to include("#{root_entry}/config/macos_worker_toolchain.env")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.worker.plist")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.updater.plist")
     expect(entries).to include("#{root_entry}/Gemfile")

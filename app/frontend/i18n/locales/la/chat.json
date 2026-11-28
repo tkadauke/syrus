@@ -1111,7 +1111,20 @@
     "execution_status": "Status executionis",
     "execution_message": "Nuntius executionis"
   },
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Non datum", "started_workflows": "Workflow repetitionis coeptus" },
+  "retry_job": {
+    "job": "Job",
+    "jobs": "Jobs",
+    "missing_target": "Non datum",
+    "started_workflows": "Workflow repetitionis coeptus",
+    "recovery_kind": "Genus restitutionis",
+    "recovery_mode": "Modus restitutionis",
+    "source_failure": "Defectus originis",
+    "source_workflow": "Workflow originis",
+    "guidance": "Directio",
+    "reason": "Causa",
+    "requested_by": "Petitio ab",
+    "origin": "Origo"
+  },
   "tool_card_examples": {
     "priority_changed": "Prioritas mutata",
     "invalid_priority": "Prioritas invalida",
@@ -1191,6 +1204,13 @@
     "job": "Job",
     "base": "Basis",
     "push": "Propulsio",
+    "github_access": "Accessus GitHub authenticatus",
+    "destructive": "Operationes destructivae",
+    "confirmed": "seorsum confirmatae",
+    "unavailable": "non praesto",
+    "break_glass_hint": "Credentiae extremae et scriptiones externae ad hoc repositorium restringuntur, audiuntur, atque eventibus declaratis comprobantur.",
+    "expected_outcomes": "Eventus remoti exspectati",
+    "full_expected_outcomes": "Eventus remoti exspectati pleni",
     "true": "ita",
     "false": "non",
     "failed_workflow": "Workflow deficiens",
@@ -1202,7 +1222,8 @@
     "failed_summary": "Cursus agenticus manualis defecit: {{message}}",
     "error_details": "Particularia erroris",
     "valid_bases": "Bases validae",
-    "example_pending": "Cursus manualis pendens"
+    "example_pending": "Cursus manualis pendens",
+    "example_break_glass": "Reparatio GitHub extraordinaria pendens"
   },
   "retire_terminal_work_unit": {
     "reason": "Causa",

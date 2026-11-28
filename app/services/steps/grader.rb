@@ -299,9 +299,28 @@ module Steps
         # statement -- and the CI-repair gate keys off exactly that. Genuine
         # failures keep their wording byte-for-byte so existing classification
         # and diagnostics are untouched.
-        raise StepFailed, "grader #{name} timed out (exit #{exit_code.presence || 'none'})" if timed_out
+        #
+        # Both are declared rather than left for the run classifier to read
+        # back out of the message: this is the only place that knows which of
+        # the two happened.
+        if timed_out
+          fail_with!(:timeout, "grader #{name} timed out (exit #{exit_code.presence || 'none'})",
+                     evidence: { grader_name: name, exit_code: exit_code, timed_out: true })
+        end
 
-        raise StepFailed, "grader #{name} failed (exit #{exit_code})"
+        # Killed for going quiet rather than for running long: no verdict on
+        # the tree either. The wording stays a failure's, as it always was.
+        if runner_result&.silent_timed_out?
+          fail_with!(:timeout, "grader #{name} failed (exit #{exit_code})",
+                     evidence: { grader_name: name, exit_code: exit_code, silent_timed_out: true })
+        end
+
+        # The grader's own process exited non-zero: that is the verdict, even
+        # when its output mentions a timeout ("Test timed out in 15000ms") or
+        # some other process of this Run timed out -- both of which the text
+        # classifier used to read as an infrastructure timeout.
+        fail_with!(:grader_failure, "grader #{name} failed (exit #{exit_code})",
+                   evidence: { grader_name: name, exit_code: exit_code })
       end
     end
 

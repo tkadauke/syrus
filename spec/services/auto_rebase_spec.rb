@@ -198,6 +198,34 @@ RSpec.describe AutoRebase, :ci_only do
     expect(files).to include("feature.rb").and include("parent.rb")
   end
 
+  it "replays only child-owned commits when the former parent advanced after the child branched" do
+    parent_branch = "syrus/issue-41-former-parent"
+    feature = "syrus/issue-42-#{job.id}"
+    push_branch_with_file(parent_branch, "parent.rb", "PARENT\n", "parent")
+    parent_sha = remote_sha(parent_branch)
+    push_child_branch_with_file(parent_branch, feature, "child.rb", "CHILD\n", "child")
+    append_to_branch(parent_branch, "later-parent.rb", "LATER PARENT\n", "parent advances")
+    push_main_advance("destination.rb", "DESTINATION\n", "destination advances")
+
+    result = described_class.new(job, base_branch: "main", old_base_sha: parent_sha).call
+
+    expect(result).to be_succeeded
+    files = `git --git-dir=#{bare_remote_dir} ls-tree --name-only #{feature}`.split("\n")
+    expect(files).to include("child.rb", "destination.rb")
+    expect(files).not_to include("parent.rb", "later-parent.rb")
+  end
+
+  it "refuses to replay when the branch moved after operator confirmation" do
+    feature = "syrus/issue-42-#{job.id}"
+    push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature")
+
+    result = described_class.new(job, expected_head_sha: "f" * 40).call
+
+    expect(result).not_to be_succeeded
+    expect(result.reason).to eq("error")
+    expect(result.note).to include("Branch head changed after confirmation")
+  end
+
   it "returns conflict and does not push when a real body conflict remains" do
     feature = "syrus/issue-42-#{job.id}"
     push_branch_with_file(feature, "shared.rb", "FROM_FEATURE\n", "feature edit")
@@ -319,6 +347,17 @@ RSpec.describe AutoRebase, :ci_only do
       sh("git -C #{w} add .")
       sh("git -C #{w} -c user.email=t@e -c user.name=t commit -q -m '#{message}'")
       sh("git -C #{w} push -q origin main")
+    end
+  end
+
+  def push_child_branch_with_file(parent_branch, branch, file, content, message)
+    Dir.mktmpdir("push-child") do |w|
+      sh("git clone -q file://#{bare_remote_dir} #{w}")
+      sh("git -C #{w} checkout -q -b #{branch} origin/#{parent_branch}")
+      File.write(File.join(w, file), content)
+      sh("git -C #{w} add .")
+      sh("git -C #{w} -c user.email=t@e -c user.name=t commit -q -m '#{message}'")
+      sh("git -C #{w} push -q origin #{branch}")
     end
   end
 

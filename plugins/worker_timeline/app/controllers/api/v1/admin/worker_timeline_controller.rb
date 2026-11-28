@@ -15,11 +15,11 @@ module Api
       # (browser SPA) wraps, same payload shape, now reachable with an API
       # token and gated by the plugin's own enabled flag like
       # AdminMysql::MysqlController.
-      class WorkerTimelineController < BaseController
+      class WorkerTimelineController < Syrus::Host::AdminController
         before_action :require_worker_timeline_enabled
 
         def macro
-          render json: ::Timeline::MacroQuery.call(
+          render json: Syrus::Host::TimelineMacroQuery.call(
             from: params[:from],
             to: params[:to],
             repository_id: params[:repository_id],
@@ -43,7 +43,7 @@ module Api
         end
 
         def workflow
-          render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
+          render json: Syrus::Host::TimelineWorkflowWaterfallQuery.call(workflow_id: params[:id])
         end
 
         private

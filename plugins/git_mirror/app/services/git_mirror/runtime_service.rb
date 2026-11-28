@@ -21,7 +21,7 @@ module GitMirror
       stats = Stats.current(endpoint: endpoint) or return nil
       disk = stats.fetch("disk", {})
       repositories = stats.fetch("repositories", [])
-      slugs = Repository.where(id: repositories.map { |repository| repository["id"] }).to_h { |r| [ r.id.to_s, r.slug ] }
+      slugs = Syrus::Host::RepositoryRecord.where(id: repositories.map { |repository| repository["id"] }).to_h { |r| [ r.id.to_s, r.slug ] }
 
       {
         summary: [

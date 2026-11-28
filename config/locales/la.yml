@@ -1,7 +1,17 @@
 la:
+  agent_questions:
+    recorded: "Quaestio vel quaestiones servatae sunt. Nunc vicem tuam fini."
+    answered: "Responsum missum est. Fluxus operis continuabit."
+    errors:
+      exactly_one_owner: "aut ad sessionem colloquii aut ad cursum pertinere debet"
+      questions_malformed: "series unius ad quattuor quaestionum rite formatarum esse debet"
+      defaults_malformed: "pro unaquaque quaestione responsum praedefinitum non vacuum praebere debet"
+      answers_malformed: "Responsa omnibus quaestionibus congruere debent."
+      inactive: "Quaestio iam activa non est."
   unlanding:
     disabled: "Unlanding in hac instantia non activatum est."
   notifications:
+    agent_question_asked: "Responsum tuum ad %{job} exspectatur"
     approval_request:
       one: "Approbatio necessaria: %{purpose}"
       other: "%{count} petitiones approbationis attentionem tuam postulant."
@@ -14,6 +24,8 @@ la:
   coworkers:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
+    detach_job:
+      confirmation: "%{job} a Job superiore deducto separare et PR #%{pr_number} super %{destination_base} denuo ordinare?"
     permissions:
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
       policy_evaluated: "Norma permissionum canonica aestimata est"
@@ -51,6 +63,8 @@ la:
         session_mismatch: "ad usorem rei resumendae et provisorem sessionis pertinere debet"
         run_mismatch: "ad usorem et provisorem cursus pertinere debet"
         workflow_mismatch: "ad usorem et provisorem cursus operis pertinere debet"
+      recovery_intervention:
+        failure_evidence_must_be_object: "obiectum esse debet"
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
       plugin_installation:
@@ -128,6 +142,32 @@ la:
       telemetry:
         message: "Exitus Workflow defecit, superatus"
         transcript: "Exitus Workflow defecit, superatus: %{gate_kind} %{gate_identity} apud %{candidate_head_sha} (testimonium %{evidence_digest})."
+    invariants:
+      landing_progress:
+        title: "Opus probatum et appulsurum progreditur"
+        violation: "%{job} iam %{hours} horas %{state} est sine Run activo, sine WorkUnit activa, sine impedimento appulsus nominato."
+      slot_holders:
+        title: "Loci concurrentes tantum ab opere currere potente tenentur"
+        violation: "%{unit} locum %{slot} in %{repository} tenet, sed currere non potest (%{reason})."
+      retry_storms:
+        title: "Errores certi non ut transitorii iterantur"
+        violation: "%{job} gradum %{step} %{count} vicibus intra %{window_minutes} minuta eodem errore defecit (%{classification})."
+      failed_blockers:
+        title: "Jobs defecti aliud opus clam non impediunt"
+        violation: "%{job} iam %{hours} horas defecit et %{count} Job(s) impedit: %{blocked}."
+      zombie_workflows:
+        title: "Status Workflow et Job verum opus describunt"
+        violation: "%{subject} %{state} est, sed nihil id per %{hours} horas promovit (%{condition})."
+      abandoned_blockers:
+        title: "Dependentiae quae iam succedere non possunt opus clam non impediunt"
+        violation: "%{blocker} ante %{hours} horas sine successu finitum est et adhuc %{count} Job(s) impedit: %{blocked}."
+      wait_cycles:
+        title: "Opus impeditum se ipsum non exspectat"
+        violation: "%{units} in circulo inter se exspectant (%{reasons}); nullum incipere potest."
+      alert:
+        title: "Invariantia Syrus violata sunt."
+        message: "%{count} violationes invariantium apertae: %{summary}."
+        action: "Inspice GET /api/v1/admin/invariants ad res affectas et earum testimonia."
 
   errors:
     messages:
@@ -410,6 +450,7 @@ la:
         workflow_not_found: "Workflow non inventum est."
         workflow_not_failed: "Workflow in statu defecto non est."
         workspace_cleaned_up: "Workspace iam purgatum est - utere Start over."
+        active_work_lock: "Praesto erit postquam opus activum finitum erit."
         no_failed_step: "Nullus gradus defectus iterandus est."
         workspace_unavailable: "Workspace huic workflow praesto non est."
         diagnose_requires_active_run: "Diagnosis solum Runs activis praesto est."
@@ -578,6 +619,8 @@ la:
     user_time_zones:
       invalid_mode: "modus automatic vel manual esse debet"
     admin:
+      invariants:
+        unknown_invariant: "Invarians ignota: %{key}. Invariantia nota: %{known}."
       plugin_disable:
         workflow_steps_in_flight: "Workflow nondum finitus gradus a %{plugin} possessos continet. Exspecta dum absolvatur antequam plugin inhabiles."
     chat_shell_commands:
@@ -594,6 +637,8 @@ la:
         coding_checkout_not_found: "Nullum coding checkout activum huic chat est."
         containment_required: "Mandata testae inhibita sunt dum exsecutio chat inclusa requiritur: in operario currerent, extra continentem cui agens chat circumscribitur. Administrator hoc in Optionibus mutare potest."
         local_daemon_disconnected: "Daemon localis non conexus est. Exsequere `syrus local` in tuo Repository ut pergas."
+    landing_lanes:
+      feature_disabled: "Viae imponendi in hac instantia non activatae sunt."
     chats:
       groups:
         shared_with_me: "Mecum communicata"
@@ -900,6 +945,7 @@ la:
       prompt_blank: "Incitamentum vacuum esse non potest."
       agent_not_configured: "Hic agens pro possessore repositorii non configuratus est."
       invalid_priority: "Prioritas una ex his esse debet: %{priorities}."
+      invalid_question_eagerness: "Studium interrogandi invalidum est."
       epic_not_found: "Epos in illo repositorio non inventum est."
       owner_not_found: "Usor dominus non inventus est."
       created: "Opus directum creatum est."
@@ -987,11 +1033,11 @@ la:
       host_surface:
         scan_failed: "Inspectio API hospitis defecit: %{error}"
         unsupported: "%{count} relatio API hospitis non sustentata"
-        legacy: "%{count} relatio API hospitis non publica"
         dynamic: "%{count} relatio dynamica API hospitis non publica"
         minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Opus emendationis %{slug} creatum est. Hoc Opus post descensum eius resumetur."
       direct_only: "Sola opera directa manu incipi possunt."
       thread_closed: "Filum clausum est - id rursus aperi antequam opus incipias."
       backlogged: "Opus in acervo est - id libera antequam opus incipias."

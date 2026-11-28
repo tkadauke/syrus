@@ -461,6 +461,15 @@ the rebase conflicts, or post-rebase validation fails, `pr_open` fails with the
 publishes nothing. Whole-stack restacking remains the recovery path for stacks
 that were already published stale.
 
+Stack rebase publication applies the same fail-closed principle to the whole
+affected stack. Its final step verifies uncached remote heads and PR bases
+against the planned SHAs and parent topology, persists refreshed mergeability
+and commits-behind values, and refreshes landing-queue blockers before success.
+The workflow retains categorized publication failure evidence (including a
+recoverable branch-divergence snapshot when local output and the remote ref
+differ), so a deterministic branch no-op cannot conceal an unsatisfied PR-base
+or topology change.
+
   Note `BranchDivergenceResolutionEvidence` does **not** back this banner. It is
   consumed only by the three admin MCP tools, its `diff_summary` is
   `base...HEAD` (what the workflow changed, not how the two candidates differ),

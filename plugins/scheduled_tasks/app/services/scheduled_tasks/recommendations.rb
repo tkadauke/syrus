@@ -6,8 +6,6 @@ module ScheduledTasks
   # method reaching into this plugin's models through
   # `repository.scheduled_tasks` and `user.cron_templates`.
   class Recommendations
-    include Syrus::Plugin::RepositoryRecommendation
-
     ACTIVE_STATES = %w[scheduled paused auto_paused].freeze
     COVERAGE_TEMPLATE = "Increase test coverage".freeze
     COVERAGE_PRESET = "scheduled_coverage".freeze

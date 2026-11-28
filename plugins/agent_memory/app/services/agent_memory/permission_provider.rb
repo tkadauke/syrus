@@ -1,8 +1,8 @@
 module AgentMemory
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = (AgentRole::CHAT_ROLES + AgentRole::WORKFLOW_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq.freeze
+    ROLES = (Syrus::Host::AgentRole::CHAT_ROLES + Syrus::Host::AgentRole::WORKFLOW_ROLES + [ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]).uniq.freeze
     CAPABILITY = "agent_memory.entries@v1"
     EFFECTS = {
       "read_memory" => %i[confidential_read], "search_memories" => %i[confidential_read],
@@ -33,14 +33,14 @@ module AgentMemory
       mutation = effects.include?(:internal_write)
       risk = effects.include?(:destructive) ? :high : (mutation ? :medium : :low)
       defaults = ROLES.index_with do |role|
-        mutation || role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? :ask : :allow
+        mutation || role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]) ? :ask : :allow
       end
       register_capability(
-        capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        capability: CAPABILITY, operation:, presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation:),
         essential: ESSENTIAL.include?(name), deniable_reason: DENIABLE_REASONS[name],
         effects:, risk:, requestable_roles: ROLES, defaults:,
         maximum_autonomy: mutation ? :invocation : :permanent,
-        authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
+        authority_durations: mutation ? %i[invocation] : Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS,
         resource_scope: { type: :none }, classifier: ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } },
         fingerprint_normalizer: method(:normalize), redactor: method(:redact)
       )

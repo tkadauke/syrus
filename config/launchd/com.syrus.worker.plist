@@ -23,13 +23,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>PKG_CONFIG_PATH</key>
-    <string>/opt/homebrew/opt/mysql-client/lib/pkgconfig</string>
-    <key>LDFLAGS</key>
-    <string>-L/opt/homebrew/opt/mysql-client/lib</string>
-    <key>CPPFLAGS</key>
-    <string>-I/opt/homebrew/opt/mysql-client/include</string>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 
   <key>StandardOutPath</key>
@@ -47,8 +41,11 @@
   <true/>
   <key>RunAtLoad</key>
   <true/>
+  <!-- Standard, not Background: launchd runs Background jobs at the lowest
+       CPU priority with throttled disk I/O, so any other account's build on
+       the host starves the worker -- heartbeats lapse and work crawls. -->
   <key>ProcessType</key>
-  <string>Background</string>
+  <string>Standard</string>
   <key>Umask</key>
   <integer>18</integer>
   <key>SoftResourceLimits</key>

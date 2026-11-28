@@ -59,6 +59,36 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `repository_filter`
 - `system_alert_provider`
 
+## Question delivery channels
+
+Question-channel plugins declare the provisional `question_delivery` family
+capability `question_events`. Core broadcasts an immutable
+`Syrus::Host::QuestionDeliveryContext` for every `asked`, `answered`,
+`withdrawn`, and `timed_out` event. Providers create or update their platform
+copy through an existing `platform_delivery` adapter; the family does not
+duplicate outbound transport. An `answered` event with `active: false` tells
+all other channels to close their copy, as do `withdrawn` and `timed_out`.
+
+Submit inbound answers only through
+`Syrus::Host::QuestionDelivery.answer(question_id:, job_id:, answers:,
+answered_by:, source:)`. Pass the question and Job identifiers from the
+delivered event and the authenticated Syrus user mapped from the platform
+sender. Core verifies that user can see and write the Job; providers must not
+accept a claimed Syrus user identity from inbound message content. The caller
+also supplies a stable source identifying its channel. The method returns false
+when authorization fails, the identifiers do not match, another channel already
+answered, or the question is otherwise closed, preserving first-answer-wins
+and resuming the workflow once.
+
+```ruby
+provides question_delivery: "Acme::QuestionChannel",
+  provisional: %i[question_events]
+```
+
+The provider implements `key`, `display_name`, and
+`question_events(context)`. There are intentionally no core providers; chat
+platform plugins opt in independently.
+
 ## Workflow composition anchors
 
 The workflow kernel hosts three qualified extension points. A plugin that
@@ -2223,6 +2253,18 @@ module MyPlugin
   end
 end
 ```
+
+A step kind that shells out to a tool of the plugin's own declares it as
+`worker_checks: [ { name: "my_tool", command: %w[my-tool --version] } ]`.
+Every worker runs the command at boot as part of its environment smoke checks
+(`WorkerEnvironmentSmoke`), and a worker where it fails is not chosen for the
+step kind -- the step waits for a worker that passes instead of failing on one
+that lacks the tool. The command must exit promptly and change nothing; it runs
+like a prepare command, with the prepare environment. The Browser plugin's
+visual review steps declare `playwright-mcp --version` this way. An agent
+provider names its CLI the same way through the optional
+`.worker_environment_check` class method (`%w[claude --version]`), which makes
+every agentic step on that provider require the check `agent_cli_<provider_key>`.
 
 A plugin-owned `WorkDefinition` subclasses `WorkDefinitions::Base` and sets
 `self.plugin` to the plugin name. Naming it here is both what autoloads it into

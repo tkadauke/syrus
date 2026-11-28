@@ -43,9 +43,15 @@ class StackRebasePlan
       EpicDependency.exists?(epic_id: job.epic_id, depends_on_epic_id: parent.epic_id)
   end
 
+  # A landed parent's branch is deleted when its PR merges, so a child
+  # rebased onto it fetched a ref that no longer exists and the whole stack
+  # rebase failed right after the parent's merge train landed. A closed
+  # parent hands the child to effective_base_branch, which resolves the
+  # landing branch the parent merged into.
   def self.base_branch_for(job, base_overrides)
+    parent = job.parent_job
     base_overrides[job.id].presence ||
-      job.parent_job&.branch_name.presence ||
+      (parent&.branch_name.presence unless parent&.closed?) ||
       job.effective_base_branch
   end
 

@@ -32,6 +32,7 @@ module Permissions
       "start_preview" => Operation.new(CONTROL, "start_preview", EXECUTE, :medium, true),
       "stop_preview" => Operation.new(CONTROL, "stop_preview", EXECUTE, :medium, true),
       "report_cannot_proceed" => Operation.new(RESULTS, "report_cannot_proceed", WRITE, :low, true),
+      "ask_user_question" => Operation.new(RESULTS, "ask_user_question", WRITE, :low, true),
       "record_isolated_repro" => Operation.new(RESULTS, "record_isolated_repro", WRITE, :low, true),
       "submit_summary" => Operation.new(RESULTS, "submit_summary", WRITE, :low, true),
       "submit_test_plan" => Operation.new(RESULTS, "submit_test_plan", WRITE, :low, true),

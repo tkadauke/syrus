@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AdminUsers
-      class HasClaudeToken < Base
+      class HasClaudeToken < Syrus::Host::Filters::Chips::Base
         filter_name "has_claude_token"
         label "Claude token"
         bucket :enum

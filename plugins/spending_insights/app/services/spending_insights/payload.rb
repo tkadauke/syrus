@@ -14,21 +14,21 @@ module SpendingInsights
     end
 
     def as_json(*)
-      PerformanceLogging.phase("spending_payload", admin: user.admin?) do
+      Syrus::Host::PerformanceLogging.phase("spending_payload", admin: user.admin?) do
         {
           scope: scope_json,
           filter: filter.to_h,
           filters: filters_json,
           controls: controls_json,
-          totals: PerformanceLogging.phase("spending.totals") { totals_json },
+          totals: Syrus::Host::PerformanceLogging.phase("spending.totals") { totals_json },
           breakdowns: {
-            epics: PerformanceLogging.phase("spending.breakdown.epics") { epic_breakdown },
-            users: PerformanceLogging.phase("spending.breakdown.users") { user_breakdown },
-            repositories: PerformanceLogging.phase("spending.breakdown.repositories") { repository_breakdown },
-            trigger_kinds: PerformanceLogging.phase("spending.breakdown.trigger_kinds") { trigger_kind_breakdown }
+            epics: Syrus::Host::PerformanceLogging.phase("spending.breakdown.epics") { epic_breakdown },
+            users: Syrus::Host::PerformanceLogging.phase("spending.breakdown.users") { user_breakdown },
+            repositories: Syrus::Host::PerformanceLogging.phase("spending.breakdown.repositories") { repository_breakdown },
+            trigger_kinds: Syrus::Host::PerformanceLogging.phase("spending.breakdown.trigger_kinds") { trigger_kind_breakdown }
           },
-          top_runs: PerformanceLogging.phase("spending.top_runs") { top_runs },
-          trend: PerformanceLogging.phase("spending.trend") { trend }
+          top_runs: Syrus::Host::PerformanceLogging.phase("spending.top_runs") { top_runs },
+          trend: Syrus::Host::PerformanceLogging.phase("spending.trend") { trend }
         }
       end
     end
@@ -61,7 +61,7 @@ module SpendingInsights
 
     def controls_json
       {
-        filter_schema: Filters::Schema.for(subject: :spending_report, user: user)
+        filter_schema: Syrus::Host::Filters::Schema.for(subject: :spending_report, user: user)
       }
     end
 
@@ -105,25 +105,25 @@ module SpendingInsights
     end
 
     def scoped_runs
-      relation = Run.where.not(cost_usd: nil).where.not(finished_at: nil)
+      relation = Syrus::Host::RunRecord.where.not(cost_usd: nil).where.not(finished_at: nil)
       relation = relation.where(user_id: user.id) unless user.admin?
 
       filter.apply(relation)
     end
 
     def unwindowed_runs
-      relation = Run.where.not(cost_usd: nil).where.not(finished_at: nil)
+      relation = Syrus::Host::RunRecord.where.not(cost_usd: nil).where.not(finished_at: nil)
       relation = relation.where(user_id: user.id) unless user.admin?
 
       filter.apply_without_date(relation)
     end
 
     def scoped_jobs
-      Job.where(id: filtered_runs.select(:job_id))
+      Syrus::Host::JobRecord.where(id: filtered_runs.select(:job_id))
     end
 
     def scoped_chat_spend_entries
-      relation = ChatSpendEntry.all
+      relation = Syrus::Host::ChatSpendEntryRecord.all
       relation = relation.where(incurred_at: day_start(filter.start_date)..) if filter.start_date
       relation = relation.where(incurred_at: ...day_start(filter.end_date.next_day)) if filter.end_date
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
@@ -133,7 +133,7 @@ module SpendingInsights
     end
 
     def unwindowed_chat_spend_entries
-      relation = ChatSpendEntry.all
+      relation = Syrus::Host::ChatSpendEntryRecord.all
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 
@@ -177,8 +177,8 @@ module SpendingInsights
       @available_agent_providers ||= begin
         providers = base_accessible_runs.distinct.pluck(:agent_provider).compact
         providers.concat(scoped_chat_spend_entries.distinct.pluck(:agent_provider))
-        User.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
-          { value: provider, label: App::Presentation.agent_provider_label(provider) }
+        Syrus::Host::UserRecord.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
+          { value: provider, label: Syrus::Host::AppPresentation.agent_provider_label(provider) }
         end
       end
     end
@@ -193,7 +193,7 @@ module SpendingInsights
     def average_cost_per_merged_pr(first_date, last_date)
       total, count = grouped_job_cost_total_and_count(
         jobs_with_windowed_run_cost(first_date, last_date)
-          .where(closure_reason: Epic::MERGED_JOB_CLOSURE_REASONS)
+          .where(closure_reason: Syrus::Host::Epic::MERGED_JOB_CLOSURE_REASONS)
       )
       return 0.0 if count.zero?
 
@@ -234,7 +234,7 @@ module SpendingInsights
           path: "/epics/#{id}",
           jobs_count: jobs_count,
           total: total,
-          extra: { display_number: App::Presentation.epic_slug(number) }
+          extra: { display_number: Syrus::Host::AppPresentation.epic_slug(number) }
         )
       end
       append_other_breakdown(result, filtered_runs.joins(job: :epic).where.not(epics: { id: result.pluck(:id) }))
@@ -439,7 +439,7 @@ module SpendingInsights
     end
 
     def base_accessible_runs
-      relation = Run.where.not(cost_usd: nil)
+      relation = Syrus::Host::RunRecord.where.not(cost_usd: nil)
       return relation if user.admin?
 
       relation.where(user_id: user.id)

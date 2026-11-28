@@ -648,6 +648,7 @@ function notificationCreatedNativePayload(payload: unknown): NativeNotificationP
     body,
     jobId: typeof record.job_id === "number" ? record.job_id : null,
     prUrl: httpNotificationUrl(record.pr_url),
+    targetPath: typeof record.target_path === "string" ? record.target_path : null,
     notificationId: typeof record.id === "number" ? record.id : null
   }
 }
@@ -687,6 +688,8 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
             ["repositories", String(event.id), "delivery"],
             ["repositories", String(event.id), "syrus_yml"]
           ]
+    case "landing_lanes":
+      return [["landing_lanes"]]
     case "design_doc":
       return event.id == null ? [["design_docs"]] : [["design_docs"], ["design_docs", "detail", String(event.id)]]
     case "operator_briefing":

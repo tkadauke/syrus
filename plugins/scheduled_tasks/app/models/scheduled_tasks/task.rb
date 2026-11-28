@@ -3,10 +3,10 @@ module ScheduledTasks
   #
   # Named Task rather than ScheduledTask because a plugin's models are
   # namespaced under its own module; the table keeps the name it had.
-  class Task < ApplicationRecord
+  class Task < Syrus::Host::Record
     self.table_name = "scheduled_tasks"
-    include AutoApproveModes
-    include AuthorizationCheckpointOrigin
+    include Syrus::Host::AutoApproveModes
+    include Syrus::Host::AuthorizationCheckpointOrigin
 
     attribute :schedule_timezone, :string, default: -> { Schedules::RecurringSchedule.server_timezone }
 
@@ -23,6 +23,8 @@ module ScheduledTasks
     # The class is Task now, so Rails would infer `task_id`; the column is
     # still `scheduled_task_id` and stays that way until Job Origin step 4.
     has_many :jobs, foreign_key: :scheduled_task_id, inverse_of: false, dependent: :nullify
+    has_many :occurrences, class_name: "ScheduledTasks::Occurrence", foreign_key: :scheduled_task_id,
+                           inverse_of: :task, dependent: :delete_all
 
     # Transient, not persisted. Set by the controller when the operator's
     # schedule_input previously resolved through the LLM cadence fallback, so
@@ -45,7 +47,7 @@ module ScheduledTasks
                               numericality: { only_integer: true, in: 0..59 }
     validates :consecutive_failure_count,
               presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-    validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
+    validates :skill_name, format: { with: Syrus::Host::SkillCatalog.name_pattern }, allow_blank: true
     validate  :prompt_or_skill
     validate  :system_schedule_attributes_are_owned_by_code, on: :update
     before_destroy :prevent_system_schedule_destruction
@@ -231,7 +233,7 @@ module ScheduledTasks
     end
 
     def record_fire!(at: Time.current)
-      update!(last_fired_at: at)
+      update!(last_fired_at: [ last_fired_at, at ].compact.max)
     end
 
     def record_success!(at: Time.current)
@@ -241,7 +243,7 @@ module ScheduledTasks
     def record_failure!
       increment!(:consecutive_failure_count)
       return if archived? || system_schedule?
-      if consecutive_failure_count >= AppSetting.max_job_failures
+      if consecutive_failure_count >= Syrus::Host::AppSetting.max_job_failures
         pause!(reason: "auto")
       end
     end
@@ -269,13 +271,13 @@ module ScheduledTasks
     # line is visible durably after the operational logs have rotated.
     def fire_failure_reason(error)
       message = error.message.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "\uFFFD").scrub("\uFFFD")
-      reason = "#{error.class}: #{CommandRedactor.redact(message)}".truncate(800)
+      reason = "#{error.class}: #{Syrus::Host::CommandRedactor.redact(message)}".truncate(800)
       frame = error.backtrace&.first
       return reason unless frame
 
       frame = frame.to_s.dup.force_encoding(Encoding::UTF_8).scrub("\uFFFD")
       frame = frame.delete_prefix("#{Rails.root}/")
-      "#{reason} (at #{CommandRedactor.redact(frame)})".truncate(1_000)
+      "#{reason} (at #{Syrus::Host::CommandRedactor.redact(frame)})".truncate(1_000)
     end
 
     def prevent_system_schedule_destruction
@@ -362,11 +364,11 @@ module ScheduledTasks
     end
 
     def skill_args_match_parameter_schema
-      resolution = Skills.for(repository: repository, name: skill_name, user: user)
-      Skills::ParameterSchema.validate!(resolution.definition.parameters, skill_args.presence || {})
-    rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
+      resolution = Syrus::Host::SkillCatalog.resolve(repository: repository, name: skill_name, user: user)
+      Syrus::Host::SkillCatalog.validate_arguments!(resolution, skill_args.presence || {})
+    rescue *Syrus::Host::SkillCatalog.resolution_errors => e
       errors.add(:skill_name, "could not be resolved: #{e.message}")
-    rescue Skills::ParameterSchema::ValidationError => e
+    rescue *Syrus::Host::SkillCatalog.argument_errors => e
       errors.add(:skill_args, e.message)
     end
 

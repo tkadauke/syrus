@@ -11,7 +11,7 @@ module Api
         # that route so the two payload shapes (feeding the same
         # RunTranscriptLogs component) can't silently drift apart -- only the
         # authorization/lookup path differs, not the JSON shape.
-        class AgentActivityController < BaseController
+        class AgentActivityController < Syrus::Host::AppAdminController
           def sessions
             filter = current_filter
             if params[:section] == "chrome"
@@ -20,7 +20,7 @@ module Api
             end
             result = ::AgentActivity::SessionsQuery.call(
               scope: :admin,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               filter: filter,
               page: params[:page],
               per: params[:per]
@@ -42,7 +42,7 @@ module Api
           end
 
           def artifacts
-            run = Run.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:job, step: :workflow).find_by(id: params[:run_id])
+            run = Syrus::Host::RunRecord.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at, :prompt).includes(:job, step: :workflow).find_by(id: params[:run_id])
             unless run
               render_error("not_found", "Run not found.", status: :not_found)
               return
@@ -53,7 +53,7 @@ module Api
             validator = artifact == "transcript" ? [ max_sequence, run.state, run.updated_at, run.job.closed? ] : [ run.updated_at, artifact ]
             return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:page], params[:per], params[:after_sequence], params[:full] ], public: false)
 
-            render json: ::App::RunArtifactsPayload.build(
+            render json: Syrus::Host::RunArtifactsPayload.build(
               run: run,
               artifact: artifact,
               page: params[:page],
@@ -75,17 +75,17 @@ module Api
           end
 
           def current_filter
-            @current_filter ||= ::Filters::SmartFolderResolution.call(
+            @current_filter ||= Syrus::Host::Filters::SmartFolderResolution.call(
               filter_class: ::AgentActivity::Filter, subject: ::AgentActivity::SmartFolders::SUBJECT,
-              params: params, active_smart_folder: active_smart_folder, user: Current.user
+              params: params, active_smart_folder: active_smart_folder, user: Syrus::Host::Current.user
             ).filter
           end
 
           def active_smart_folder
             @active_smart_folder ||= begin
-              explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+              explicit_folder = Syrus::Host::SmartFolderNavigation.active_folder(
                 subject: ::AgentActivity::SmartFolders::SUBJECT,
-                user: Current.user,
+                user: Syrus::Host::Current.user,
                 params: params
               )
               explicit_folder || default_smart_folder
@@ -93,11 +93,11 @@ module Api
           end
 
           def smart_folders(scope)
-            ::SmartFolder.ensure_builtins_for_subject!(::AgentActivity::SmartFolders::SUBJECT)
-            base_scope = ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Current.user)
-            ::Admin::SmartFolderNavigation.new(
+            Syrus::Host::SmartFolder.ensure_builtins_for_subject!(::AgentActivity::SmartFolders::SUBJECT)
+            base_scope = ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Syrus::Host::Current.user)
+            Syrus::Host::SmartFolderNavigation.new(
               subject: ::AgentActivity::SmartFolders::SUBJECT,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               active_folder: active_smart_folder,
               base_scope: base_scope,
               filter_class: ::AgentActivity::Filter,
@@ -118,7 +118,7 @@ module Api
 
           def default_smart_folder
             return if smart_folder_param_present?
-            return if params[::Filters::QueryParam::PARAM_NAME].present?
+            return if params[Syrus::Host::Filters::QueryParam::PARAM_NAME].present?
 
             ::AgentActivity::SmartFolders.default_folder
           end

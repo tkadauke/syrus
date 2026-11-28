@@ -273,8 +273,10 @@
     "close": "Close Activity",
     "tab_notifications": "Notifications",
     "tab_approvals": "Approvals",
+    "tab_questions": "Questions",
     "count_notifications": "{{count}} unread",
     "count_approvals": "{{count}} pending",
+    "count_questions": "{{count}} open",
     "loading": "Loading...",
     "empty": "Nothing here",
     "error": "Could not be loaded."
@@ -393,5 +395,12 @@
     "title": "Keyboard shortcuts",
     "close": "Close keyboard shortcuts",
     "empty": "No shortcuts are active right now."
+  },
+  "question_inbox": {
+    "open": "Open questions: {{count}}",
+    "title": "Questions",
+    "close": "Close",
+    "empty": "No questions are waiting for an answer.",
+    "arrived": "{{count}} new question arrived."
   }
 }

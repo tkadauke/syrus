@@ -191,8 +191,13 @@ module Steps
       nil
     end
 
+    # Looked up fresh, not through run.review_evidence: that association is
+    # cached nil once read before the evidence is created, so a second
+    # capture in the same Run inserted a duplicate and failed the review
+    # with "Run has already been taken".
     def capture_review_evidence!
-      return run.review_evidence if run.review_evidence
+      existing = ReviewEvidence.find_by(run_id: run.id)
+      return existing if existing
 
       ReviewEvidence::Capture.call(
         run: run,

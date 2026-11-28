@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class LocalBackupsController < BaseController
+        class LocalBackupsController < Syrus::Host::AppAdminController
           def index
             root = LocalBackups::StorageRoot.new
             scan = LocalBackups::InventoryScanner.new(root:).call
@@ -61,7 +61,7 @@ module Api
             tempfile = archive.open(backup)
             total = tempfile.size
             offset, length, status = download_range(total)
-            AdminAction.log!(user: current_user, action: "local_backup_downloaded", params: {
+            Syrus::Host::AdminAction.log!(user: current_user, action: "local_backup_downloaded", params: {
               backup_uuid: backup.uuid, range_start: offset, range_length: length, archive_bytes: total
             })
             response.headers["Accept-Ranges"] = "bytes"

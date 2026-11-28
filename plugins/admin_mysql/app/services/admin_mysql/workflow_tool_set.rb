@@ -1,17 +1,17 @@
 module AdminMysql
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [
       StatusTool
     ].freeze
 
     def self.available_for?(repository)
-      AdminMysql.mysql? && McpToolPolicy.syrus_repository?(repository)
+      AdminMysql.mysql? && Syrus::Host::McpToolPolicy.syrus_repository?(repository)
     end
 
     def self.available_for_context?(context)
-      context.role == AgentRole::WORKFLOW_IMPLEMENT && context.user&.admin? == true && available_for?(context.repository)
+      context.role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT && context.user&.admin? == true && available_for?(context.repository)
     end
 
     def self.tool_definitions(context: nil)
@@ -28,11 +28,11 @@ module AdminMysql
     end
 
     def handle(tool_name, params, server_context)
-      context = McpToolContext.from_server_context(server_context)
-      return Mcp::Tools.unauthorized("Admin MySQL workflow tools are only available to admin implement runs") unless self.class.available_for_context?(context)
+      context = Syrus::Host::ToolContext.from_server_context(server_context)
+      return Syrus::Host::McpTools.unauthorized("Admin MySQL workflow tools are only available to admin implement runs") unless self.class.available_for_context?(context)
 
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown Admin MySQL workflow tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown Admin MySQL workflow tool: #{tool_name.inspect}") unless klass
 
       klass.call(**self.class.symbolize(params), server_context: server_context)
     rescue StandardError => e

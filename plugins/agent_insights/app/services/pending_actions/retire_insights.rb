@@ -1,5 +1,5 @@
 module PendingActions
-  class RetireInsights < Base
+  class RetireInsights < Syrus::Host::PendingActionBase
     action_key "retire_insights"
 
     def execute = mutation.apply!.then { action }
@@ -18,6 +18,6 @@ module PendingActions
         repository_scope: permitted_repositories, reason: payload["reason"], retire_accepted: payload["retire_accepted"],
         superseded_by_insight_ids: payload["superseded_by_insight_ids"], superseded_by_job_ids: payload["superseded_by_job_ids"])
     end
-    def permitted_repositories = user.admin? ? Repository.all : Repository.accessible_to(user)
+    def permitted_repositories = user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(user)
   end
 end

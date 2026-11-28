@@ -21,20 +21,20 @@ module ThemingTools
     class << self
       def call(theme_id:, server_context:)
         user = server_context.fetch(:chat_session).user
-        theme = Theme.find_by(id: theme_id)
-        return Mcp::Tools.invalid("No theme with id #{theme_id} was found.") unless theme
-        return Mcp::Tools.invalid("Built-in themes can't be deleted.") if theme.built_in?
-        return Mcp::Tools.invalid("You can only delete your own themes.") unless theme.owner_user_id == user.id
+        theme = Syrus::Host::ThemeRecord.find_by(id: theme_id)
+        return Syrus::Host::McpTools.invalid("No theme with id #{theme_id} was found.") unless theme
+        return Syrus::Host::McpTools.invalid("Built-in themes can't be deleted.") if theme.built_in?
+        return Syrus::Host::McpTools.invalid("You can only delete your own themes.") unless theme.owner_user_id == user.id
 
         fallback = nil
         if user.color_theme_id == theme.id
-          fallback = Theme.terracotta
+          fallback = Syrus::Host::ThemeRecord.terracotta
           user.update!(color_theme: fallback)
         end
 
         deleted_theme_name = theme.name
         theme.destroy!
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           deleted_theme_id: theme.id,
           deleted_theme_name:,
           fallback_theme_id: fallback&.id,

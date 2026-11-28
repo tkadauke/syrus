@@ -99,8 +99,11 @@ Every deploy that includes production also updates the native macOS workers:
 it publishes the signed Mac worker release before touching a cluster,
 activates it right after production's migrations, and waits for every live
 Mac worker to run it. A Mac worker that does not catch up fails the deploy
-without rolling the cluster back; until it updates it takes no work. See
-[macOS worker updates](macos_worker_updates.md).
+without rolling the cluster back; until it updates it takes no work. The
+phase is described in
+[macOS worker updates](macos_worker_updates.md#every-deploy-updates-the-mac-workers);
+everything else about Mac hosts starts at the
+[macOS workers hub](macos-workers.md).
 
 ## Syrus Kubernetes rollout ordering
 

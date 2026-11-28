@@ -17,7 +17,7 @@ RSpec.describe Permissions::CoworkerAuthorizationDecision do
     )
   end
   let(:descriptor) do
-    generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+    generated = Syrus::Host::CapabilityDescriptor.for_registry_entry(
       tool_name: "read_custom_data", capability: "custom.read", mutation: true,
       required_roles: [ AgentRole::COWORKER_CHAT ]
     )

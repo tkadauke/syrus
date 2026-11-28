@@ -92,6 +92,26 @@ class AutoRetryJob < ApplicationJob
   end
 
   PROVIDER_DELAYED_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+  # Non-retryable classifications whose reconciler repair *is* a retry: a PR
+  # branch that moved before pr_open pushed is repaired by retrying from the
+  # current branch (WorkEngine::RepairPlanner::BranchDivergedPrOpen). The
+  # retryability recheck below skipped every such attempt, so the repair was
+  # scheduled, skipped, and the Job sat failed for a human.
+  REPAIRED_BY_RETRY_CLASSIFICATIONS = %w[branch_diverged].freeze
+
+  # The retryability recheck's verdict on its own: given the attempt as it was
+  # scheduled and a fresh classification of its Run, does the recheck skip the
+  # retry? Pure, so the failure-corpus replay (lib/failure_corpus) can ask it
+  # for every recorded production attempt without running the job.
+  def self.retryability_recheck_skips?(retry_kind:, failure_classification:, fresh:)
+    return false if retry_kind == AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
+    return false if fresh.retryable
+    return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
+    return false if REPAIRED_BY_RETRY_CLASSIFICATIONS.include?(fresh.classification) &&
+      fresh.classification == failure_classification
+
+    true
+  end
 
   def skip_if_provider_delay_no_longer_matches(attempt)
     return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)
@@ -146,8 +166,11 @@ class AutoRetryJob < ApplicationJob
     return false if attempt.retry_kind == AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
 
     fresh = RunFailureClassifier.persist!(attempt.run)
-    return false if fresh.retryable
-    return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
+    return false unless self.class.retryability_recheck_skips?(
+      retry_kind: attempt.retry_kind,
+      failure_classification: attempt.failure_classification,
+      fresh: fresh
+    )
 
     attempt.update!(skipped_reason: not_retryable_skip_reason(attempt, fresh))
     WorkUnits::AutoRetryBackoff.clear!(attempt)
@@ -325,13 +348,15 @@ class AutoRetryJob < ApplicationJob
     return RetryFailedStepEnqueuer::Result.new(workflow: nil, run: nil, step: nil, error: "no other provider is available for content the provider refused") unless alternate
     return retry_workflow(attempt) unless attempt.workflow.retry_available?
 
-    RetryFailedStepEnqueuer.call(
-      workflow: attempt.workflow,
-      agent_provider: alternate,
-      disable_session_resume: true,
-      restart_grade_loop: false,
-      failed_step: attempt.run&.step
-    )
+    record_automatic_intervention(attempt, "rerun_check") do
+      RetryFailedStepEnqueuer.call(
+        workflow: attempt.workflow,
+        agent_provider: alternate,
+        disable_session_resume: true,
+        restart_grade_loop: false,
+        failed_step: attempt.run&.step
+      )
+    end
   end
 
   def alternate_provider_for(attempt)
@@ -391,17 +416,22 @@ class AutoRetryJob < ApplicationJob
   end
 
   def retry_failed_step(attempt)
-    return retry_running_in_place_step(attempt) if running_in_place_step_retry?(attempt)
+    if running_in_place_step_retry?(attempt)
+      return record_automatic_intervention(attempt, "rerun_check") { retry_running_in_place_step(attempt) }
+    end
 
     if attempt.workflow.retry_available?
       clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-      RetryFailedStepEnqueuer.call(
-        workflow: attempt.workflow,
-        agent_provider: attempt.agent_provider,
-        disable_session_resume: attempt.failure_classification == "agent_resume_unavailable",
-        restart_grade_loop: false,
-        failed_step: attempt.run&.step
-      )
+      clear_unprovisioned_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
+      record_automatic_intervention(attempt, "rerun_check") do
+        RetryFailedStepEnqueuer.call(
+          workflow: attempt.workflow,
+          agent_provider: attempt.agent_provider,
+          disable_session_resume: attempt.failure_classification == "agent_resume_unavailable",
+          restart_grade_loop: false,
+          failed_step: attempt.run&.step
+        )
+      end
     else
       retry_workflow(attempt)
     end
@@ -499,6 +529,7 @@ class AutoRetryJob < ApplicationJob
   def retry_running_in_place_step(attempt)
     step = attempt.run.step
     clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+    clear_unprovisioned_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
     replacement = StepDispatcher.create_run_and_enqueue(step, attempt.workflow)
 
     RetryFailedStepEnqueuer::Result.new(
@@ -507,6 +538,26 @@ class AutoRetryJob < ApplicationJob
       step: step,
       error: replacement ? nil : "replacement run could not be queued"
     )
+  end
+
+  # A prepare that failed because its worker lacks a system dependency must
+  # not be pinned back onto that worker. Prepare is the workflow's first step,
+  # so nothing but a fresh checkout is left behind; the workspace is not lost,
+  # only abandoned for one on a provisioned worker.
+  def clear_unprovisioned_worker_affinity!(attempt)
+    workflow = attempt.workflow
+    return unless workflow
+    return unless attempt.run&.step&.kind == "prepare"
+    return unless workflow.worker_hostname.present? || workflow.worker_storage_key.present?
+
+    WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+      workflow,
+      actor: "auto_retry_job",
+      reason: "worker is missing a system dependency prepare needs",
+      storage_lost: false
+    )
+    workflow.reload
+    attempt.run&.association(:step)&.reset
   end
 
   def clear_failed_worker_affinity!(attempt)
@@ -524,13 +575,15 @@ class AutoRetryJob < ApplicationJob
   end
 
   def retry_workflow(attempt)
-    RetryWorkflowEnqueuer.call(
-      job: attempt.job,
-      agent_provider: retry_agent_provider(attempt),
-      artifacts: { "auto_retry_attempt_id" => attempt.id },
-      provider_validation: :none,
-      automatic: true
-    )
+    record_automatic_intervention(attempt, "rerun_check") do
+      RetryWorkflowEnqueuer.call(
+        job: attempt.job,
+        agent_provider: retry_agent_provider(attempt),
+        artifacts: { "auto_retry_attempt_id" => attempt.id },
+        provider_validation: :none,
+        automatic: true
+      )
+    end
   end
 
   # Keeping the failed provider is right for almost every retry -- the work is
@@ -549,12 +602,30 @@ class AutoRetryJob < ApplicationJob
     return retry_failed_step(attempt) if attempt.failure_classification == "agent_resume_unavailable"
     return retry_failed_step(attempt) if session.provider.present? && session.provider != attempt.agent_provider
 
-    RetryFailedStepEnqueuer.call(
-      workflow: attempt.workflow,
-      parent_session_id: session.session_id,
-      prompt: Prompts::Resume.new.to_s,
-      agent_provider: session.provider.presence || attempt.agent_provider,
-      restart_grade_loop: false
+    record_automatic_intervention(attempt, "resume") do
+      RetryFailedStepEnqueuer.call(
+        workflow: attempt.workflow,
+        parent_session_id: session.session_id,
+        prompt: Prompts::Resume.new.to_s,
+        agent_provider: session.provider.presence || attempt.agent_provider,
+        restart_grade_loop: false
+      )
+    end
+  end
+
+  def record_automatic_intervention(attempt, action, &block)
+    RecoveryInterventions::Perform.call(
+      job: attempt.job, source_workflow: attempt.workflow, action:, mode: attempt.retry_kind,
+      actor_type: "system", origin: "auto_retry_job", reason: attempt.failure_classification,
+      &block
+    )
+  end
+
+  def record_automatic_intervention(attempt, action, &block)
+    RecoveryInterventions::Perform.call(
+      job: attempt.job, source_workflow: attempt.workflow, action:, mode: attempt.retry_kind,
+      actor_type: "system", origin: "auto_retry_job", reason: attempt.failure_classification,
+      &block
     )
   end
 

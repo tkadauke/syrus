@@ -1,0 +1,71 @@
+# The only live worker lacks the zstd library the repository's mysql2 build
+# links against. Nothing about the change can fix that, so the Job must not
+# fail and no repair may run: prepare's in-place retry is held on
+# `no_capable_worker` with the reason `worker_environment_check_failed` --
+# the same hold a failed environment smoke check produces, because a failed
+# install is recorded as the same failed check (`mysql_client`). Once the
+# worker is repaired and its next smoke report passes that check, the held
+# prepare runs and the Job completes.
+name: worker environment missing holds without a provisioned worker
+max_ticks: 40
+repository:
+  owner: simulation
+  name: worker-environment-missing-holds
+runtime:
+  workers:
+    - worker-unprovisioned
+runner:
+  auto_retry_failed_jobs: false
+jobs:
+  needs_zstd:
+    title: mysql2 links zstd
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: repair the worker once prepare is held on its environment
+    once: true
+    when:
+      workflow:
+        job: needs_zstd
+        start_blocked: no_capable_worker
+    do:
+      repair_worker_environment: worker-unprovisioned
+      resume_deferred_phase:
+        job: needs_zstd
+outcomes:
+  default: success
+  steps:
+    prepare:
+      - status: failure
+        problem_code: worker_environment_missing
+        problem_evidence:
+          missing_kind: library
+          missing_name: zstd
+          failed_package: mysql2 (0.5.7)
+          command: bundle install
+        error_message: "prepare command failed (exit 5): bundle install\nOutput tail:\nld: library 'zstd' not found"
+      - status: success
+expect:
+  jobs:
+    needs_zstd:
+      - implemented
+  run_evidence:
+    - job: needs_zstd
+      step: prepare
+      classification: worker_environment_missing
+  workflow_artifacts:
+    - job: needs_zstd
+      values:
+        run_queue_blocked:
+          reason: worker_environment_check_failed
+          step_kind: prepare
+  events:
+    - "repaired worker environment on worker-unprovisioned"
+  absent_events:
+    - "retry_workflow"
+success_states:
+  needs_zstd:
+    - implemented

@@ -364,7 +364,7 @@ function reloadIfBackendRevisionChanged(response: Response): void {
     // once is still better than keeping an old module graph alive indefinitely.
   }
 
-  reloadPage()
+  reloadPage("backend_revision_changed")
 }
 
 function initialEmbeddedRevision(): string | null {

@@ -148,6 +148,11 @@ class Workflow < ApplicationRecord
         after: -> { Workflows::LifecyclePropagation.blocked!(self) }
     end
 
+    event :resume_from_answer do
+      transitions from: :blocked, to: :running,
+        after: -> { Workflows::LifecyclePropagation.started!(self) }
+    end
+
     event :reopen do
       transitions from: :failed, to: :running, guard: :latest_for_job?,
         after: -> { Workflows::LifecyclePropagation.reopened!(self) }
@@ -173,11 +178,11 @@ class Workflow < ApplicationRecord
 
   OPERATOR_DISMISSABLE_STATES = %w[blocked queued running].freeze
 
-  # Auxiliary (non-approval-blocking) workflows that are stuck or in flight can
+  # Implemented-state-compatible workflows that are stuck or in flight can
   # be cancelled/dismissed by an operator from the Job page. Implement and the
   # other primary workflows keep their dedicated controls.
   def operator_dismissable?
-    Workflow::TriggerKind.non_approval_blocking?(trigger_kind) && state.in?(OPERATOR_DISMISSABLE_STATES)
+    Workflow::TriggerKind.implemented_state_compatible?(trigger_kind) && state.in?(OPERATOR_DISMISSABLE_STATES)
   end
 
   # One-line reason shown next to the dismiss action so the operator knows what
@@ -357,7 +362,11 @@ class Workflow < ApplicationRecord
   end
 
   def live_descendants?
-    runs.active.exists? || projected_running_steps.any? || active_spawned_processes?
+    runs.active.exists? || active_agent_questions? || projected_running_steps.any? || active_spawned_processes?
+  end
+
+  def active_agent_questions?
+    AgentQuestion.active.where(run_id: runs.select(:id)).exists?
   end
 
   def cleanup_blocked_by_active_descendants?

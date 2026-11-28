@@ -8,7 +8,10 @@ module MaintenanceTasks
       recurrence "one_off"
       required_role "admin"
       concurrency_key "test_insights_grader_name_backfill"
-      batch_size 1_000
+      batch_size 500
+      # Each batch rewrites rows of a very large table and its indexes; run back
+      # to back it held MySQL at its memory limit until production went down.
+      pause_between_batches 2
       max_parallelism 1
       documentation_path Rails.root.join("app/services/maintenance_tasks/docs/test_insights_grader_name_backfill.md")
 

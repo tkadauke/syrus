@@ -34,12 +34,6 @@ module WorkUnits
         first_unit_by_job_id.transform_values { |unit| unit.workflow&.trigger_kind || unit.kind }
       end
 
-      def approval_blocking_job_ids
-        job_ids_for(states: ACTIVE_STATES, kinds: nil) do |unit|
-          !Workflow::TriggerKind.non_approval_blocking?(unit.workflow&.trigger_kind || unit.kind)
-        end.to_set
-      end
-
       def active_repair_work_by_job_id
         repair_kinds = WorkDefinitions.active_repair_work_kinds.map(&:to_s).to_set
         first_unit_by_job_id(kinds: repair_kinds).transform_values do |unit|
@@ -187,6 +181,21 @@ module WorkUnits
         .includes(:workflow)
       scope = scope.where(kind: Array(kinds).map(&:to_s)) if kinds.present?
       scope.order(created_at: :desc, id: :desc).first
+    end
+
+    def self.active_units_for_lock_keys(lock_keys, kinds: nil)
+      keys = Array(lock_keys).map(&:to_s).reject(&:blank?).uniq
+      return {} if keys.empty?
+
+      scope = WorkUnitLock
+        .joins(:work_unit)
+        .where(lock_key: keys, released_at: nil, work_units: { state: ACTIVE_STATES })
+        .includes(work_unit: :workflow)
+      scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
+
+      scope.order("work_units.created_at DESC, work_units.id DESC").each_with_object({}) do |lock, owners|
+        owners[lock.lock_key] ||= lock.work_unit
+      end
     end
 
     def self.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)

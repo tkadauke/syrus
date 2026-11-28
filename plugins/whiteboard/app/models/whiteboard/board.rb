@@ -1,5 +1,5 @@
 module Whiteboard
-  class Board < ApplicationRecord
+  class Board < Syrus::Host::Record
     self.table_name = "whiteboard_boards"
 
     MAX_ELEMENTS = 1000
@@ -99,7 +99,7 @@ module Whiteboard
     end
 
     def broadcast_scene
-      AppEvents.broadcast(
+      Syrus::Host::AppEvents.broadcast(
         user: chat_session.user,
         type: "updated",
         resource: "chat",

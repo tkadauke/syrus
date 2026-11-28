@@ -11,6 +11,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 
 | Owner | Method | Path | Handler |
 |---|---|---|---|
+| core | GET | `/api/v1/app/agent_questions` | `api/v1/app/agent_questions#index` |
+| core | POST | `/api/v1/app/agent_questions/:id/answer` | `api/v1/app/agent_questions#answer` |
 | core | GET | `/api/v1/app/approval_delegations` | `api/v1/app/approval_delegations#index` |
 | core | POST | `/api/v1/app/approval_delegations` | `api/v1/app/approval_delegations#create` |
 | core | POST | `/api/v1/app/approval_delegations/:id/revoke` | `api/v1/app/approval_delegations#revoke` |
@@ -217,6 +219,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:id/unland` | `api/v1/app/jobs#unland_plan` |
 | core | POST | `/api/v1/app/jobs/:id/unland` | `api/v1/app/jobs#unland` |
 | core | GET | `/api/v1/app/jobs/:id/visual_evidence/:evidence_id` | `api/v1/app/jobs#visual_evidence` |
+| core | GET | `/api/v1/app/jobs/:id/visual_evidence/:evidence_id/thumbnail` | `api/v1/app/jobs#visual_evidence_thumbnail` |
 | core | GET | `/api/v1/app/jobs/:id/waterfall` | `api/v1/app/jobs#waterfall` |
 | core | GET | `/api/v1/app/jobs/:id/workflows` | `api/v1/app/jobs#workflows` |
 | core | POST | `/api/v1/app/jobs/:job_id/accept_triage` | `api/v1/app/job_lifecycle#accept_triage` |
@@ -247,6 +250,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:job_id/diff_review_versions/:id` | `api/v1/app/diff_review_versions#show` |
 | core | POST | `/api/v1/app/jobs/:job_id/epic_dependencies` | `api/v1/app/job_metadata#add_epic_dependency` |
 | core | DELETE | `/api/v1/app/jobs/:job_id/epic_dependencies/:depends_on_epic_id` | `api/v1/app/job_metadata#remove_epic_dependency` |
+| core | POST | `/api/v1/app/jobs/:job_id/file_question_fix` | `api/v1/app/job_lifecycle#file_question_fix` |
 | core | POST | `/api/v1/app/jobs/:job_id/mark_valid` | `api/v1/app/job_metadata#mark_valid` |
 | core | POST | `/api/v1/app/jobs/:job_id/move_to_backlog` | `api/v1/app/job_lifecycle#move_to_backlog` |
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_coding_mode` | `api/v1/app/job_coding_mode#open` |
@@ -316,6 +320,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/graph` | `api/v1/app/jobs#graph` |
 | core | GET | `/api/v1/app/jobs/new` | `api/v1/app/direct_jobs#new` |
 | core | GET | `/api/v1/app/jobs/new/prompt_templates/:template_id` | `api/v1/app/direct_jobs#prompt_template` |
+| core | GET | `/api/v1/app/landing_lanes` | `api/v1/app/landing_lanes#show` |
 | core | GET | `/api/v1/app/maintenance_tasks/sidebar` | `api/v1/app/maintenance_tasks#sidebar` |
 | core | GET | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#index` |
 | core | POST | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#create` |

@@ -11,11 +11,12 @@
     "fill": "Fill",
     "evaluate": "Evaluate",
     "hover": "Hover",
+    "press_key": "Press key",
     "drag": "Drag",
     "drop": "Drop",
     "file_upload": "File upload"
   },
-  "targets": { "target": "Target", "device": "Device", "viewport": "Viewport", "condition": "Condition", "path": "Path", "files": "Files", "page": "page" },
+  "targets": { "target": "Target", "device": "Device", "viewport": "Viewport", "condition": "Condition", "path": "Path", "files": "Files", "page": "page", "key": "Key" },
   "status": { "success": "success", "error": "error", "failed": "failed" },
   "rows": { "title": "Title", "current_url": "Current URL", "viewport": "Viewport", "snapshot": "Snapshot", "text": "Text" },
   "disclosures": { "browser_details": "Browser details" },

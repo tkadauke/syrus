@@ -1,0 +1,37 @@
+# A native-extension build failure in prepare (mysql2 on a worker without the
+# MySQL client libraries) was matched as a transient provider failure on a
+# backtrace frame wrapped across lines ("...settings.rb:159:in" then
+# "'Bundler::Settings#temporary'") and retried a dozen times an hour.
+name: deterministic prepare failure is not transient
+max_ticks: 40
+repository:
+  owner: simulation
+  name: deterministic-prepare-failure-is-not-transient
+jobs:
+  broken_build:
+    title: Prepare cannot build a native gem
+    state: running
+    agent_provider: codex
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: prepare
+          state: failed
+          run:
+            state: failed
+            agent_provider: codex
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "prepare command failed (exit 5): bundle install\nOutput tail:\n/opt/syrus/rubies/3.4.10/lib/ruby/3.4.0/bundler/settings.rb:159:in\n'Bundler::Settings#temporary'\nAn error occurred while installing mysql2 (0.5.7), and Bundler cannot continue."
+        - kind: implement
+          state: queued
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+success_states:
+  broken_build:
+    - failed

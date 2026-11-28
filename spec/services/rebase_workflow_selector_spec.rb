@@ -202,6 +202,16 @@ RSpec.describe RebaseWorkflowSelector do
       expect(result).to include(workflow)
     end
 
+    # Regression: three manually paused rebases held every repository rebase
+    # slot for days, so no other PR could be rebased to land.
+    it "does not count a blocked (paused) rebase against the repository's slots" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "queued")
+      Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)
+      create_rebase_work_unit(job: job, workflow: workflow, state: "blocked")
+
+      expect(described_class.active_in_repository(repository)).to be_empty
+    end
+
     it "does not return legacy repository rebase workflows" do
       workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
       Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)

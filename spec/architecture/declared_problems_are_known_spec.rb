@@ -28,6 +28,16 @@ RSpec.describe "declared step problems" do
       "these step failures declare a Problem code that is not in Problem::Kind:\n  #{unknown.join("\n  ")}"
   end
 
+  # FailureProblems declares codes for failures whose structure it parses
+  # (dependency installs, git, the GitHub API) with `declare(:code, ...)`.
+  it "names only known codes from the structured failure parsers" do
+    sources = Dir[Rails.root.join("app/services/failure_problems/**/*.rb")]
+    codes = sources.flat_map { |path| File.read(path).scan(/declare\(:([a-z0-9_]+)/).flatten }.uniq
+
+    expect(codes).to include("prepare_install_failed", "prepare_network_transient", "git_transport_transient", "github_api_transient")
+    expect(codes.reject { |code| Problem::Kind.exists?(code) }).to be_empty
+  end
+
   it "actually finds declarations, so a rename cannot quietly empty this check" do
     found = SOURCES.flat_map { |path| File.read(path).scan(DECLARATION).flatten }
 

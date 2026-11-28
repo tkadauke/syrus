@@ -122,4 +122,31 @@ RSpec.describe Steps::AutoRebase do
 
     expect(::AutoRebase).to have_received(:new).with(job, base_branch: "syrus/parent-branch")
   end
+
+
+  it "passes the confirmed former-parent boundary for a detach repair" do
+    workflow.set_artifact!("detach_job", {
+      "former_parent_head" => "a" * 40, "owned_patch_base_sha" => "c" * 40, "confirmed_head" => "b" * 40
+    })
+    allow(service).to receive(:call).and_return(::AutoRebase::Result.new(false, "conflict", nil))
+
+    described_class.new(run).call
+
+    expect(::AutoRebase).to have_received(:new).with(
+      job, base_branch: job.effective_base_branch, old_base_sha: "c" * 40, expected_head_sha: "b" * 40
+    )
+  end
+
+  it "fails closed when a detach repair finds its patch already on the destination base" do
+    workflow.set_artifact!("detach_job", {
+      "former_parent_head" => "a" * 40, "owned_patch_base_sha" => "c" * 40, "confirmed_head" => "b" * 40
+    })
+    allow(service).to receive(:call).and_return(
+      ::AutoRebase::Result.new(true, ::AutoRebase::ALREADY_LANDED_REASON, "already present", changed: false)
+    )
+
+    expect { described_class.new(run).call }
+      .to raise_error(Steps::Base::StepFailed, /no detached branch was published/)
+    expect(job.reload).not_to be_closed
+  end
 end

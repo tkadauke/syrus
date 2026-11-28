@@ -220,6 +220,20 @@ Fail-closed capabilities: `job_visibility_restrictions` (a failed provider contr
 |---|---|---|---|---|
 | `coworkers` | `Coworkers::Policy` | - | - | `job_visibility_restrictions`, `repository_filters` |
 
+## `question_delivery`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `question_events` | `broadcast` | `nil` | `nil` | `provisional` | `Syrus::Plugin::Context::QuestionDeliveryContext` | `any value` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| - | - | - | - | - |
+
 ## `review`
 
 Shape: `facet`. Required core: `key`, `display_name`.

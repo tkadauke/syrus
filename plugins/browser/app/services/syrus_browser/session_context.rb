@@ -13,7 +13,7 @@ module SyrusBrowser
   #      with no current Run; resolved to that chat's active browser
   #      RuntimeSession.
   #   3. otherwise -- the existing workflow Run path (visual_review and any
-  #      other agentic step), resolved via Mcp::Tools.run_from_context.
+  #      other agentic step), resolved via Syrus::Host::McpTools.run_from_context.
   #
   # Local Mode routing (a third, materially different daemon-backed browser)
   # is intentionally not a branch here yet -- DOC-16's own broker work adds
@@ -31,17 +31,20 @@ module SyrusBrowser
         elsif server_context.key?(:chat_session)
           for_chat_session(server_context[:chat_session])
         else
-          for_run(Mcp::Tools.run_from_context(server_context))
+          for_run(Syrus::Host::McpTools.run_from_context(server_context))
         end
       end
 
       def for_run(run)
-        sink = if run.is_a?(Run) && run.step&.kind == "visual_review"
+        sink = if run.is_a?(Syrus::Host::RunRecord) && run.step&.kind == "visual_review"
           ArtifactSinks::VisualReviewDraft.new(run)
         else
           ArtifactSinks::Null.new
         end
-        Result.new(session_key: "run:#{run.id}", artifact_sink: sink, owner: run)
+        runtime_session = active_browser_session_for_run(run)
+        return Result.new(session_key: "run:#{run.id}", artifact_sink: sink, owner: run) unless runtime_session
+
+        Result.new(session_key: "runtime_session:#{runtime_session.id}", artifact_sink: sink, owner: runtime_session)
       end
 
       def for_runtime_session(runtime_session)
@@ -63,6 +66,14 @@ module SyrusBrowser
 
       def active_browser_session_for(chat_session)
         scope = chat_session.runtime_sessions.active.for_provider(RuntimeSessionProvider.provider_key)
+        scope.primary.first || scope.first
+      end
+
+      def active_browser_session_for_run(run)
+        return unless run.is_a?(Syrus::Host::RunRecord)
+
+        scope = Syrus::Host::RuntimeSessionRecord.where(run_id: run.id).active
+          .for_provider(RuntimeSessionProvider.provider_key)
         scope.primary.first || scope.first
       end
     end

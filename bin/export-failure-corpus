@@ -1,0 +1,98 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Exports recently failed production Runs as the sanitized failure corpus the
+# decision-drift replay reads (spec/fixtures/failure_corpus/cases.jsonl).
+#
+# Read-only. The exporter and its redactor are streamed into a `rails runner`
+# on a production worker -- the deployed release need not contain them -- and
+# run inside `while_preventing_writes`; redaction happens there, so secrets
+# never leave the instance.
+#
+#   bin/export-failure-corpus                    # last 30 days, 400 cases
+#   bin/export-failure-corpus --days 14 --limit 300
+#   bin/export-failure-corpus --local            # against the local dev DB
+#
+# After exporting, run `bin/rails failure_corpus:replay` (or the replay spec)
+# and acknowledge every intentional verdict change in
+# spec/fixtures/failure_corpus/allowlist.yml.
+
+require "json"
+require "optparse"
+require "open3"
+
+root = File.expand_path("..", __dir__)
+options = {
+  days: 30,
+  limit: 400,
+  per_fingerprint: 2,
+  out: File.join(root, "spec/fixtures/failure_corpus/cases.jsonl"),
+  kubeconfig: ENV.fetch("KUBECONFIG", File.expand_path("~/.kube/config-production")),
+  namespace: "syrus-production",
+  target: "deploy/syrus-worker-home",
+  container: "syrus-worker",
+  local: false
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: bin/export-failure-corpus [options]"
+  opts.on("--days N", Integer, "Failed Runs from the last N days (default 30)") { |v| options[:days] = v }
+  opts.on("--limit N", Integer, "Cases to keep after deduplication (default 400)") { |v| options[:limit] = v }
+  opts.on("--per-fingerprint N", Integer, "Cases kept per failure fingerprint (default 2)") { |v| options[:per_fingerprint] = v }
+  opts.on("--out PATH", "Where to write the corpus") { |v| options[:out] = File.expand_path(v) }
+  opts.on("--kubeconfig PATH") { |v| options[:kubeconfig] = v }
+  opts.on("--namespace NAME") { |v| options[:namespace] = v }
+  opts.on("--target POD", "Pod or deploy/<name> to exec into") { |v| options[:target] = v }
+  opts.on("--container NAME") { |v| options[:container] = v }
+  opts.on("--local", "Run against the local development database instead") { options[:local] = true }
+end.parse!
+
+BEGIN_MARKER = "__FAILURE_CORPUS_BEGIN__"
+END_MARKER = "__FAILURE_CORPUS_END__"
+STATS_MARKER = "__FAILURE_CORPUS_STATS__"
+
+source = [
+  File.read(File.join(root, "lib/failure_corpus/redactor.rb")),
+  File.read(File.join(root, "lib/failure_corpus/exporter.rb")),
+  <<~RUBY
+    ActiveRecord::Base.while_preventing_writes do
+      exporter = FailureCorpus::Exporter.new(
+        days: #{Integer(options[:days])},
+        limit: #{Integer(options[:limit])},
+        per_fingerprint: #{Integer(options[:per_fingerprint])}
+      )
+      cases = exporter.call
+      $stdout.puts #{STATS_MARKER.inspect} + " " + JSON.generate(exporter.stats)
+      $stdout.puts #{BEGIN_MARKER.inspect}
+      cases.each { |kase| $stdout.puts JSON.generate(kase) }
+      $stdout.puts #{END_MARKER.inspect}
+    end
+  RUBY
+].join("\n")
+
+command =
+  if options[:local]
+    [ File.join(root, "bin/rails"), "runner", "-" ]
+  else
+    [ "kubectl", "--kubeconfig", options[:kubeconfig], "-n", options[:namespace],
+      "exec", "-i", options[:target], "-c", options[:container], "--",
+      "bin/rails", "runner", "-" ]
+  end
+
+stdout, stderr, status = Open3.capture3(*command, stdin_data: source)
+unless status.success?
+  warn stderr
+  abort "export failed (#{status.exitstatus})"
+end
+
+body = stdout[/#{BEGIN_MARKER}\n(.*)#{END_MARKER}/m, 1]
+abort "export produced no corpus markers:\n#{stdout[-2000, 2000]}\n#{stderr[-2000, 2000]}" if body.nil?
+
+cases = body.lines.map { |line| JSON.parse(line) }
+File.write(options[:out], cases.map { |kase| JSON.generate(kase) }.join("\n") + "\n")
+
+stats = stdout[/^#{STATS_MARKER} (.*)$/, 1]
+puts "Export stats: #{stats}" if stats
+counts = cases.group_by { |kase| kase.dig("recorded", "classification") }.transform_values(&:size)
+puts "Wrote #{cases.size} cases to #{options[:out]}"
+counts.sort_by { |_, n| -n }.each { |name, n| puts format("  %-40s %d", name, n) }

@@ -17,7 +17,7 @@ module SdlcPipeline
 
     def install_into(scope)
       scope.effect("pipeline smart folders") do
-        SmartFolder.register_subject!(
+        Syrus::Host::SmartFolder.register_subject!(
           SUBJECT, builtins: BUILTINS, label: "Pipeline",
           effective_filter_contract: :smart_folder_resolution,
           path: ->(repository_id: nil, **query) { path(repository_id:, **query) }

@@ -209,6 +209,26 @@ directory, exit status or timeout state, and a compact tail of command
 output on the workflow page. You asked for the command, so a failure is
 loud.
 
+A failed command runs once more before it counts. If it fails again, Syrus
+decides from that command's own exit status and output whether retrying the
+step can help. Network and registry trouble (connection resets, DNS or TLS
+failures, registry 5xx responses, fetch timeouts) and a command that ran out
+of time are retried within the usual retry budget.
+
+When the worker itself is missing something — a system library or header a
+native extension links against, or a tool the command calls — the change is
+not at fault. Syrus marks that worker as unable to run the repository's
+setup and reruns the step on another worker; the Job does not fail and no
+repair agent is asked to "fix" code that is fine. If no live worker has what
+is needed, the step waits with the `worker_environment_check_failed` reason naming
+the missing library or tool.
+
+A native extension whose own source will not compile, a lockfile that does
+not resolve, a script the repository references but does not contain, or any
+failure with no sign of a network or worker problem is not retried: it fails
+the same way every time until the repository changes, so Syrus reports it,
+naming the package when the output does, instead of spending retries on it.
+
 If `.syrus.yml` is missing, Syrus auto-detects one setup command from the
 first matching file:
 

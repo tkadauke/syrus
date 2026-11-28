@@ -1,7 +1,7 @@
 module WorkEngine
   module Simulation
     class ScenarioRunner
-      def self.call(path:, max_ticks: nil, tick_observer: nil)
+      def self.call(path:, max_ticks: nil, tick_observer: nil, invariants: true)
         SolidQueueBootstrap.ensure! if Rails.env.test?
         world = ScenarioLoader.load!(path)
         tick_limit = max_ticks.presence || world.max_ticks.presence || DEFAULT_MAX_TICKS
@@ -27,14 +27,28 @@ module WorkEngine
           success_states: success_states,
           wait_states: wait_states,
           auto_retry_failed_jobs: world.runner.fetch("auto_retry_failed_jobs", true),
+          phase_admission_jobs: world.runner.fetch("phase_admission_jobs", true),
           global_reconcile: world.runner.fetch("global_reconcile", false),
           max_ticks: tick_limit,
-          tick_observer: tick_observer
+          tick_observer: tick_observer,
+          invariant_assertions: invariant_assertions_for(world, enabled: invariants)
         }
         if world.reconciler.key?("ignored_issue_kinds")
           runner_args[:ignored_reconciler_issue_kinds] = world.reconciler.fetch("ignored_issue_kinds")
         end
         Runner.call(**runner_args)
+      end
+
+      # Every scenario asserts the invariant monitor at every tick unless the
+      # caller opts out (`invariants: false`); the scenario's own
+      # `invariants:` block narrows or tunes it (see InvariantAssertions).
+      def self.invariant_assertions_for(world, enabled:)
+        return nil unless enabled
+
+        InvariantAssertions.build(
+          translate_value(world.invariants.to_h, world),
+          job_ids: world.jobs_by_key.values.map(&:id)
+        )
       end
 
       def self.translate_outcomes(world)
@@ -74,7 +88,7 @@ module WorkEngine
       end
 
       def self.translate_reference(key, value, world)
-        if key.in?(%w[job approve fail close set_pr_checks landing_front lose_storage])
+        if key.in?(%w[job approve fail close set_pr_checks landing_front lose_storage pause_work unpause_work rewrite_stack_parent])
           return translate_job_reference(value, world)
         end
 

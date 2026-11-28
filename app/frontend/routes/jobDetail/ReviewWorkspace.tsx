@@ -744,7 +744,7 @@ export function VisualEvidenceGallery({
                     alt={pageLabel}
                     className="max-h-72 max-w-full rounded-md border border-border object-contain"
                     loading="lazy"
-                    src={screenshot.image_url}
+                    src={screenshot.thumbnail_url}
                   />
                 </button>
                 <figcaption className="mt-2 min-w-0 max-w-full space-y-1 text-xs text-text-muted">
@@ -770,7 +770,12 @@ export function VisualEvidenceGallery({
       ) : null}
       {preview ? (
         <DocumentPreviewModal
-          file={{ contentType: "image/png", rawUrl: preview.image_url, title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page") }}
+          key={preview.id}
+          file={{
+            contentType: "image/png",
+            rawUrl: preview.original_url,
+            title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page")
+          }}
           footerActions={
             <div aria-label={t("visual_evidence_navigation")} className="flex gap-2">
               <Button onClick={() => movePreview(-1)} size="sm" variant="secondary">

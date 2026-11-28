@@ -35,6 +35,25 @@ RSpec.describe "API: /api/v1/admin/version", type: :request do
       expect(body.dig("worker_health", "hosts")).to eq([])
     end
 
+    it "summarizes each worker's environment smoke verdict with the failed checks' reasons" do
+      InstanceVersion.create!(hostname: "mac-mini", role: "worker", version: "abc1234", started_at: 5.minutes.ago,
+        last_heartbeat_at: 5.seconds.ago, capability_diagnostics: {
+          "environment_smoke" => {
+            "status" => "degraded", "observed_at" => "2026-11-28T04:00:00Z", "failed" => [ "mysql_client" ],
+            "checks" => { "mysql_client" => { "status" => "failed", "reason" => "no mysql_config found" }, "git" => { "status" => "passed" } }
+          }
+        })
+      InstanceVersion.create!(hostname: "syrus-web", role: "web", version: "abc1234", started_at: 5.minutes.ago, last_heartbeat_at: 5.seconds.ago)
+
+      get "/api/v1/admin/version", headers: auth
+
+      rows = parse_body["instances"].index_by { |row| row["hostname"] }
+      expect(rows.dig("mac-mini", "environment_smoke")).to eq(
+        "status" => "degraded", "observed_at" => "2026-11-28T04:00:00Z", "failed_checks" => { "mysql_client" => "no mysql_config found" }
+      )
+      expect(rows.dig("syrus-web", "environment_smoke")).to be_nil
+    end
+
     it "omits instances whose heartbeat is older than the fresh threshold" do
       InstanceVersion.create!(hostname: "syrus-web-old", role: "web", version: "old-sha",
                               started_at: 1.hour.ago, last_heartbeat_at: 10.minutes.ago)

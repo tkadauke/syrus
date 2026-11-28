@@ -1,5 +1,10 @@
 class RunQueueResolver
   BLOCKED_OUTCOME = "no_capable_worker".freeze
+  # Every worker that could take the step reports a failed environment smoke
+  # check the step needs (WorkerEnvironmentSmoke). Same outcome as a missing
+  # capability -- a wait, not a failure -- with the failing checks in the
+  # decision details so an operator sees which worker is broken and why.
+  ENVIRONMENT_CHECK_BLOCKED_REASON = "worker_environment_check_failed".freeze
   DEFAULT_RUN_CAPABILITIES = { "os" => [ "linux" ] }.freeze
 
   Candidate = Data.define(:workflow, :step, :trigger_kind) do
@@ -34,16 +39,52 @@ class RunQueueResolver
   Decision = Data.define(:queue_name, :requirements, :sticky_resume, :blocked_reason, :details) do
     def blocked? = blocked_reason.present?
 
+    # "host: check (reason), ..." for every live worker kept off this step by a
+    # failed environment smoke check, or nil.
+    def environment_check_summary
+      Array(details["live_workers"]).filter_map do |worker|
+        failures = worker["environment_check_failures"]
+        next if failures.blank?
+
+        "#{worker['hostname']}: #{failures.map { |name, reason| reason.present? ? "#{name} (#{reason})" : name }.join(', ')}"
+      end.uniq.join("; ").presence
+    end
+
     def history_details
       details.merge(
         "live_workers" => Array(details["live_workers"]).map do |worker|
-          worker.slice("hostname", "worker_storage_key", "selected_queue", "eligible", "draining")
+          worker.slice("hostname", "worker_storage_key", "selected_queue", "eligible", "draining", "environment_check_failures")
         end
       )
     end
   end
 
   def self.resolve(...) = new(...).resolve
+
+  # Whether the worker this process runs on satisfies what `run` requires.
+  def self.locally_satisfied?(run:)
+    new(run: run).locally_satisfied?
+  end
+
+  # Also false when this worker's own environment smoke report failed a check
+  # the step needs, so RunJob hands the Run back to a worker that can run it
+  # instead of starting it here and failing.
+  def locally_satisfied?
+    snapshot = WorkerCapabilities.current
+    return false unless satisfies?(WorkerCapabilities.normalize(snapshot.fetch(:capabilities)), required_capabilities)
+
+    report = snapshot.fetch(:diagnostics, {})[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY]
+    environment_failures_for(SyrusVersion.hostname, report).empty?
+  end
+
+  # Whether `hostname` is kept off `run` by its environment -- a failed smoke
+  # check the step needs or a dependency an earlier failure there showed
+  # missing. The work-engine simulator asks it for simulated hosts.
+  def self.worker_environment_blocks?(run:, hostname:)
+    resolver = new(run: run)
+    payload = resolver.send(:live_worker_payloads).find { |candidate| candidate[:hostname] == hostname }
+    resolver.send(:environment_failures_for, hostname, payload && resolver.send(:smoke_report_for, payload)).any?
+  end
 
   def self.resolve_candidate(workflow:, step:)
     new(workflow: workflow, step: step).resolve
@@ -104,10 +145,74 @@ class RunQueueResolver
   end
 
   def blocked_reason_for(queue, requirements)
-    return nil unless live_capability_check_required?(queue, requirements)
+    unless live_capability_check_required?(queue, requirements)
+      return environment_checks_block_queue?(queue, requirements) ? ENVIRONMENT_CHECK_BLOCKED_REASON : nil
+    end
     return nil if live_capable_worker_for?(queue, requirements)
+    return ENVIRONMENT_CHECK_BLOCKED_REASON if live_capable_worker_for?(queue, requirements, ignore_environment_checks: true)
 
     "no_live_worker_for_capabilities"
+  end
+
+  # Default (Linux) work skips the live capability check -- any worker on the
+  # shared queue may take it -- so a smoke failure blocks it only when every
+  # live worker that would otherwise qualify reports a failure the step
+  # needs. A worker with no report, or one that does not report a needed check,
+  # still counts as able: unknown never reads as broken.
+  def environment_checks_block_queue?(queue, requirements)
+    return false if required_environment_checks.empty?
+
+    candidates = live_worker_payloads.select do |payload|
+      worker_eligible?(payload, queue, requirements, allow_unknown_default: true, ignore_environment_checks: true)
+    end
+    candidates.any? && candidates.all? { |payload| environment_check_failures(payload).any? }
+  end
+
+  def required_environment_checks
+    @required_environment_checks ||= WorkerEnvironmentSmoke::Requirements.for(
+      workflow: workflow, step: step, run: run
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[RunQueueResolver] environment check requirements failed: #{e.class}: #{e.message}")
+    @required_environment_checks = []
+  end
+
+  # The one view of a worker's environment for this step: the checks its
+  # smoke report (WorkerEnvironmentSmoke) failed that the step needs, plus
+  # what a failed install on that worker showed missing for this repository
+  # (WorkerEnvironmentGap). A probe and a failure that find the same thing
+  # name the same check, so they keep a worker off work identically, and one
+  # hold reason (ENVIRONMENT_CHECK_BLOCKED_REASON) covers both.
+  def environment_check_failures(payload)
+    environment_failures_for(payload[:hostname], smoke_report_for(payload))
+  end
+
+  def environment_failures_for(hostname, report)
+    (WorkerEnvironmentSmoke.blocking_failures(report, required_environment_checks) |
+      observed_environment_gaps(hostname, report).keys)
+  end
+
+  # check name => reason for the gaps a failed install recorded on `hostname`
+  # for this repository. A gap stops counting once the worker's own smoke
+  # report passes that same check after the gap was found.
+  def observed_environment_gaps(hostname, report)
+    return {} if hostname.blank?
+
+    @observed_environment_gaps ||= {}
+    @observed_environment_gaps[[ hostname, report.is_a?(Hash) ? report["observed_at"] : nil ]] ||=
+      WorkerEnvironmentGap.failed_checks(hostname: hostname, repository_id: repository_id, smoke_report: report)
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn("[RunQueueResolver] could not read worker environment gaps: #{e.class}: #{e.message}")
+    {}
+  end
+
+  def repository_id
+    workflow&.job&.repository_id
+  end
+
+  def smoke_report_for(payload)
+    diagnostics = payload[:capability_diagnostics]
+    diagnostics.is_a?(Hash) ? diagnostics[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY] : nil
   end
 
   def required_capabilities
@@ -181,8 +286,10 @@ class RunQueueResolver
     @base_queue_name ||= Workflows.for(trigger_kind: trigger_kind).queue_name.to_s
   end
 
-  def live_capable_worker_for?(queue, requirements, allow_unknown_default: false)
-    live_worker_payloads.any? { |payload| worker_eligible?(payload, queue, requirements, allow_unknown_default:) }
+  def live_capable_worker_for?(queue, requirements, allow_unknown_default: false, ignore_environment_checks: false)
+    live_worker_payloads.any? do |payload|
+      worker_eligible?(payload, queue, requirements, allow_unknown_default:, ignore_environment_checks:)
+    end
   end
 
   def live_worker_payload_for_queue?(queue)
@@ -295,6 +402,7 @@ class RunQueueResolver
       "queue_name" => queue,
       "base_queue_name" => base_queue_name,
       "requirements" => requirements,
+      "environment_checks" => required_environment_checks,
       "live_workers" => live_worker_diagnostics(queue, requirements),
       "run_id" => run.id,
       "workflow_id" => run.workflow_id,
@@ -317,14 +425,26 @@ class RunQueueResolver
           hostname: payload[:hostname]
         ),
         "version_skew" => payload.fetch(:macos_worker, false) && macos_version_skewed?(payload[:hostname]),
+        "environment_check_failures" => environment_check_failure_details(payload),
         "capabilities" => payload.fetch(:capabilities),
         "capability_diagnostics" => payload.fetch(:capability_diagnostics)
       }.compact
     end
   end
 
-  def worker_eligible?(payload, queue, requirements, allow_unknown_default: false)
+  # name => reason for each failed check this step needs, or nil.
+  def environment_check_failure_details(payload)
+    failures = environment_check_failures(payload)
+    return nil if failures.empty?
+
+    report = smoke_report_for(payload)
+    WorkerEnvironmentSmoke.failure_reasons(report, failures)
+      .merge(observed_environment_gaps(payload[:hostname], report)) { |_name, probe, gap| probe.presence || gap }
+  end
+
+  def worker_eligible?(payload, queue, requirements, allow_unknown_default: false, ignore_environment_checks: false)
     return false unless WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue)
+    return false if !ignore_environment_checks && environment_check_failures(payload).any?
     return false if payload.fetch(:macos_worker, false) && MacosWorkerDrain.admission_blocked?(
       worker_storage_key: payload[:worker_storage_key],
       hostname: payload[:hostname]

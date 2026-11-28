@@ -40,6 +40,8 @@ placement or target contract. Compare the requirement shown on the blocked Run
 with live worker capabilities and distinguish a missing/misconfigured worker
 from a requirement no pool is intended to satisfy.
 
-Mac installation, launchd configuration, environment files, drain-aware
-updates, and pool topology live in the [iOS/macOS worker
+Mac worker installation, environment files, updates, and troubleshooting
+live behind the [macOS workers
+hub](../../docs/engineering/operations/macos-workers.md); iOS Jobs and
+placement are in the [iOS compute
 runbook](../../docs/engineering/operations/ios-compute.md).

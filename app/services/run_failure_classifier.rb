@@ -28,9 +28,15 @@ class RunFailureClassifier
   UNCLASSIFIED = "application_error".freeze
   UNCLASSIFIED_CONFIDENCE = 0.40
 
+  # Precedence, highest first: a verdict a repair wrote, a Problem the step
+  # declared, then inference from text. The last two are ordered inside
+  # #classify; the first is kept here, because only the record knows who
+  # wrote it.
   def self.persist!(run)
-    result = classify(run)
     record = run.run_failure_classification || run.build_run_failure_classification
+    return record if record.persisted? && record.written_by_repair?
+
+    result = classify(run)
     return record if record.persisted? && superseded_by_unclassified?(record, result)
 
     record.assign_attributes(
@@ -109,6 +115,10 @@ class RunFailureClassifier
       result("prepare_network_transient", 0.90, true, "A dependency install lost its connection to the package registry; retry once the network recovers.")
     when git_transport_transient?
       result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
+    when workspace_lost?
+      result("workspace_lost", 0.95, true, "The workflow's workspace directory disappeared while the step ran; a fresh workflow recreates it.")
+    when github_connection_transient?
+      result("github_api_transient", 0.90, true, "The request to GitHub never got a response (connection failed, reset or timed out); retry once GitHub is reachable.")
     when source_snapshot_metadata_invalid?
       result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot setup failed; transient transport failures may succeed on retry.")
     when storage_unavailable?
@@ -200,6 +210,8 @@ class RunFailureClassifier
       result("database_lock", 0.80, true, "The run failed during transient database contention, timeout, or connection exhaustion.")
     when provider_turn_failed?
       result("provider_transient", 0.65, true, "The provider reported a generic failed turn; retrying should rerun the same step.")
+    when agent_process_exited_without_outcome?
+      result("provider_transient", 0.60, true, "The agent process exited non-zero without reporting an outcome; retrying resumes the captured session.")
     when git_failure?
       result("git_failure", 0.70, false, "A git operation failed.")
     else
@@ -251,6 +263,26 @@ class RunFailureClassifier
     ProviderUsageLimit::LegacyText.detect?(text)
   end
 
+  # Text that says an operation actually timed out. The bare word is not
+  # evidence: `bundle install` prints "Installing timeout 0.6.1" (a gem), and
+  # grader_collect reports every grader's "configured_timeout=60s" whether it
+  # ran 3.9 seconds or not -- both made deterministic failures look like
+  # retryable timeouts. What counts: "timed out" / a `timed_out` outcome
+  # token, "timeout after N", Ruby's `execution expired`, timeout error
+  # classes, a named network/operation timeout, or exit status 124 (the
+  # `timeout` utility's).
+  TIMEOUT_SIGNAL = /
+    (?:\b|_)timed[\s_]out\b|
+    \btime[\s-]?out\s+after\s+\d|
+    execution\s+expired|
+    \bNet::(?:Open|Read|Write)Timeout\b|
+    \bTimeout::Error\b|
+    \b\w*TimeoutError\b|
+    \b(?:read|connect|connection|operation|request|gateway|idle|lock\s+wait)\s+timeout\b|
+    deadline\s+exceeded|
+    \bexit(?:ed|\s+status|\s+code)?[\s=:(]*124\b
+  /ix
+
   def timeout?
     if %w[grader preflight_grader].include?(run.step&.kind.to_s)
       return true if run.agent_outcome.to_s.match?(/timeout|timed_out/)
@@ -266,7 +298,7 @@ class RunFailureClassifier
 
     run.agent_outcome.to_s.match?(/timeout|timed_out/) ||
     diagnostic&.error_class.to_s.match?(/Timeout/) ||
-      text_match?(/timed out|timeout|execution expired|read timeout|connect timeout/i) ||
+      text_match?(TIMEOUT_SIGNAL) ||
       spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
   end
 
@@ -504,6 +536,17 @@ class RunFailureClassifier
       text_match?(/agent didn't call/i)
   end
 
+  # Steps::Base raises a bare "agent exited N" when the provider CLI exits
+  # non-zero with no outcome of its own. A Codex session that had finished
+  # its work and was committing exited 1 this way; as an unclassified
+  # application error it was never retried, and its failure stranded every
+  # Job stacked on it for days. The retry budget still bounds a real crash
+  # loop.
+  def agent_process_exited_without_outcome?
+    run.agent_outcome.blank? &&
+      diagnostic&.error_message.to_s.match?(/\Aagent exited \d+\z/)
+  end
+
   def provider_turn_failed?
     run.agent_provider.present? && run.agent_outcome.to_s == "turn_failed"
   end
@@ -557,7 +600,28 @@ class RunFailureClassifier
   def git_transport_transient?
     return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError|WorkflowSourceSnapshots::InfrastructureStateError/)
 
-    GitTransportErrors.transient?(searchable_text)
+    # The failing command's own output -- a GitError's message carries its
+    # command, exit status and stderr; the immutable-checkout wrapper quotes
+    # it. Reading every recent log line let an unrelated earlier fetch's
+    # "couldn't find remote ref" veto a GitHub 500 on the push that failed.
+    GitTransportErrors.transient?(diagnostic.error_message)
+  end
+
+  # Legacy fallback for rows recorded before FailureProblems::Workspace
+  # declared it at the source: the spawn's chdir into the workspace root
+  # raised ENOENT. Only the root itself -- ENOENT on a path inside it can be
+  # the change's own doing.
+  def workspace_lost?
+    diagnostic&.error_class.to_s == "Errno::ENOENT" &&
+      FailureProblems::Workspace.workflow_root(diagnostic.error_message).present?
+  end
+
+  # Legacy fallback for rows recorded before FailureProblems::GithubApi
+  # declared these at the source. A Faraday connection error to GitHub used to
+  # be retried only because its backtrace ran through `Timeout.timeout`.
+  def github_connection_transient?
+    names = FailureProblems::GithubApi::CONNECTION_ERRORS.map(&:name)
+    names.include?(diagnostic&.error_class.to_s) && FailureProblems::GithubApi.github_host?(diagnostic.error_message)
   end
 
   def git_state_corrupt?
@@ -606,7 +670,7 @@ class RunFailureClassifier
     return false if run.agent_provider.blank?
     return true if run.agent_outcome.to_s == "server_error"
 
-    text_match?(%r{
+    provider_transient_text.match?(%r{
       overloaded|
       temporar(?:y|ily)|
       transient|
@@ -750,6 +814,29 @@ class RunFailureClassifier
 
   def diagnostic
     @diagnostic ||= run.run_diagnostic
+  end
+
+  # The text provider_transient? reads: the searchable text minus Syrus's own
+  # system log lines and Ruby backtrace frames. A deterministic `mysql2` build
+  # failure in prepare was classified transient, and retried a dozen times
+  # an hour, because the log held "Bundler::Settings#temporary" (a backtrace
+  # frame) and Syrus's own "deferred landing after a transient failure" --
+  # which, once written, made every later failure of the Job look transient.
+  BACKTRACE_FRAME = /\.rb:\d+:in\b/
+  # Output tails wrap frames, putting the method label on its own line:
+  # ".../settings.rb:159:in" then "'Bundler::Settings#temporary'".
+  WRAPPED_BACKTRACE_FRAME = /\.rb:\d+:in\s*['`][^'`\n]*'/
+
+  def provider_transient_text
+    @provider_transient_text ||= [
+      run.agent_outcome,
+      run.agent_summary,
+      diagnostic&.error_class,
+      diagnostic&.error_message,
+      recent_logs.reject { |log| log.kind.to_s == "system" }.map(&:chunk)
+    ].flatten.compact.join("\n")
+      .gsub(WRAPPED_BACKTRACE_FRAME, "")
+      .lines.grep_v(BACKTRACE_FRAME).join
   end
 
   def recent_logs

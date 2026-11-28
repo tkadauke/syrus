@@ -2,11 +2,11 @@ module Api
   module V1
     module App
       module Admin
-        class KubernetesClustersController < BaseController
+        class KubernetesClustersController < Syrus::Host::AppAdminController
           before_action :require_k8s_cluster_enabled
 
           def index
-            clusters = KubernetesCluster.order(:label).to_a
+            clusters = Syrus::Host::KubernetesCluster.order(:label).to_a
             credentials = K8sCluster::ClusterCredential.credentials_by_id_for(clusters)
             render json: {
               kubernetes_clusters: clusters.map { |cluster| cluster_json(cluster, credential: credentials[cluster.credential_store_credential_id]) },
@@ -15,14 +15,14 @@ module Api
           end
 
           def create
-            cluster = KubernetesCluster.new(cluster_params)
+            cluster = Syrus::Host::KubernetesCluster.new(cluster_params)
 
             ActiveRecord::Base.transaction do
               apply_kubeconfig!(cluster, require_kubeconfig: true)
               raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
 
               cluster.save!
-              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user, **requested_scope) if cluster.persisted? && pending_kubeconfig.present?
+              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Syrus::Host::Current.user, **requested_scope) if cluster.persisted? && pending_kubeconfig.present?
               cluster.save!
             end
             render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
@@ -44,7 +44,7 @@ module Api
               credential = K8sCluster::ClusterCredential.credential_for(cluster)
               scope = requested_scope(default_type: credential&.scope_type || "instance", default_id: credential&.scope_id)
               if pending_kubeconfig.present?
-                K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user, **scope)
+                K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Syrus::Host::Current.user, **scope)
               elsif credential && (credential.scope_type != scope[:scope_type] || credential.scope_id != scope[:scope_id])
                 credential.update!(scope)
               end
@@ -130,7 +130,7 @@ module Api
           def pending_kubeconfig = @pending_kubeconfig
 
           def find_cluster
-            KubernetesCluster.find(params[:id])
+            Syrus::Host::KubernetesCluster.find(params[:id])
           end
 
           def cluster_params
@@ -181,7 +181,7 @@ module Api
             elsif scope_type == default_type
               default_id
             elsif scope_type == "user"
-              Current.user.id
+              Syrus::Host::Current.user.id
             end
             raise ArgumentError, "credential scope is not manageable by the current user" unless management_authorization.can_manage_scope?(scope_type, scope_id)
 
@@ -189,11 +189,11 @@ module Api
           end
 
           def management_authorization
-            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
+            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Syrus::Host::Current.user)
           end
 
           def admin_context
-            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+            Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: Syrus::Host::Current.user)
           end
 
           def require_k8s_cluster_enabled

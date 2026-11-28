@@ -28,20 +28,21 @@ module Syrus
         @apis ||= []
       end
 
-      def public?(name)
-        candidate = name.to_s
-        apis.any? do |api|
-          candidate == api.name || candidate.start_with?("#{api.name}::")
-        end
-      end
-
       # Plugins resolve their classes while the app boots, before the
-      # to_prepare hook installs the aliases, so materialize one on first use.
+      # to_prepare hook installs the aliases, so materialize one on first use
+      # after the public API catalog is available.
       def const_missing(name)
         target = PublicApis::ALIASES[name] if const_defined?(:PublicApis, false)
         return super unless target
 
         const_set(name, target.constantize)
+      end
+
+      def public?(name)
+        candidate = name.to_s
+        apis.any? do |api|
+          candidate == api.name || candidate.start_with?("#{api.name}::")
+        end
       end
 
       private

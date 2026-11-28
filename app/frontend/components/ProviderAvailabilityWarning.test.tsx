@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import i18n from "../i18n"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice, ProviderMismatchPill } from "./ProviderAvailabilityWarning"
@@ -47,10 +47,52 @@ describe("provider availability copy", () => {
       )
 
       expect(screen.getByRole("img")).toHaveAccessibleName("Die Nutzung von Codex ist niedrig (12 % verbleibend; Schwellenwert 20 %).")
-      expect(screen.getByText("Claude ist nicht verfügbar; dieser Workflow läuft mit Codex.")).toBeInTheDocument()
+      expect(screen.getByText("Ausweichanbieter: Codex")).toBeInTheDocument()
       expect(screen.getByLabelText("Der Job läuft mit Codex; Repository-Standard ist Claude.")).toBeInTheDocument()
     } finally {
       await i18n.changeLanguage("en")
     }
+  })
+
+  it("shows policy routing truthfully and exposes rule evidence through a touch-accessible disclosure", () => {
+    render(
+      <ProviderFailoverNotice
+        failover={{
+          mode: "policy_routing",
+          automatic: false,
+          original_provider: "codex",
+          original_provider_label: "Codex",
+          selected_provider: "claude",
+          selected_provider_label: "Claude Code",
+          routing: {
+            matched_rule_id: 7,
+            condition_results: {
+              matched: true,
+              conditions: {
+                usage: {
+                  matched: true,
+                  expected: { provider: "codex", remaining_percent_less_than: 25 },
+                  actual: { provider: "codex", remaining_percent: 22 }
+                }
+              }
+            }
+          }
+        }}
+      />
+    )
+
+    expect(screen.getByText("Policy: Claude Code")).toBeInTheDocument()
+    expect(screen.queryByText(/Codex unavailable/)).not.toBeInTheDocument()
+    const disclosure = screen.getByRole("group").querySelector("summary")!
+    expect(disclosure).toHaveAccessibleName("Show provider routing details for Policy: Claude Code")
+    expect(disclosure.closest("details")).not.toHaveAttribute("open")
+    fireEvent.click(disclosure)
+    expect(disclosure.closest("details")).toHaveAttribute("open")
+    expect(screen.getByText(/Routing policy selected Claude Code instead of Codex/)).toBeVisible()
+    const details = screen.getByText(/Routing rule 7 matched/)
+    expect(details).toBeVisible()
+    expect(details).toHaveTextContent("Usage condition matched: Codex had 22% remaining; rule applies below 25%")
+    expect(details).not.toHaveTextContent("remaining_percent")
+    expect(details).not.toHaveTextContent("..")
   })
 })

@@ -56,7 +56,9 @@
   screenshots there, and persists a `visual_diff_comparison` typed artifact
   pairing baseline and PR/head images. Self-cancels/skips once the Job has
   already moved to approval/landing (`obsolete_job_state?`), and never
-  blocks approval or landing (`Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES`).
+  is compatible with an already-implemented Job lifecycle
+  (`Workflow::TriggerKind::IMPLEMENTED_STATE_COMPATIBLE_VALUES`). Approval is
+  state-based; runtime activity may still block landing.
   Also available on demand via the Job detail page's "Run before/after
   comparison" action.
 - `main_grader` / `main_branch_repair` / `agent_insight` / `deploy` —

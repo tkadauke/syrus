@@ -1,6 +1,9 @@
 de:
   api:
     coworkers:
+      environment_foreign_revision: "muss zu dieser Umgebung gehören"
+      environment_compat_bound_missing: "muss zusammen mit der anderen Grenze gesetzt werden"
+      environment_compat_window_inverted: "darf nicht unter compat_min liegen"
       no_goal_summary: "Keine Zielzusammenfassung verfügbar"
       approval_inactive: "Diese Genehmigung ist nicht mehr ausstehend."
       memory_unavailable: "Der Speicher des Coworkers ist gerade nicht erreichbar."

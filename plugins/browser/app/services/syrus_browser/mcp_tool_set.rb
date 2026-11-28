@@ -18,6 +18,7 @@ module SyrusBrowser
       ClickTool,
       FillTool,
       HoverTool,
+      PressKeyTool,
       ScreenshotTool,
       WaitForTool,
       ResizeTool,
@@ -68,6 +69,7 @@ module SyrusBrowser
       "browser_click" => "browser.interact/action@v1",
       "browser_fill" => "browser.interact/action@v1",
       "browser_hover" => "browser.interact/action@v1",
+      "browser_press_key" => "browser.interact/action@v1",
       "browser_screenshot" => "browser.observe/read@v1",
       "browser_wait_for" => "browser.observe/read@v1",
       "browser_resize" => "browser.observe/read@v1",
@@ -101,7 +103,7 @@ module SyrusBrowser
     private
 
     def invalidates_snapshot?(tool_name)
-      %w[browser_navigate browser_click browser_fill browser_drag browser_drop browser_file_upload browser_evaluate browser_resize browser_emulate].include?(tool_name.to_s)
+      %w[browser_navigate browser_click browser_fill browser_press_key browser_drag browser_drop browser_file_upload browser_evaluate browser_resize browser_emulate].include?(tool_name.to_s)
     end
 
     def self.symbolize(params)

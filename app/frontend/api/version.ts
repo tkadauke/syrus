@@ -80,5 +80,5 @@ function triggerVersionReloadOnce(mismatch: ApiVersionMismatch) {
     typeof navigator !== "undefined" && "serviceWorker" in navigator
       ? navigator.serviceWorker.getRegistration().then((registration) => registration?.update())
       : Promise.resolve()
-  void updateWorker.catch(() => undefined).finally(reloadPage)
+  void updateWorker.catch(() => undefined).finally(() => reloadPage("api_version_mismatch"))
 }

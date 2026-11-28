@@ -15,7 +15,12 @@ module Permissions
   # delivery effect is never covered by a standing lease. Emergency landing is
   # additionally critical, irreversible, and has no preset that could widen it.
   class OperationalActions
-    Operation = Data.define(:capability, :name, :effects, :risk)
+    Operation = Struct.new(:capability, :name, :effects, :risk, :classifier) do
+      def initialize(capability, name, effects, risk, classifier = nil)
+        super(capability, name, effects, risk, classifier)
+        freeze
+      end
+    end
 
     ADMIN_REPAIR = "syrus.admin_repair@v1".freeze
     OPERATIONS_CAPABILITY = "syrus.operations@v1".freeze
@@ -40,8 +45,26 @@ module Permissions
       "admin_cleanup_workspace" => Operation.new(ADMIN_REPAIR, "cleanup_workspace", DESTRUCTIVE_CONTROL, :high),
       "admin_reap_stale_runs" => Operation.new(ADMIN_REPAIR, "reap_stale_runs", DESTRUCTIVE_CONTROL, :high),
       "admin_kill_process" => Operation.new(ADMIN_REPAIR, "kill_process", DESTRUCTIVE_CONTROL, :high),
-      "manual_agentic_run" => Operation.new(ADMIN_REPAIR, "manual_agentic_run", WORK_CONTROL, :medium),
+      "manual_agentic_run" => Operation.new(
+        ADMIN_REPAIR, "manual_agentic_run", WORK_CONTROL, :medium,
+        lambda do |arguments, operation:, identifier:|
+          source = arguments.to_h.with_indifferent_access
+          effects = operation.effects
+          risk = operation.risk
+          if source[:github_access] == true
+            effects = (effects + %i[credential_use external_write]).uniq.freeze
+            if source[:destructive_github_operations] == true
+              effects = (effects + %i[destructive]).uniq.freeze
+              risk = :critical
+            else
+              risk = :high
+            end
+          end
+          { operation: identifier, effects: effects, risk: risk, confidence: :certain }
+        end
+      ),
       "force_rebase" => Operation.new(ADMIN_REPAIR, "force_rebase", EXTERNAL_CONTROL, :high),
+      "detach_job" => Operation.new(ADMIN_REPAIR, "detach_job", EXTERNAL_CONTROL, :high),
       "restack_epic" => Operation.new(ADMIN_REPAIR, "restack_epic", EXTERNAL_CONTROL, :high),
       "adopt_current_pr_head" => Operation.new(ADMIN_REPAIR, "adopt_current_pr_head", EXTERNAL_CONTROL, :high),
       "replace_pr_branch_with_workflow_output" => Operation.new(ADMIN_REPAIR, "replace_pr_branch", EXTERNAL_CONTROL, :critical),
@@ -89,7 +112,11 @@ module Permissions
           maximum_autonomy: :invocation,
           authority_durations: %i[invocation],
           resource_scope: { type: :none },
-          classifier: ->(_arguments) { { operation: identifier, effects: operation.effects, risk: operation.risk, confidence: :certain } },
+          classifier: if operation.classifier
+            ->(arguments) { operation.classifier.call(arguments, operation:, identifier:) }
+                      else
+            ->(_arguments) { default_classification(operation, identifier) }
+                      end,
           fingerprint_normalizer: method(:normalize_arguments),
           redactor: method(:normalize_arguments)
         )
@@ -104,6 +131,10 @@ module Permissions
         ids = TARGET_KEYS.keys.flat_map { |key| Array(source[key]) }.compact.map { |id| Integer(id, exception: false) || id.to_s }
         normalized["job_ids"] = ids.uniq.sort_by(&:to_s) if ids.any?
         normalized.sort_by { |key, _| key }.to_h
+      end
+
+      def default_classification(operation, identifier)
+        { operation: identifier, effects: operation.effects, risk: operation.risk, confidence: :certain }
       end
     end
   end

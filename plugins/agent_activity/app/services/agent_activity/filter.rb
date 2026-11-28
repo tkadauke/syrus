@@ -5,14 +5,14 @@ module AgentActivity
   # AR relation (Run), so this can go straight through the normal
   # Filters::Compiler instead of hand-parsing a fixed field set.
   class Filter
-    include Filters::BaseFilter
+    include Syrus::Host::Filters::BaseFilter
 
     def self.from_params(params, smart_folder: nil, user: nil)
-      q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+      q_tree = Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME])
       folder_tree = smart_folder&.filter.presence
 
       tree = [ folder_tree, q_tree ].compact.reduce { |acc, next_tree| merge_and(acc, next_tree) }
-      tree ||= Filters::Ast.serialize(Filters::Ast::EMPTY)
+      tree ||= Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY)
 
       new(tree, user: user)
     end
@@ -22,20 +22,20 @@ module AgentActivity
     end
 
     def self.schema
-      Filters::Schema.for(subject: :agent_activity, smart_folder_subject: AgentActivity::SmartFolders::SUBJECT)
+      Syrus::Host::Filters::Schema.for(subject: :agent_activity, smart_folder_subject: AgentActivity::SmartFolders::SUBJECT)
     end
 
     def initialize(tree, user: nil)
-      @ast = Filters::Ast.parse(tree)
+      @ast = Syrus::Host::Filters::Ast.parse(tree)
       @user = user
     end
 
     def apply(scope)
-      Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :agent_activity)
+      Syrus::Host::Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :agent_activity)
     end
 
     def empty?
-      @ast == Filters::Ast::EMPTY
+      @ast == Syrus::Host::Filters::Ast::EMPTY
     end
   end
 end

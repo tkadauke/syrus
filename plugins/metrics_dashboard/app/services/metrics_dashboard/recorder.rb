@@ -66,17 +66,17 @@ module MetricsDashboard
     # costs its own gauges, not every other sampler's.
     def exposition
       cluster_counters_available = true
-      Syrus::Metrics.samplers.each do |sampler|
+      Syrus::Host::Metrics.samplers.each do |sampler|
         refreshed = sampler.refresh_gauges!
-        cluster_counters_available = false if sampler == Metrics::ClusterCounterSampler && !refreshed
+        cluster_counters_available = false if sampler == Syrus::Host::ClusterCounterSampler && !refreshed
       rescue StandardError => e
-        cluster_counters_available = false if sampler == Metrics::ClusterCounterSampler
+        cluster_counters_available = false if sampler == Syrus::Host::ClusterCounterSampler
         Rails.logger.warn("[MetricsDashboard::Recorder] could not refresh #{sampler}: #{e.class}: #{e.message}")
       end
-      rendered = Syrus::Metrics.render
+      rendered = Syrus::Host::Metrics.render
       return rendered if cluster_counters_available
 
-      cluster_names = Syrus::Metrics.definitions.select(&:cluster).map { |definition| definition.name.to_s }
+      cluster_names = Syrus::Host::Metrics.definitions.select(&:cluster).map { |definition| definition.name.to_s }
       rendered.lines.reject do |line|
         cluster_names.any? { |name| line.match?(/\A(?:# (?:HELP|TYPE) )?#{Regexp.escape(name)}(?:\{| |$)/) }
       end.join

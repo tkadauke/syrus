@@ -13,7 +13,7 @@ module Mockups
     MAX_FILE_BYTES = 2.megabytes
 
     def initialize(chat_session, panel_id)
-      @root = ChatWorkspace.path_for(chat_session).join("previews", panel_id.to_s).cleanpath
+      @root = Syrus::Host::ChatWorkspace.path_for(chat_session).join("previews", panel_id.to_s).cleanpath
     end
 
     attr_reader :root
@@ -22,10 +22,10 @@ module Mockups
     # blank, empty after cleaning, or that escapes root (absolute paths,
     # "../" traversal, or any existing symlink component).
     def resolve(relative_path)
-      path = Syrus::PathJail.resolve!(root, relative_path)
+      path = Syrus::Host::PathJail.resolve!(root, relative_path)
       reject_symlink_components!(path)
       path
-    rescue Syrus::PathJail::PathEscape => e
+    rescue Syrus::Host::PathJailEscape => e
       case e.reason
       when :blank
         raise InvalidPath, "path is required"

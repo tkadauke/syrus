@@ -36,6 +36,11 @@ module Api
           end
           model = params[:model].to_s.strip.presence
           effort_level = params[:effort_level].to_s.strip.presence
+          question_eagerness = params[:question_eagerness].to_s.strip.presence
+          unless question_eagerness.nil? || QuestionEagerness::Base::LEVELS.include?(question_eagerness)
+            render_error("validation_failed", I18n.t("api.direct_jobs.invalid_question_eagerness"), status: :unprocessable_content)
+            return
+          end
 
           prompt_text = params[:prompt].to_s.strip
           if prompt_text.blank?
@@ -57,7 +62,7 @@ module Api
           end
 
           planned_execution_attrs = planned_execution_attributes(repository)
-          job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, prompt_text: prompt_text, epic: epic, owner: owner, planned_execution_attrs: planned_execution_attrs)
+          job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, question_eagerness: question_eagerness, prompt_text: prompt_text, epic: epic, owner: owner, planned_execution_attrs: planned_execution_attrs)
           unless job
             render_error("validation_failed", @create_direct_job_error || "Job could not be created.", status: :unprocessable_content)
             return
@@ -98,6 +103,7 @@ module Api
             selected_agent_provider: params[:agent_provider].to_s.presence,
             selected_model: params[:model].to_s.presence,
             selected_effort_level: params[:effort_level].to_s.presence,
+            selected_question_eagerness: params[:question_eagerness].to_s.presence,
             selected_epic_id: epic&.id&.to_s,
             epic: epic ? epic_json(epic) : nil,
             create_more: create_more?,
@@ -160,7 +166,7 @@ module Api
           }
         end
 
-        def create_direct_job(repository:, agent_provider:, model:, effort_level:, prompt_text:, epic: nil, owner: nil, planned_execution_attrs: {})
+        def create_direct_job(repository:, agent_provider:, model:, effort_level:, question_eagerness:, prompt_text:, epic: nil, owner: nil, planned_execution_attrs: {})
           title = params[:title].to_s.strip.presence
           priority = params[:priority].to_s.presence
           priority = "medium" unless Job::PRIORITIES.include?(priority)
@@ -174,6 +180,7 @@ module Api
             agent_provider: agent_provider,
             model: agent_provider.present? ? model : nil,
             effort_level: agent_provider.present? ? effort_level : nil,
+            question_eagerness: question_eagerness,
             epic: epic,
             owner: owner,
             target_branch: target_branch,

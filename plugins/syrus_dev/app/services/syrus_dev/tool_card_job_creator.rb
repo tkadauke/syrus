@@ -38,7 +38,7 @@ module SyrusDev
       attachment, screenshot_error = normalize_screenshot(screenshot)
       return failure(screenshot_error) if screenshot_error
 
-      result = ::DirectJobs::Creator.new(user: user).call(
+      result = Syrus::Host::DirectJobCreator.new(user: user).call(
         repository: repository,
         prompt_text: prompt_text,
         attachments: attachment ? [ attachment ] : []
@@ -58,7 +58,7 @@ module SyrusDev
     end
 
     def target_repository
-      ::BugReports::Router.new(user: user).target_repository
+      Syrus::Host::BugReportRouter.new(user: user).target_repository
     end
 
     def normalize_screenshot(screenshot)
@@ -72,7 +72,7 @@ module SyrusDev
       return [ nil, "Screenshot must be a PNG." ] unless ALLOWED_SCREENSHOT_MIME_TYPES.include?(mime_type)
       return [ nil, "Screenshot data is missing." ] if data.blank?
 
-      attachment = ::DirectJobs::Creator::Attachment.new(
+      attachment = Syrus::Host::DirectJobCreator::Attachment.new(
         source_url: "tool-card-catalog://#{SecureRandom.uuid}",
         filename: name,
         content_type: mime_type,

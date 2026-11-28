@@ -8,7 +8,7 @@ module SpendingInsights
   # the worker's own registry forever. So this follows Metrics::LandingSampler's
   # shape: #sample! runs on the shared control-plane tick (registered via the
   # manifest's `metrics do ... sampler MetricsSampler end` -- see
-  # Syrus::PluginApi::Definition#metrics -- rather than a plugin-owned
+  # Syrus::Host::PluginApi::Definition#metrics -- rather than a plugin-owned
   # tick_interval/on_tick), folding every newly-finished Run's cost into a
   # cumulative cache-mediated total exactly once (a cursor over `finished_at`,
   # set exactly once per Run and never revised), and #refresh_gauges! --
@@ -40,7 +40,7 @@ module SpendingInsights
       totals = read_checkpoint
       return false if totals.blank?
 
-      counter = Syrus::Metrics.counter(:syrus_spending_insights_run_cost_usd_total)
+      counter = Syrus::Host::Metrics.counter(:syrus_spending_insights_run_cost_usd_total)
       Hash(totals["run_cost_usd_total"]).each { |tags, total| counter.reconcile!(total, tags: tags) }
       true
     end
@@ -66,7 +66,7 @@ module SpendingInsights
     end
 
     def finished_runs(after:, through:)
-      Run.terminal
+      Syrus::Host::RunRecord.terminal
          .where(finished_at: after...through)
          .where.not(cost_usd: nil)
          .pluck(:agent_provider, :trigger_kind, :cost_usd)

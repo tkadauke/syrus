@@ -48,6 +48,7 @@ module WorkUnits
 
         Workflow
           .where(id: WorkUnits::Ownership.active_workflow_ids(jobs.map(&:id), kinds: WorkDefinitions.first_class_work_unit_kinds))
+          .where.not(id: Step.where(state: "awaiting_answer").select(:workflow_id))
           .where.not(id: workflow.id)
           .includes(:job)
           .order(:created_at, :id)
@@ -55,10 +56,22 @@ module WorkUnits
             # A blocked workflow pushes nothing until an operator acts, and
             # its unit stays "active" until then. Waiting on it deadlocked a
             # production rebase for days behind an agent-blocked feedback run.
+            # Nor can it wait on work that is itself held behind this rebase:
+            # an epic-wide rebase holds back every member workflow's start, so
+            # a member's CI repair queued behind it would never run, and each
+            # waited on the other forever.
             !candidate.blocked? &&
+              !waiting_on_this_rebase?(candidate, workflow) &&
               !candidate.trigger_kind.in?(RebaseWorkflowSelector::TRIGGER_KINDS) &&
               publication_branch_name(candidate).in?(publication_branches)
           end
+      end
+
+      def waiting_on_this_rebase?(candidate, workflow)
+        start_block = WorkUnits::StartBlock.for(candidate)
+        return false unless start_block.blocked_for?(StepDispatcher::EPIC_WIDE_BLOCK_REASON)
+
+        start_block.explanation[:blocked_details].to_h["blocking_workflow_id"].to_i == workflow.id
       end
 
       def member_jobs(workflow)

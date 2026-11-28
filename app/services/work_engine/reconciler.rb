@@ -1077,15 +1077,7 @@ module WorkEngine
     # summarize Step -- and its publication tail -- a minute after an
     # operator's retry, and the Workflow failed again once grading passed.
     def reopened_since?(step, finished_at)
-      return false if finished_at.blank?
-
-      StateTransition
-        .where(event_name: "reopen", created_at: finished_at..)
-        .where(
-          "(subject_type = 'Workflow' AND subject_id = ?) OR (subject_type = 'Step' AND subject_id = ?)",
-          step.workflow_id, step.id
-        )
-        .exists?
+      StateTransition.step_reopened_since?(step, finished_at)
     end
 
     def classify_succeeded_review_steps_without_required_repair
@@ -2012,9 +2004,9 @@ module WorkEngine
         latest = latest_workflow_for_job(job)
         next if job.failed? && latest&.queued? && ReconcileJobStatesJob::Plan.for(job)
         next if job.failed? && active_repair_workflows?(active)
-        # A non-approval-blocking follow-up leaves an implemented Job
+        # An implemented-state-compatible follow-up leaves an implemented Job
         # implemented on purpose (JobLifecyclePropagation.lifts_job_on_start?).
-        next if job.implemented? && active.all? { |workflow| Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind) }
+        next if job.implemented? && active.all? { |workflow| Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind) }
         next if active.all? { |workflow| expected_start_blocked_workflow?(job, workflow) }
 
         issue(
@@ -4009,7 +4001,7 @@ module WorkEngine
     # auxiliary kinds). That lock is the hold, not a leak; the
     # stale_agent_blocked_workflow issue is what asks for the operator.
     def blocked_workflow_holds_its_job?(workflow)
-      workflow.blocked? && !Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+      workflow.blocked? && !Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
     end
 
     def serialization_block_reason?(reason)

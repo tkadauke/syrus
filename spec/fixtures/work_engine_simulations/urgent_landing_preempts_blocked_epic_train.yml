@@ -92,5 +92,8 @@ expect:
     - urgent_blocked_landing_slot
   events_ordered:
     - "auto_merge for Unrelated urgent fix"
-    - "merge_train for Feature tip"
+    # The blocked train resumes either from the landing queue or from its
+    # scheduled phase admission, whichever comes first once the urgent
+    # landing frees the slot.
+    - merge_train_build
     - merge_train_land

@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Removes what bin/install-macos-worker installed, so a host can be wiped and
+# restored from the installer alone. By default it keeps what the installer
+# cannot recreate -- the env file with its credentials, the release signing
+# public key -- along with the worker's data, logs, and service account, so
+# rerunning the installer brings back the same worker. Never touches Homebrew.
+
+ENV_FILE="/etc/syrus/worker.env"
+UPDATE_PUBLIC_KEY="/etc/syrus/macos-worker-update-public.pem"
+INSTALL_ROOT="/opt/syrus"
+DATA_ROOT="/var/lib/syrus"
+LOG_ROOT="/var/log/syrus"
+LIBEXEC_ROOT="/usr/local/libexec/syrus"
+LAUNCHD_DIR="/Library/LaunchDaemons"
+SERVICE_USER="syrus-worker"
+SERVICE_GROUP="syrus-worker"
+REMOVE_DATA=0
+REMOVE_ACCOUNT=0
+REMOVE_CONFIG=0
+FORCE=0
+DRY_RUN=0
+# Services the installer manages, plus tunnels earlier setups created by hand.
+SERVICE_LABELS=(worker updater mysql-tunnel minio-tunnel)
+
+usage() {
+  cat <<'USAGE'
+Usage: sudo bin/uninstall-macos-worker [options]
+
+Stops and removes the native macOS Syrus worker: its launchd services, the
+releases and pinned toolchain under /opt/syrus, and the privileged updater.
+Keeps the env file, the update public key, worker data, logs, and the
+service account unless asked to remove them, so bin/install-macos-worker
+restores the same worker. Never touches Homebrew.
+
+Options:
+  --remove-data       Also delete worker data (/var/lib/syrus) and logs
+  --remove-account    Also delete the syrus-worker account and group
+  --remove-config     Also delete /etc/syrus (credentials, update public key)
+  --all               All three: leave nothing of the worker behind
+  --force             Kill the worker instead of letting in-flight runs drain
+                      (draining can take up to an hour)
+  --install-root PATH Release root (default: /opt/syrus)
+  --data-root PATH    Worker data (default: /var/lib/syrus)
+  --service-user NAME launchd worker user (default: syrus-worker)
+  --dry-run           Print what would be removed without removing it
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --remove-data) REMOVE_DATA=1; shift ;;
+    --remove-account) REMOVE_ACCOUNT=1; shift ;;
+    --remove-config) REMOVE_CONFIG=1; shift ;;
+    --all) REMOVE_DATA=1; REMOVE_ACCOUNT=1; REMOVE_CONFIG=1; shift ;;
+    --force) FORCE=1; shift ;;
+    --install-root) INSTALL_ROOT="${2:?--install-root requires a path}"; shift 2 ;;
+    --data-root) DATA_ROOT="${2:?--data-root requires a path}"; shift 2 ;;
+    --service-user) SERVICE_USER="${2:?--service-user requires a name}"; SERVICE_GROUP="$SERVICE_USER"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "uninstall-macos-worker: unknown argument $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+say() { printf '==> %s\n' "$*"; }
+run() {
+  printf '+ '
+  printf '%q ' "$@"
+  printf '\n'
+  [[ "$DRY_RUN" == "1" ]] || "$@"
+}
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "uninstall-macos-worker: this uninstaller requires macOS" >&2
+  exit 1
+fi
+if [[ "$EUID" -ne 0 && "$DRY_RUN" != "1" ]]; then
+  echo "uninstall-macos-worker: run with sudo" >&2
+  exit 1
+fi
+
+# rm -rf on a configurable path: refuse anything that is not an absolute,
+# Syrus-specific directory.
+safe_root() {
+  local path="$1"
+  case "$path" in
+    ""|/|/opt|/var|/var/lib|/var/log|/usr|/usr/local|/usr/local/libexec|/etc|/Users|/Library|/System|/Applications)
+      return 1 ;;
+  esac
+  [[ "$path" == /* && "$path" != *..* ]]
+}
+for path in "$INSTALL_ROOT" "$DATA_ROOT" "$LOG_ROOT" "$LIBEXEC_ROOT"; do
+  if ! safe_root "$path"; then
+    echo "uninstall-macos-worker: refusing to remove $path" >&2
+    exit 2
+  fi
+done
+
+say "Stopping the worker services"
+if [[ "$FORCE" == "1" ]] && launchctl print system/com.syrus.worker >/dev/null 2>&1; then
+  run launchctl kill SIGKILL system/com.syrus.worker
+fi
+for label in "${SERVICE_LABELS[@]}"; do
+  plist="$LAUNCHD_DIR/com.syrus.$label.plist"
+  if launchctl print "system/com.syrus.$label" >/dev/null 2>&1; then
+    # Waits for the worker to drain in-flight runs (its launchd ExitTimeOut)
+    # unless --force killed it above.
+    run launchctl bootout "system/com.syrus.$label" || true
+  fi
+  if [[ -e "$plist" ]]; then
+    run rm -f "$plist"
+  fi
+done
+
+say "Removing releases, the pinned toolchain, and the updater"
+run rm -rf "$INSTALL_ROOT" "$LIBEXEC_ROOT"
+
+if [[ "$REMOVE_DATA" == "1" ]]; then
+  say "Removing worker data and logs"
+  run rm -rf "$DATA_ROOT" "$LOG_ROOT"
+fi
+
+if [[ "$REMOVE_ACCOUNT" == "1" ]]; then
+  say "Removing the $SERVICE_USER account"
+  if dscl . -read "/Users/$SERVICE_USER" >/dev/null 2>&1; then
+    run dscl . -delete "/Users/$SERVICE_USER"
+  fi
+  if dscl . -read "/Groups/$SERVICE_GROUP" >/dev/null 2>&1; then
+    run dscl . -delete "/Groups/$SERVICE_GROUP"
+  fi
+fi
+
+if [[ "$REMOVE_CONFIG" == "1" ]]; then
+  say "Removing the env file and the update public key"
+  # tunnel.kubeconfig is the credential the retired port-forward tunnels used.
+  run rm -f "$ENV_FILE" "$UPDATE_PUBLIC_KEY" "$(dirname "$ENV_FILE")/tunnel.kubeconfig"
+  if [[ -d "$(dirname "$ENV_FILE")" ]] && [[ -z "$(ls -A "$(dirname "$ENV_FILE")")" ]]; then
+    run rmdir "$(dirname "$ENV_FILE")"
+  fi
+fi
+
+say "macOS worker removed"
+kept=()
+[[ "$REMOVE_CONFIG" == "1" ]] || kept+=("$ENV_FILE" "$UPDATE_PUBLIC_KEY")
+[[ "$REMOVE_DATA" == "1" ]] || kept+=("$DATA_ROOT" "$LOG_ROOT")
+[[ "$REMOVE_ACCOUNT" == "1" ]] || kept+=("the $SERVICE_USER account")
+if [[ ${#kept[@]} -gt 0 ]]; then
+  printf 'Kept: %s\n' "${kept[*]}"
+  echo "Reinstall with: sudo bin/install-macos-worker --env-file $ENV_FILE"
+fi

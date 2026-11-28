@@ -2,7 +2,7 @@
 
 Browser gives workflow agents (`visual_review`) and Coding Mode chats
 (RuntimeSessions) a constrained, headless Playwright browser: navigate,
-click, fill, hover, drag/drop, upload, evaluate JS, snapshot, screenshot,
+click, fill, hover, keyboard, drag/drop, upload, evaluate JS, snapshot, screenshot,
 resize, emulate, wait, close, and provider-neutral Runtime input from the operator
 panel. Navigation is hard-restricted to loopback URLs (see
 `LoopbackGuard`) -- the browser can only drive a session's own in-step
@@ -27,6 +27,14 @@ planning, or coworker) gets
 its own `Session`, wrapping one `MCP::Client` connection reused across every
 tool call so a multi-step flow sees the same page Playwright left it in
 (`SessionRegistry`, keyed by `SessionContext#session_key`).
+
+`runtime_input` is a deprecated compatibility adapter, not a second browser
+input engine. It delegates target-based click, fill, hover, keyboard, drag,
+drop, and upload events to these same Playwright-backed tools and recognizes
+the same Runtime Control Lease. Stable refs come from semantic inspection.
+Text entry consequently uses Playwright's native input behavior for text,
+email, password, textarea, contenteditable, and framework-controlled fields.
+Coordinate-only synthetic DOM dispatch is intentionally unsupported.
 
 **Protocol: streamable HTTP MCP, spoken by the same binary.** `@playwright/mcp`
 already ships two transports for the identical tool surface: stdio (the

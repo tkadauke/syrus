@@ -104,10 +104,12 @@ module WorkEngine
         success_states: {},
         wait_states: {},
         auto_retry_failed_jobs: true,
+        phase_admission_jobs: true,
         global_reconcile: false,
         max_ticks: DEFAULT_MAX_TICKS,
         ignored_reconciler_issue_kinds: DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS,
-        tick_observer: nil
+        tick_observer: nil,
+        invariant_assertions: nil
       )
         @job_ids = Array(job_ids).map(&:to_i)
         @work_intent_ids = Array(work_intent_ids).map(&:to_i)
@@ -119,6 +121,8 @@ module WorkEngine
         @success_states = success_states.to_h
         @wait_states = wait_states.to_h
         @auto_retry_failed_jobs = auto_retry_failed_jobs
+        @phase_admission_jobs = phase_admission_jobs
+        @pending_phase_admissions = []
         @global_reconcile = global_reconcile
         @max_ticks = max_ticks.to_i.positive? ? max_ticks.to_i : DEFAULT_MAX_TICKS
         @ignored_reconciler_issue_kinds = Array(ignored_reconciler_issue_kinds).map(&:to_s)
@@ -126,16 +130,30 @@ module WorkEngine
         # reconciler acts. The Lean oracle conformance spec compares the two
         # reconcilers on every intermediate world through it (DOC-44 Phase 2).
         @tick_observer = tick_observer
+        # An InvariantAssertions (or nil): evaluated at the end of every tick,
+        # after the engine acted, and once more when the scenario ends.
+        @invariant_assertions = invariant_assertions
+        @outcome_overrides = []
+        @current_tick = 0
         @events = []
         @run_attempts = Hash.new(0)
         @worker_index = 0
       end
 
       def call
+        with_lock_order_recording { run_ticks }
+      end
+
+      def run_ticks
         with_simulated_repository_revisions do
           with_simulated_workspaces do
             with_stubbed_judgment_runner do
+              register_runtime_fleet!
+              seed_worker_environments!
+              @mergeability_poll_cursor = enqueued_job_backlog
+              @phase_admission_cursor = enqueued_job_backlog
               max_ticks.times do |tick|
+                @current_tick = tick
                 before = fingerprint
                 apply_scenario_events!(tick)
                 @tick_observer&.call(tick)
@@ -144,20 +162,25 @@ module WorkEngine
                 retry_failed_jobs!(tick)
                 wake_jobs!(tick)
                 process_landing_queue!(tick)
+                answer_mergeability_polls!(tick)
                 execute_active_runs!(tick)
+                run_due_phase_admissions!(tick)
+                if (failures = observe_invariants!(tick)).present?
+                  return violated(tick + 1, failures)
+                end
                 next if retryable_failed_jobs?
-                return success(tick + 1) if complete?
-                return waiting(tick + 1) if no_active_runs? && valid_waiting?
+                return finish(success(tick + 1), quiescent: false) if complete?
+                return finish(waiting(tick + 1), quiescent: true) if no_active_runs? && valid_waiting?
 
                 after = fingerprint
-                if after == before && no_active_runs?
-                  return stuck(tick + 1, "no state changed")
+                if after == before && no_active_runs? && !pending_scheduled_events?
+                  return finish(stuck(tick + 1, "no state changed"), quiescent: true)
                 end
               end
 
-              return waiting(max_ticks) if valid_waiting? && no_active_runs?
+              return finish(waiting(max_ticks), quiescent: true) if valid_waiting? && no_active_runs?
 
-              stuck(max_ticks, "max ticks exhausted")
+              finish(stuck(max_ticks, "max ticks exhausted"), quiescent: false)
             end
           end
         end
@@ -232,9 +255,26 @@ module WorkEngine
           next if event["__fired"] && event.fetch("once", true)
           next unless condition_matches?(event["when"])
 
-          apply_scenario_action!(tick, event)
+          apply_injected_action!(tick, event)
           event["__fired"] = true
         end
+      end
+
+      # A fuzzer-injected event (`fuzz:` set) lands at a random tick, where
+      # its fixture-level preconditions may not hold -- storage loss for a
+      # workflow the simulation never gave a workspace, say. Such an event is
+      # recorded as inapplicable rather than aborting the scenario. Scripted
+      # events still raise: their preconditions are the fixture's to keep.
+      # The action is deliberately not wrapped in a transaction of its own:
+      # production calls these services outside one, and a wrapper would make
+      # every row they write a lock held across the whole action, which the
+      # row-lock order checker rightly rejects.
+      def apply_injected_action!(tick, event)
+        apply_scenario_action!(tick, event)
+      rescue StandardError => e
+        raise if event["fuzz"].blank?
+
+        events << "tick #{tick}: fuzz event #{event["name"]} inapplicable: #{e.class}: #{e.message.to_s.truncate(200)}"
       end
 
       def condition_matches?(condition)
@@ -253,8 +293,36 @@ module WorkEngine
           when "workflow" then workflow_condition_matches?(value)
           when "work_unit" then work_unit_condition_matches?(value)
           when "queue" then queue_condition_matches?(value)
+          when "tick" then tick_condition_matches?(value)
           else raise ArgumentError, "unknown simulation event condition #{key.inspect}"
           end
+        end
+      end
+
+      # `tick: 7` fires on exactly tick 7; `tick: { at_least: 7 }` (usually
+      # with `once: true`) on the first tick from 7 on. The fuzzer schedules
+      # its perturbations this way.
+      def tick_condition_matches?(condition)
+        return @current_tick == condition.to_i unless condition.is_a?(Hash)
+
+        at_least = condition["at_least"] || condition[:at_least]
+        at_most = condition["at_most"] || condition[:at_most]
+        (at_least.nil? || @current_tick >= at_least.to_i) && (at_most.nil? || @current_tick <= at_most.to_i)
+      end
+
+      # An unfired event scheduled purely by tick for a later tick. A world
+      # that has gone quiet is not stuck yet while one is still due: the
+      # event is the external actor the scenario said would come.
+      def pending_scheduled_events?
+        scenario_events.any? do |event|
+          next false if event["__fired"]
+
+          condition = event["when"].to_h
+          next false unless condition.keys.map(&:to_s) == [ "tick" ]
+
+          value = condition.values.first
+          due = value.is_a?(Hash) ? (value["at_least"] || value[:at_least]).to_i : value.to_i
+          due > @current_tick
         end
       end
 
@@ -339,10 +407,15 @@ module WorkEngine
           when "wake_provider_admission" then wake_provider_admission!(value)
           when "resume_deferred_phase" then resume_deferred_phase!(value)
           when "lose_worker" then lose_worker!(value)
+          when "repair_worker_environment" then repair_worker_environment!(value)
           when "lose_storage" then lose_storage!(value)
           when "cycle_queued_run_job" then cycle_queued_run_job!(value)
           when "reroute_host_rejected_run" then reroute_host_rejected_run!(value)
           when "wake" then wake_jobs_event!(tick, value)
+          when "inject_outcome" then inject_outcome!(value)
+          when "pause_work" then pause_work!(value)
+          when "unpause_work" then unpause_work!(value)
+          when "rewrite_stack_parent" then rewrite_stack_parent!(tick, value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
@@ -356,9 +429,81 @@ module WorkEngine
         wake_all_jobs!(only: value == "all" ? nil : value)
       end
 
+      # Overrides the scripted outcome of the next Run of `job` (optionally of
+      # one step kind) to execute: a worker dying under it (`worker_died`), a
+      # transient failure (`{ status: failure, failure_code: timeout }`), and
+      # so on. Takes `{ job:, step:, outcome:, count: }`; `count` defaults to
+      # one Run.
+      def inject_outcome!(value)
+        attrs = value.to_h
+        @outcome_overrides << {
+          "job_id" => attrs.fetch("job").to_i,
+          "step" => attrs["step"].presence&.to_s,
+          "outcome" => attrs.fetch("outcome"),
+          "remaining" => attrs.fetch("count", 1).to_i
+        }
+        events << "armed outcome #{outcome_label(attrs.fetch("outcome"))} for the next #{attrs["step"].presence || "run"} of job #{attrs.fetch("job")}"
+      end
+
+      # The operator's pause and unpause (JobManualPause, the same service the
+      # Job page and the API call).
+      def pause_work!(value)
+        job = Job.find(value.is_a?(Hash) ? value.fetch("job") : value)
+        if !job.open? || job.manual_paused?
+          events << "pause #{job.slug} skipped: #{job.manual_paused? ? "already paused" : job.state}"
+          return
+        end
+
+        JobManualPause.pause!(job, by_user: job.user)
+        events << "operator paused #{job.slug}"
+      end
+
+      def unpause_work!(value)
+        job = Job.find(value.is_a?(Hash) ? value.fetch("job") : value)
+        unless job.manual_paused?
+          events << "unpause #{job.slug} skipped: not paused"
+          return
+        end
+
+        JobManualPause.unpause!(job)
+        events << "operator unpaused #{job.slug}"
+      end
+
+      # A stacked child's parent branch is rewritten (rebased and
+      # force-pushed) while the child works. The parent's recorded head moves,
+      # and the child's next publication meets the StackBaseFreshness barrier
+      # the real pr_open step runs: the parent did not hold still, so it
+      # fails with awaiting_stable_base. Takes the child's fixture key.
+      def rewrite_stack_parent!(tick, value)
+        child = Job.find(value.is_a?(Hash) ? value.fetch("job") : value)
+        parent = child.parent_job
+        unless parent
+          events << "rewrite stack parent of #{child.slug} skipped: no parent"
+          return
+        end
+
+        parent.update_columns(mergeability_head_sha: simulated_sha_for("rewritten-#{tick}", parent.id), updated_at: Time.current)
+        @outcome_overrides << {
+          "job_id" => child.id,
+          "step" => "pr_open",
+          "outcome" => {
+            "status" => "failure",
+            "failure_code" => "awaiting_stable_base",
+            "error_message" => "stack parent #{parent.branch_name} moved during publication"
+          },
+          "remaining" => 1
+        }
+        events << "rewrote stack parent #{parent.slug} under #{child.slug}"
+      end
+
       def approve_job!(job_id)
         job = Job.find(job_id)
-        job.approve!(via: "operator") if job.may_approve?
+        # An approval the Job's state refuses is no operator action at all:
+        # saving anyway would touch the Job and reset the stall clocks the
+        # reconciler reads, which no real refused click does.
+        return unless job.may_approve?
+
+        job.approve!(via: "operator")
         job.save!
       end
 
@@ -380,7 +525,9 @@ module WorkEngine
 
       def fail_job!(job_id)
         job = Job.find(job_id)
-        job.force_fail! if job.may_force_fail?
+        return unless job.may_force_fail?
+
+        job.force_fail!
         job.save!
       end
 
@@ -438,6 +585,10 @@ module WorkEngine
         attrs = value.is_a?(Hash) ? value : { "job" => value }
         job = Job.find(attrs.fetch("job"))
         workflow = job.workflows.order(:id).last
+        unless workflow
+          events << "deferred phase resume for #{job.slug}: no workflow"
+          return
+        end
         step = if attrs["step"].present?
           workflow.steps.find_by!(kind: attrs.fetch("step").to_s)
         end
@@ -596,6 +747,54 @@ module WorkEngine
         repository.update!(grader_health: "healthy", ci_health: "healthy", landing_paused: false)
         resumed = resume_blocked_workflows!("main_branch_health")
         events << "healed main branch health, #{resumed} deferred phases resumed"
+      end
+
+      # `runtime.worker_environment` seeds live workers with an environment
+      # smoke report (WorkerEnvironmentSmoke) before the first tick, so the
+      # real RunQueueResolver sees which checks each worker fails:
+      #
+      #   runtime:
+      #     worker_environment:
+      #       simulation-worker:
+      #         failed: [mysql_client]
+      def seed_worker_environments!
+        runtime.fetch("worker_environment", {}).to_h.each do |hostname, config|
+          hostname = hostname.to_s
+          ensure_worker_live!(hostname, worker_storage_key_for(hostname, nil))
+          record_worker_environment!(hostname, Array(config.to_h["failed"]).map(&:to_s))
+        end
+      end
+
+      # The operator fixing a worker's toolchain: its next smoke report passes.
+      # Takes a hostname or `{ hostname: }`.
+      # The repaired report passes every check the worker was known to fail --
+      # its own earlier smoke failures and what failed installs found missing
+      # there (WorkerEnvironmentGap) -- which is how a real smoke report clears
+      # both.
+      def repair_worker_environment!(value)
+        hostname = (value.is_a?(Hash) ? value.fetch("hostname") : value).to_s
+        previously_failed = InstanceVersion.where(hostname: hostname, role: "worker").flat_map do |instance|
+          WorkerEnvironmentSmoke.failed_checks(instance.capability_diagnostics.to_h[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY])
+        end
+        gap_checks = WorkerEnvironmentGap.uncleared.where(hostname: hostname).map(&:check_name)
+        record_worker_environment!(hostname, [], passed: previously_failed | gap_checks)
+        events << "repaired worker environment on #{hostname}"
+      end
+
+      def record_worker_environment!(hostname, failed, passed: [])
+        checks = passed.to_h { |name| [ name, { "status" => WorkerEnvironmentSmoke::PASSED, "essential" => false } ] }
+          .merge(failed.to_h { |name| [ name, { "status" => WorkerEnvironmentSmoke::FAILED, "reason" => "simulated #{name} failure", "essential" => false } ] })
+        report = {
+          "version" => WorkerEnvironmentSmoke::REPORT_VERSION,
+          "status" => failed.empty? ? WorkerEnvironmentSmoke::PASSED : WorkerEnvironmentSmoke::DEGRADED,
+          "observed_at" => Time.current.utc.iso8601(6),
+          "failed" => failed.sort,
+          "checks" => checks
+        }
+        InstanceVersion.where(hostname: hostname, role: "worker").find_each do |instance|
+          diagnostics = instance.capability_diagnostics.is_a?(Hash) ? instance.capability_diagnostics : {}
+          instance.update!(capability_diagnostics: diagnostics.merge(WorkerEnvironmentSmoke::DIAGNOSTIC_KEY => report))
+        end
       end
 
       def lose_worker!(value)
@@ -902,6 +1101,98 @@ module WorkEngine
         events << "tick #{tick}: landing_queue active lock #{e.lock_key}"
       end
 
+      # The landing queue refuses to land on stale mergeability evidence and
+      # enqueues PollMergeStateJob instead, which in production re-reads the
+      # PR from GitHub within seconds and wakes the queue. There are no queue
+      # workers here, so without a stand-in a Job whose evidence went stale
+      # (or was never recorded, as for a seeded mid-landing Job that falls
+      # back to approved) waits forever on a poll that never runs. Answer each
+      # poll enqueued for a scenario Job with GitHub's reply as the injected
+      # fact: the PR is cleanly mergeable at its recorded head.
+      # A blocked start (an Epic sibling's turn, a gate) or a provider
+      # backoff schedules a WorkflowPhaseAdmissionJob to look again later.
+      # There are no queue workers here, so the runner performs the scheduled
+      # admissions itself once the world is quiet -- the backoff has elapsed
+      # when nothing else is moving. Without this, a transient failure the
+      # dispatcher deferred never resumes. Scenarios that model the wake
+      # explicitly with `resume_deferred_phase` events can opt out with
+      # `runner: { phase_admission_jobs: false }`.
+      def run_due_phase_admissions!(tick)
+        return unless @phase_admission_jobs
+
+        adapter = ActiveJob::Base.queue_adapter
+        if adapter.respond_to?(:enqueued_jobs)
+          fresh = adapter.enqueued_jobs.drop(@phase_admission_cursor)
+          @phase_admission_cursor = adapter.enqueued_jobs.size
+          fresh.each do |entry|
+            next unless entry[:job] == WorkflowPhaseAdmissionJob
+
+            args = Array(entry[:args]).first(2)
+            @pending_phase_admissions << args unless @pending_phase_admissions.include?(args)
+          end
+        end
+        return if @pending_phase_admissions.empty? || !no_active_runs?
+
+        scenario_workflow_ids = Workflow.where(job_id: job_ids).pluck(:id).to_set
+        due = @pending_phase_admissions.select { |workflow_id, _| scenario_workflow_ids.include?(workflow_id.to_i) }
+        @pending_phase_admissions -= due
+        # An admission that already ran against this exact world state (only
+        # timestamps differ) would decide the same again: production would
+        # keep polling a gate that waits on something outside the scenario,
+        # such as a main-branch health check. Running it once per state keeps
+        # that wait from looking like progress, so the world can go quiet.
+        state = state_fingerprint
+        @phase_admission_states ||= {}
+        unchanged, due = due.partition { |args| @phase_admission_states[args.compact] == state }
+        @pending_phase_admissions.concat(unchanged)
+        due.each do |workflow_id, step_id|
+          @phase_admission_states[[ workflow_id, step_id ].compact] = state
+          fast_forward_step_retry_not_before!(step_id)
+          WorkflowPhaseAdmissionJob.new.perform(*[ workflow_id, step_id ].compact)
+          events << "tick #{tick}: phase admission ran for workflow #{workflow_id}"
+        end
+      end
+
+      # Simulated time does not pass, so a Step reopened behind a provider
+      # backoff (`retry_not_before`) would never become due. The world is
+      # quiet when admissions run, which is when the wait would elapse in
+      # production; move the not-before to now, as auto-retry attempts are
+      # fast-forwarded.
+      def fast_forward_step_retry_not_before!(step_id)
+        step = Step.find_by(id: step_id)
+        return unless step
+
+        not_before = step.details.to_h[StepDispatcher::RETRY_NOT_BEFORE_DETAIL]
+        return if not_before.blank? || Time.zone.parse(not_before.to_s) <= Time.current
+
+        step.update!(details: step.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => Time.current.iso8601))
+      end
+
+      def enqueued_job_backlog
+        adapter = ActiveJob::Base.queue_adapter
+        adapter.respond_to?(:enqueued_jobs) ? adapter.enqueued_jobs.size : 0
+      end
+
+      def answer_mergeability_polls!(tick)
+        adapter = ActiveJob::Base.queue_adapter
+        return unless adapter.respond_to?(:enqueued_jobs)
+
+        fresh = adapter.enqueued_jobs.drop(@mergeability_poll_cursor)
+        @mergeability_poll_cursor = adapter.enqueued_jobs.size
+        polled_ids = fresh.filter_map { |entry| Array(entry[:args]).first.to_i if entry[:job] == PollMergeStateJob } & job_ids
+        Job.where(id: polled_ids.uniq).find_each do |job|
+          job.update_columns(
+            mergeability_checked_at: Time.current,
+            github_mergeable: true,
+            github_mergeable_state: "clean",
+            pr_mergeable: true,
+            pr_mergeable_checked_at: Time.current,
+            updated_at: Time.current
+          )
+          events << "tick #{tick}: mergeability poll answered clean for #{job.slug}"
+        end
+      end
+
       def retry_failed_jobs!(tick)
         return unless auto_retry_failed_jobs?
 
@@ -967,7 +1258,9 @@ module WorkEngine
             fail_run!(run, agent_outcome: "error",
                            failure_code: simulated_failure_code(outcome),
                            error_message: simulated_outcome_field(outcome, "error_message"),
-                           error_class: simulated_outcome_field(outcome, "error_class"))
+                           error_class: simulated_outcome_field(outcome, "error_class"),
+                           problem_code: simulated_outcome_field(outcome, "problem_code"),
+                           problem_evidence: simulated_outcome_field(outcome, "problem_evidence"))
           else
             finish_simulated_processes!(run, "succeeded")
             succeed_run_and_step!(run)
@@ -984,7 +1277,9 @@ module WorkEngine
           fail_run!(run, agent_outcome: "error",
                          failure_code: simulated_failure_code(outcome),
                          error_message: simulated_outcome_field(outcome, "error_message"),
-                         error_class: simulated_outcome_field(outcome, "error_class"))
+                         error_class: simulated_outcome_field(outcome, "error_class"),
+                         problem_code: simulated_outcome_field(outcome, "problem_code"),
+                         problem_evidence: simulated_outcome_field(outcome, "problem_evidence"))
         else
           raise ArgumentError, "unknown simulation outcome #{outcome.inspect} for #{run.slug}"
         end
@@ -1010,12 +1305,14 @@ module WorkEngine
         drain_step_success!(step)
       end
 
-      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil)
+      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil, problem_code: nil,
+                    problem_evidence: nil)
         if failure_code.present?
           stamp_simulated_failure_code!(run, failure_code)
         end
-        if error_message.present? || error_class.present?
-          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message)
+        if error_message.present? || error_class.present? || problem_code.present?
+          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message,
+                                            problem_code: problem_code, problem_evidence: problem_evidence)
         end
         run.agent_outcome = agent_outcome
         run.fail!
@@ -1026,12 +1323,16 @@ module WorkEngine
       # Gives the failed run the diagnostic a real handler would have
       # captured, so reason-text matching downstream (transient blockers,
       # quota resets, failure_reason_for) reads the injected fact instead
-      # of a generic message.
-      def record_simulated_diagnostic!(run, error_class:, error_message:)
+      # of a generic message. `problem_code` is the Problem the real handler
+      # would have declared (Steps::Base#fail_with!), which the run
+      # classifiers read before any of that text.
+      def record_simulated_diagnostic!(run, error_class:, error_message:, problem_code: nil, problem_evidence: nil)
         RunDiagnostic.create!(
           run: run,
           error_class: error_class.presence || "Steps::Base::StepFailed",
-          error_message: error_message.presence || "simulated failure"
+          error_message: error_message.presence || "simulated failure",
+          problem_code: problem_code.presence,
+          problem_evidence: problem_evidence.presence&.to_h
         )
       end
 
@@ -1075,6 +1376,18 @@ module WorkEngine
       def drain_run_failure!(run)
         step = run.step&.reload
         return unless step
+        # Run#fail! already propagates on commit (Runs::LifecyclePropagation
+        # fails the Step and dispatches). When that dispatch reopened the Step
+        # -- the provider-transient backoff, an infrastructure rerun -- failing
+        # it a second time here undid the reopen and then hard-failed the
+        # Workflow production keeps running, so every transient failure the
+        # simulator injected looked fatal. Only a Step propagation left alone
+        # is still drained here.
+        return if step.queued? || step.succeeded? || step.skipped?
+        # Runs::LifecyclePropagation already scheduled an in-place retry of
+        # this step and deliberately left it unfailed; failing it here would
+        # model a cascade production never performs.
+        return if in_place_step_retry_scheduled?(run)
 
         unless step.failed?
           step.fail!
@@ -1086,6 +1399,14 @@ module WorkEngine
         elsif step.workflow.reload.may_fail?
           StepDispatcher.fail_from(step)
         end
+      end
+
+      def in_place_step_retry_scheduled?(run)
+        AutoRetryAttempt.pending.where(
+          run_id: run.id,
+          retry_kind: "failed_step",
+          failure_classification: AutoRetryAttempt::IN_PLACE_STEP_CLASSIFICATIONS
+        ).exists?
       end
 
       def step_fail_policy(step)
@@ -1197,6 +1518,9 @@ module WorkEngine
       end
 
       def outcome_for(run)
+        overridden = take_outcome_override(run)
+        return overridden unless overridden.nil?
+
         step_key = "#{run.job_id}:#{run.step&.kind}"
         named_step_key = "#{step_key}:#{run.step&.details.to_h["name"]}" if run.step&.details.to_h["name"].present?
         named_kind_key = "#{run.step&.kind}:#{run.step&.details.to_h["name"]}" if run.step&.details.to_h["name"].present?
@@ -1205,6 +1529,17 @@ module WorkEngine
           outcomes.fetch("steps", {})[named_kind_key] ||
           outcomes.fetch("steps", {})[run.step&.kind.to_s]
         sequence_outcome(scripted, run) || outcomes.fetch("default", "success")
+      end
+
+      def take_outcome_override(run)
+        override = @outcome_overrides.find do |entry|
+          entry["job_id"] == run.job_id && (entry["step"].nil? || entry["step"] == run.step&.kind.to_s)
+        end
+        return nil unless override
+
+        override["remaining"] -= 1
+        @outcome_overrides.delete(override) unless override["remaining"].positive?
+        override["outcome"]
       end
 
       def sequence_outcome(scripted, run)
@@ -1275,10 +1610,25 @@ module WorkEngine
       end
 
       def worker_hostname_for(run, outcome)
-        simulated_outcome_field(outcome, "worker").presence ||
+        hostname = simulated_outcome_field(outcome, "worker").presence ||
           simulated_outcome_field(outcome, "hostname").presence ||
           runtime.fetch("step_workers", {})[run_worker_key(run)].presence ||
           next_worker_hostname
+        avoid_unprovisioned_worker(run, hostname)
+      end
+
+      # A worker recorded as missing a dependency this Run's install needs
+      # hands the Run back (RunJob#hand_back_incapable_run?); the simulated
+      # fleet's next provisioned worker picks it up, as the shared queue would.
+      def avoid_unprovisioned_worker(run, hostname)
+        return hostname unless RunQueueResolver.worker_environment_blocks?(run: run, hostname: hostname)
+
+        workers = Array(runtime["workers"]).map(&:to_s)
+        alternative = workers.find { |worker| !RunQueueResolver.worker_environment_blocks?(run: run, hostname: worker) }
+        return hostname unless alternative
+
+        events << "placement avoided #{run.slug} #{run.step&.kind} on #{hostname} (worker environment missing); ran on #{alternative}"
+        alternative
       end
 
       def worker_storage_key_for(hostname, outcome)
@@ -1296,6 +1646,15 @@ module WorkEngine
         worker = workers[@worker_index % workers.length]
         @worker_index += 1
         worker.to_s
+      end
+
+      # A declared `runtime.workers` fleet exists before any work lands on it,
+      # as a real one does: placement decisions (RunQueueResolver) see every
+      # worker from the first tick, not only the ones a Run already touched.
+      def register_runtime_fleet!
+        Array(runtime["workers"]).map(&:to_s).each do |hostname|
+          ensure_worker_live!(hostname, worker_storage_key_for(hostname, nil))
+        end
       end
 
       def ensure_worker_live!(hostname, storage_key)
@@ -1544,8 +1903,18 @@ module WorkEngine
           .includes(:job, step: :workflow)
           .to_a
           .reject { |run| queued_run_blocked_by_explicit_solid_queue_state?(run) }
+          .reject { |run| queued_run_held_for_worker_environment?(run) }
           .reject { |run| run.running? && terminal_spawned_process_for?(run) }
           .reject { |run| run.running? && stale_simulated_worker_evidence?(run) }
+      end
+
+      # Run#enqueue never hands a Run to SolidQueue while every live worker
+      # lacks what its install needs (it records a no_capable_worker hold
+      # instead), so no worker can pick it up until that changes.
+      def queued_run_held_for_worker_environment?(run)
+        return false unless run.queued?
+
+        RunQueueResolver.resolve(run: run).blocked_reason == RunQueueResolver::ENVIRONMENT_CHECK_BLOCKED_REASON
       end
 
       def queued_run_blocked_by_explicit_solid_queue_state?(run)
@@ -1769,6 +2138,18 @@ module WorkEngine
         @jobs ||= Job.where(id: job_ids).includes(:dependencies, :epic, :repository).order(:id).to_a
       end
 
+      # The fingerprint without update timestamps: what the world is, not
+      # when it was last touched.
+      def state_fingerprint
+        [
+          Job.where(id: job_ids).order(:id).pluck(:id, :state, :pr_number, :branch_name, :manual_paused),
+          Workflow.where(job_id: job_ids).order(:id).pluck(:id, :state),
+          Step.joins(:workflow).where(workflows: { job_id: job_ids }).order(:id).pluck(:id, :state),
+          Run.where(job_id: job_ids).order(:id).pluck(:id, :state),
+          WorkUnit.where(scope_type: "job", scope_id: job_ids).order(:id).pluck(:id, :state, :blocked_reason)
+        ]
+      end
+
       def fingerprint
         [
           Job.where(id: job_ids).order(:id).pluck(:id, :state, :pr_number, :branch_name, :updated_at),
@@ -1781,6 +2162,73 @@ module WorkEngine
         ]
       end
 
+      def observe_invariants!(tick)
+        return [] unless @invariant_assertions
+
+        @invariant_assertions.observe!(tick)
+      end
+
+      # The row-lock order (Syrus::LockOrder) is part of what a scenario
+      # asserts. Where the checker is installed -- the test suite, and
+      # bin/simulator -- the run records inversions instead of raising them:
+      # a raise inside the engine is often rescued and logged, which hid an
+      # inversion the simulation had driven a service into. Recorded ones fail
+      # the scenario like an invariant violation.
+      def with_lock_order_recording
+        checker = defined?(Syrus::LockOrder::Checker) ? Syrus::LockOrder::Checker : nil
+        return yield if @invariant_assertions.nil? || checker.nil? || checker.mode.nil?
+
+        previous_mode = checker.mode
+        previous_violations = checker.violations.dup
+        checker.violations.clear
+        checker.mode = :record
+        @lock_order_checker = checker
+        yield
+      ensure
+        if @lock_order_checker
+          checker.violations.replace(previous_violations)
+          checker.mode = previous_mode
+          @lock_order_checker = nil
+        end
+      end
+
+      def lock_order_failures
+        return [] unless @lock_order_checker
+
+        @lock_order_checker.violations.uniq.map do |violation|
+          "invariant lock_order: took #{violation.taking} at #{violation.site} while holding #{violation.held} from #{violation.held_site}"
+        end
+      end
+
+      def finish(result, quiescent:)
+        return result unless @invariant_assertions
+
+        failures = lock_order_failures + @invariant_assertions.finish!([ result.ticks - 1, 0 ].max, quiescent: quiescent)
+        return result if failures.empty?
+
+        violated(result.ticks, failures, ended_as: result.status)
+      end
+
+      def violated(ticks, failures, ended_as: nil)
+        Result.new(
+          scenario: scenario,
+          ticks: ticks,
+          status: "violated",
+          events: events,
+          stuck_reasons: [ ("scenario otherwise ended #{ended_as}" if ended_as), *failures, *stuck_state ].compact,
+          wait_reasons: [],
+          job_ids: job_ids,
+          epic_ids: jobs.filter_map(&:epic_id).uniq,
+          work_intent_ids: work_intent_ids,
+          invariant_violations: failures,
+          final_states: final_states
+        )
+      end
+
+      def final_states
+        Job.where(id: job_ids).order(:id).to_h { |job| [ job.slug, job.manual_paused? ? "#{job.state}:manual_paused" : job.state ] }
+      end
+
       def success(ticks)
         Result.new(
           scenario: scenario,
@@ -1791,7 +2239,8 @@ module WorkEngine
           wait_reasons: [],
           job_ids: job_ids,
           epic_ids: jobs.filter_map(&:epic_id).uniq,
-          work_intent_ids: work_intent_ids
+          work_intent_ids: work_intent_ids,
+          final_states: final_states
         )
       end
 
@@ -1805,7 +2254,8 @@ module WorkEngine
           wait_reasons: wait_state,
           job_ids: job_ids,
           epic_ids: jobs.filter_map(&:epic_id).uniq,
-          work_intent_ids: work_intent_ids
+          work_intent_ids: work_intent_ids,
+          final_states: final_states
         )
       end
 
@@ -1819,7 +2269,8 @@ module WorkEngine
           wait_reasons: [],
           job_ids: job_ids,
           epic_ids: jobs.filter_map(&:epic_id).uniq,
-          work_intent_ids: work_intent_ids
+          work_intent_ids: work_intent_ids,
+          final_states: final_states
         )
       end
 

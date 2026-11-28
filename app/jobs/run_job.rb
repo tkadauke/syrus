@@ -20,6 +20,9 @@ class RunJob < ApplicationJob
   }
 
   discard_on ActiveRecord::RecordNotFound
+  # A pool timeout is transient: the Run is still queued, so deliver the job
+  # again rather than strand it until the reconciler notices.
+  retry_on ActiveRecord::ConnectionTimeoutError, wait: 15.seconds, attempts: 20
 
   # Count deferrals instead of wall-clock age because a slow or paused queue
   # should not burn a placement pin while no worker is actively refusing it.
@@ -128,6 +131,7 @@ class RunJob < ApplicationJob
     @job = @run.job
     return if defer_for_macos_worker_drain?
     return if defer_for_macos_version_skew?
+    return if hand_back_incapable_run?
     return if hand_back_unknown_step_kind?
     return fail_unknown_step_kind! unless step_kind_provided_here?(@step)
 
@@ -163,6 +167,11 @@ class RunJob < ApplicationJob
     # intentionally discardable exception with NoMethodError. RecordNotFound
     # raised later by a step still belongs to that Run's normal failure path.
     raise if e.is_a?(ActiveRecord::RecordNotFound) && !@run
+    # Anything else raised before the Run loaded (a pool timeout in the
+    # pause or concurrency checks, say) has no Run to fail or log against.
+    # Raise it as it is: handle_failure would mask it with a NoMethodError
+    # on the nil Run, and retry_on below redelivers the transient ones.
+    raise unless @run
 
     if PostImplementationReviewFailure.optional_step?(@step)
       log("WARNING: optional post-implementation review failed: #{e.class}: #{e.message}", kind: "system")
@@ -297,6 +306,26 @@ class RunJob < ApplicationJob
     )
     defer_run(@run.id, routing.delay)
     true
+  end
+
+  # A worker claims from shared queues by queue name alone, and a Run whose
+  # placement merely defaults to Linux skips the live capability check -- so
+  # the macOS worker, which consumes the shared compute queue, ran every Linux
+  # grader of a macOS-home workflow's landing while Linux workers sat idle.
+  # A worker runs only what it satisfies; anything else goes back to the queue
+  # the resolver picks, for a worker that does.
+  CAPABILITY_HANDBACK_DELAY = 5.seconds
+
+  def hand_back_incapable_run?
+    return false unless @run&.queued? && compute_run?
+    return false if RunQueueResolver.locally_satisfied?(run: @run)
+
+    Rails.logger.info("[RunJob] this worker does not satisfy Run ##{@run.id}'s placement requirements - handing it back")
+    defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[RunJob] capability check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
+    false
   end
 
   def hand_back_unknown_step_kind?
@@ -612,6 +641,9 @@ class RunJob < ApplicationJob
     rescue Steps::Base::AuthorizationCheckpointReached
       log("step #{@step.kind} released its provider while waiting for permission", kind: "system")
       return
+    rescue Steps::Base::AwaitingOperatorAnswer
+      park_for_operator_answer!
+      return
     rescue Steps::Base::RunEndedExternally => e
       log("step #{@step.kind} stopped: #{e.message}", kind: "system")
       return
@@ -774,6 +806,12 @@ class RunJob < ApplicationJob
       # The Step is written after the Run, so the ancestry is locked first,
       # top down (NY40). Locking queries keep the Run's unsaved outcome.
       Lineage.lock!(@run)
+      # The Step as committed, not as this perform last read it: two Runs of
+      # one Step finishing together each read it running, and the second's
+      # stale copy succeeded it again -- advancing the chain twice, which
+      # created two Runs for the next Step. A locking read sees the first
+      # success (see #reload_lineage_for_update!).
+      @step = Step.lock.find(@step.id)
       unless @run.succeeded?
         @run.agent_outcome = nil if @run.agent_outcome == "worker_died"
         @run.succeed!
@@ -842,15 +880,18 @@ class RunJob < ApplicationJob
       # reloaded as with_lock would.
       Run.transaction do
         Lineage.lock!(@run)
-        @run.reload
-        @step = @run.step
-        @workflow = @step&.workflow
-        @job = @run.job
+        reload_lineage_for_update!
+        claimed_attempt = claim_queued_run! if @run.queued?
+        # Lost the claim: another perform started this Run between our read
+        # and our write. Decide from the row as it now is.
+        reload_lineage_for_update! if @run.queued? && claimed_attempt.nil?
 
         if @run.terminal?
           acquired = false
         elsif @run.running?
           stale_reentry = !fresh_running_run?
+          acquired = false
+        elsif claimed_attempt.nil?
           acquired = false
         else
           @workflow.start! if @workflow.may_start?
@@ -859,7 +900,7 @@ class RunJob < ApplicationJob
           @step.save!
           # Fencing token: a stalled earlier executor of this Run sees the
           # counter move at its next ensure_run_still_active! and stops.
-          @run.execution_attempt = @run.execution_attempt.to_i + 1
+          @run.execution_attempt = claimed_attempt
           @run.start!
           @run.save!
           @run.claimed_execution_attempt = @run.execution_attempt
@@ -880,6 +921,38 @@ class RunJob < ApplicationJob
     )
     defer_run(@run.id, WORK_UNIT_LOCK_RETRY_DELAY)
     false
+  end
+
+  # Re-reads the Run and its ancestry with locking reads, which return the
+  # latest committed rows. Plain reads would not: MySQL's REPEATABLE READ pins
+  # them to the snapshot taken at the transaction's first plain read, which
+  # Lineage.lock! makes while it collects the ancestry -- before it waits on
+  # the row locks. Two performs of one Run (two RunJobs of a Job each picking
+  # it up inline) then both read it as queued after the first had started
+  # it, and both executed it.
+  #
+  # Top down (NY40), like the Lineage.lock! these rows are already held by.
+  def reload_lineage_for_update!
+    workflow_id = Step.where(id: @run.step_id).pick(:workflow_id) if @run.step_id
+    @job = Job.lock.find(@run.job_id)
+    @workflow = workflow_id && Workflow.lock.find(workflow_id)
+    @step = @run.step_id && Step.lock.find(@run.step_id)
+    @run.reload(lock: true)
+  end
+
+  # The queued -> running claim as a compare-and-set on the row: it matches
+  # only while the Run is still queued at the attempt this perform read, so
+  # of two performs racing on one Run exactly one wins, whatever either one
+  # read before. Returns the claimed attempt, or nil when another perform
+  # won.
+  def claim_queued_run!
+    attempt = @run.execution_attempt.to_i
+    claimed = Run.where(id: @run.id, state: "queued", execution_attempt: attempt)
+      .update_all(execution_attempt: attempt + 1)
+    return attempt + 1 if claimed == 1
+
+    Rails.logger.info("[RunJob] Run ##{@run.id} was claimed by another execution; skipping duplicate delivery")
+    nil
   end
 
   def fresh_running_run?
@@ -957,12 +1030,34 @@ class RunJob < ApplicationJob
     StepDispatcher.advance_from(@step.reload) if @step.skipped?
   end
 
+  def park_for_operator_answer!
+    log("step #{@step.kind} is awaiting an operator answer", kind: "system")
+    @run.reload
+    @step.reload
+    @run.await_answer! if @run.may_await_answer?
+    @run.save!
+    @step.await_answer! if @step.may_await_answer?
+    @step.save!
+
+    question = @run.agent_questions.order(:id).last
+    AgentQuestions::Resume.call(question) if question && !question.reload.active?
+  end
+
   def block_after_cannot_proceed!(reason)
     log("BLOCKED: #{reason}", kind: "system")
 
     @run.reload
     @step.reload
     @workflow.reload
+
+    @run.agent_questions.create!(
+      questions: [ {
+        "question" => "The agent reported it cannot proceed: #{reason}\n\nWhat should it do next?",
+        "options" => nil,
+        "multiple" => false
+      } ],
+      asked_at: Time.current
+    ) unless @run.agent_questions.active.exists?
 
     if @run.may_block?
       @run.block!
@@ -1064,7 +1159,13 @@ class RunJob < ApplicationJob
 
     return cancel_run_after_external_cancellation! if cancelled_while_running?
 
-    fail_run_tolerating_duplicate_diagnostic! if @run&.may_fail?
+    # Failing a Run locks its whole lineage, so sibling graders of one
+    # workflow failing together queue on the same Job row. The last of a
+    # burst timed out, and its Run recorded the lock wait instead of the
+    # grader's own result. Retried like every other lifecycle write.
+    if @run&.may_fail?
+      with_lifecycle_lock_retry("fail_run") { fail_run_tolerating_duplicate_diagnostic! if @run.may_fail? }
+    end
 
     record_landing_failure!(exception)
     if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
@@ -1238,11 +1339,19 @@ class RunJob < ApplicationJob
   # Pick up the newly-created Run if any so the worker can process it
   # in this same invocation. Returns nil when the chain is done — the
   # outer loop breaks and SQ frees the worker for the next job.
+  #
+  # Only a Run this perform holds: one whose creation it kept off the queue
+  # (Run#enqueue_run_job). Any other queued Run already has a queue entry of
+  # its own, or an inline holder in another perform -- two RunJobs of one Job
+  # each picked up the same newest queued successor and executed it twice.
   def next_inline_run
     return nil if @workflow.reload.terminal?
+    held_ids = Array(Thread.current[::Run::INLINE_HELD_RUN_IDS])
+    return nil if held_ids.empty?
+
     cursor = @step.next_step
     while cursor
-      queued = cursor.runs.where(state: "queued").order(:created_at).last
+      queued = cursor.runs.where(state: "queued", id: held_ids).order(:created_at).last
       if queued && !self.class.distributed_parallel_run?(queued)
         return queued if inline_successor_executable_here?(queued)
 

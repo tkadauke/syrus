@@ -1,6 +1,6 @@
 module InputSources
-  class Github < InputSource
-    include Syrus::Plugin::InputSource
+  class Github < Syrus::Host::InputSourceBase
+    include Syrus::Host::InputSource
 
     def poll!
       return if repository.archived?
@@ -9,14 +9,14 @@ module InputSources
       repository.mark_poll_started!
 
       begin
-        client = GithubClient.for(repository: repository, user: user)
+        client = Syrus::Host::GithubClient.for(repository: repository, user: user)
         issues = client.issues_with_label(repository.slug, trigger_label)
         closed_issues = client.issues_with_label(repository.slug, trigger_label, state: "closed")
 
         preload_ingest_caches(issues)
         issues.each { |issue| ingest(issue) }
         close_jobs_for_closed_issues!(closed_issues)
-        InputSources::PendingWorkWakeup.call(repository)
+        Syrus::Host::PendingWorkWakeup.call(repository)
 
         repository.mark_poll_success!
       rescue => e
@@ -28,7 +28,7 @@ module InputSources
     end
 
     def validate_credentials!
-      client = GithubClient.for(repository: repository, user: user)
+      client = Syrus::Host::GithubClient.for(repository: repository, user: user)
       client.repository(repository.slug)
     rescue => e
       raise "GitHub credentials invalid or repository inaccessible: #{e.message}"
@@ -51,7 +51,7 @@ module InputSources
     private
 
     def ingest(issue)
-      decision = IngestPolicy.evaluate(issue, repository)
+      decision = Syrus::Host::GithubIngestPolicy.evaluate(issue, repository)
       unless decision.allow
         Rails.logger.info("[InputSources::Github] #{repository.slug}##{issue.number} skipped: #{decision.reason}")
         return
@@ -63,7 +63,7 @@ module InputSources
       prior = latest_job_for_issue(issue.number)
 
       needs_lookup = prior.nil? || prior.open?
-      linked = needs_lookup ? GithubClient.for(repository: repository, user: user).linked_open_pr_for_issue(repository.slug, issue.number) : nil
+      linked = needs_lookup ? Syrus::Host::GithubClient.for(repository: repository, user: user).linked_open_pr_for_issue(repository.slug, issue.number) : nil
       linked = nil if linked && prior&.pr_number == linked[:number]
 
       if prior
@@ -85,7 +85,7 @@ module InputSources
         Rails.logger.info("[InputSources::Github] #{repository.slug}##{issue.number} preempted by PR ##{linked[:number]}")
         # This Job is terminal at creation and never gets an agent workflow, so
         # workflow-selection labels deliberately do not become Job attributes.
-        job = Job.create!(
+        job = Syrus::Host::JobRecord.create!(
           user: user,
           repository: repository,
           issue_number: issue.number,
@@ -103,7 +103,7 @@ module InputSources
         return
       end
 
-      job = Job.create!(
+      job = Syrus::Host::JobRecord.create!(
         user: user,
         repository: repository,
         issue_number: issue.number,
@@ -112,7 +112,7 @@ module InputSources
         state: initial_state_for_issue(issue),
         input_source: self,
         external_ref: dedup_key(issue),
-        **GithubIssueJobAttributes.for_creation(issue)
+        **Syrus::Host::GithubIssueJobAttributes.for_creation(issue)
       )
       classify_if_available(job)
       enqueue_issue_image_ingest(job)
@@ -147,7 +147,7 @@ module InputSources
       case marker[:kind]
       when :epic_declaration
         epic_url = issue_url(issue.number)
-        Epic.find_or_create_by!(
+        Syrus::Host::Epic.find_or_create_by!(
           user: user,
           repository: repository,
           github_issue_url: epic_url
@@ -174,7 +174,7 @@ module InputSources
       candidate = epic_for_url(epic_url)
       rejection = candidate&.epic_marker_rejection(marker_origin: "github_issue", marker_user: user)
       epic = rejection ? nil : candidate
-      job = Job.create!(
+      job = Syrus::Host::JobRecord.create!(
         user: user,
         repository: repository,
         issue_number: issue.number,
@@ -186,7 +186,7 @@ module InputSources
         pending_epic_reference: epic || rejection ? {} : pending_epic_reference(marker, epic_url),
         input_source: self,
         external_ref: dedup_key(issue),
-        **GithubIssueJobAttributes.for_creation(issue).merge(investigation: false)
+        **Syrus::Host::GithubIssueJobAttributes.for_creation(issue).merge(investigation: false)
       )
       job.advance_after_triage! if job.epic && job.may_advance_after_triage?
       job.record_ignored_epic_marker!(rejection) if rejection
@@ -199,13 +199,13 @@ module InputSources
       return unless job.triaging? && job.triaging_reason_classifier_pending?
       return unless job.user.agent_provider_configured?(job.agent_provider)
 
-      ClassifyIssueJob.enqueue_for_job!(job)
+      Syrus::Host::GithubIssueClassifierJob.enqueue_for_job!(job)
     end
 
     def latest_job_for_issue(issue_number)
       return @latest_jobs_by_issue[issue_number.to_i] if defined?(@latest_jobs_by_issue) && @latest_jobs_by_issue
 
-      Job.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
+      Syrus::Host::JobRecord.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
     end
 
     def preload_ingest_caches(issues)
@@ -222,7 +222,7 @@ module InputSources
       end
 
       @markers_by_issue_number = Array(issues).to_h do |issue|
-        [ issue.number.to_i, EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository) ]
+        [ issue.number.to_i, Syrus::Host::EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository) ]
       end
 
       epic_urls = @markers_by_issue_number.values
@@ -233,7 +233,7 @@ module InputSources
       @epics_by_url = if epic_urls.empty?
         {}
       else
-        Epic.where(github_issue_url: epic_urls).group_by(&:github_issue_url).transform_values do |candidates|
+        Syrus::Host::Epic.where(github_issue_url: epic_urls).group_by(&:github_issue_url).transform_values do |candidates|
           candidates.find { |candidate| candidate.user_id == user.id } || candidates.first
         end
       end
@@ -248,13 +248,13 @@ module InputSources
     def marker_for(issue)
       return @markers_by_issue_number[issue.number.to_i] if defined?(@markers_by_issue_number) && @markers_by_issue_number
 
-      EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
+      Syrus::Host::EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
     end
 
     def epic_for_url(epic_url)
       return @epics_by_url[epic_url] if defined?(@epics_by_url) && @epics_by_url
 
-      Epic.find_by(user: user, github_issue_url: epic_url) || Epic.find_by(github_issue_url: epic_url)
+      Syrus::Host::Epic.find_by(user: user, github_issue_url: epic_url) || Syrus::Host::Epic.find_by(github_issue_url: epic_url)
     end
 
     def remember_latest_job(job)
@@ -264,7 +264,7 @@ module InputSources
     end
 
     def sync_issue_label_state!(job, issue)
-      derived = GithubIssueJobAttributes.for_sync(issue)
+      derived = Syrus::Host::GithubIssueJobAttributes.for_sync(issue)
       updates = derived.select { |attribute, value| job.public_send(attribute) != value }
       job.update!(updates) if updates.any?
     end
@@ -278,14 +278,14 @@ module InputSources
     end
 
     def initial_state_for_issue(issue)
-      Job.initial_state_for_creator(syrus_issue_creator(issue))
+      Syrus::Host::JobRecord.initial_state_for_creator(syrus_issue_creator(issue))
     end
 
     def syrus_issue_creator(issue)
       login = issue.respond_to?(:user) ? issue.user&.login.to_s.strip : ""
       return if login.blank?
 
-      User.where("LOWER(github_handle) = ?", login.downcase).first
+      Syrus::Host::UserRecord.where("LOWER(github_handle) = ?", login.downcase).first
     end
 
     def issue_url(issue_number)
@@ -309,9 +309,9 @@ module InputSources
     end
 
     def enqueue_issue_image_ingest(job)
-      return if IssueImageExtractor.urls(job.issue_body).empty?
+      return if Syrus::Host::GithubIssueImageExtractor.urls(job.issue_body).empty?
 
-      IngestIssueImagesJob.perform_later(job.id)
+      Syrus::Host::GithubIssueImageIngestJob.perform_later(job.id)
     end
   end
 end

@@ -1,7 +1,7 @@
 require "syrus/installer"
 
 module SyrusCodexAgent
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "codex_agent" do
     experimental false
@@ -24,7 +24,7 @@ module SyrusCodexAgent
     surface filter_chips: { admin_user: { "has_codex_token" => "Filters::Chips::AdminUsers::HasCodexToken" } }
 
     while_enabled do |scope|
-      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("codex", ChatSessionRehydrator::Codex) }
+      scope.effect("chat session rehydrator") { Syrus::Host::ChatSessionRehydrator.register("codex", Syrus::Host::ChatSessionRehydrator::Codex) }
     end
   end
 end

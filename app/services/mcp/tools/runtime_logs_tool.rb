@@ -30,7 +30,17 @@ module Mcp::Tools
         session, error = resolve_runtime_session(chat_session, session_id)
         return error if error
 
-        with_provider_call(session) { |provider| provider.logs(session.id, cursor.presence || 0, { limit: limit }.compact) }
+        RuntimeSessions::Operation.reconcile_expired!(session)
+        provider = provider_instance_for(session)
+        provider_logs = provider.logs(session.id, cursor.presence || 0, { limit: limit }.compact).to_h
+        Mcp::Tools.success(provider_logs.merge(operation_entries: session.runtime_operation_logs))
+      rescue StandardError => e
+        return Mcp::Tools.invalid(e.message) unless session
+
+        Mcp::Tools.success(
+          entries: [], cursor: cursor.presence || 0, provider_error: "#{e.class}: #{e.message}",
+          operation_entries: session.runtime_operation_logs
+        )
       end
     end
   end

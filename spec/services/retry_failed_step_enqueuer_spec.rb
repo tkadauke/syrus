@@ -793,15 +793,63 @@ RSpec.describe RetryFailedStepEnqueuer do
     other_unit.update!(state: "running", started_at: Time.current)
     other_unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
 
+    blocker = described_class.preflight(workflow: workflow)
     result = described_class.call(workflow: workflow)
 
+    expect(blocker).to have_attributes(
+      reason_code: "active_work_lock",
+      workflow_id: other_workflow.id,
+      workflow_slug: other_workflow.slug,
+      work_unit_id: other_unit.id,
+      message: "Available after #{other_workflow.slug} finishes."
+    )
     expect(result).not_to be_success
     expect(result).to be_active_work_lock
-    expect(result.error).to include("active WorkUnit ##{other_unit.id} already owns job:#{job.id}")
+    expect(result.error).to eq("active_work_lock: Available after #{other_workflow.slug} finishes.")
     expect(workflow.reload).to be_failed
     expect(unit.reload).to be_failed
     expect(failed_step.reload).to be_failed
     expect(failed_step.runs).to be_empty
+  end
+
+  it "loads lock owners in one query for a multi-member retry preflight" do
+    job = Factories.job_record(state: "failed")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    unit = workflow.work_unit
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.work_unit_locks.active.find_each(&:release!)
+    3.times do |index|
+      member = Factories.job_record(user: job.user, repository: job.repository, issue_number: 990 + index)
+      unit.work_unit_members.create!(job: member, role: "member")
+    end
+
+    statements = []
+    subscriber = ->(*, payload) { statements << payload[:sql] unless payload[:name] == "SCHEMA" }
+    blocker = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      described_class.preflight(workflow: workflow)
+    end
+
+    lock_owner_queries = statements.grep(/FROM ["`]?work_unit_locks["`]?/i)
+    expect(blocker).to be_nil
+    expect(lock_owner_queries.size).to eq(1)
+  end
+
+  it "reports an implementing Epic sibling through the same preflight used by execution" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+    sibling_job = Factories.job_record(user: job.user, repository: job.repository, issue_number: 997)
+    sibling = Workflow.create!(job: sibling_job, trigger_kind: "initial", state: "running")
+    allow(StepDispatcher).to receive(:epic_sibling_implementation_running).with(workflow).and_return(sibling)
+
+    blocker = described_class.preflight(workflow: workflow)
+
+    expect(blocker).to have_attributes(
+      reason_code: "active_work_lock",
+      workflow_id: sibling.id,
+      workflow_slug: sibling.slug,
+      work_unit_id: nil
+    )
   end
 
   it "keeps the owning WorkUnit active when retrying in place" do

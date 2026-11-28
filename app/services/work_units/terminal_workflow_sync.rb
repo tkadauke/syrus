@@ -85,7 +85,7 @@ module WorkUnits
       if WorkUnit::TERMINAL_STATES.include?(workflow.state)
         workflow.work_unit.mark_terminal!(workflow.state)
         true
-      elsif workflow.blocked? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+      elsif workflow.blocked? && Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
         # Repairs a blocked auxiliary Workflow whose WorkUnit stayed active.
         workflow.work_unit.mark_terminal!("failed")
         true

@@ -82,6 +82,8 @@ export type RepositoryFormRecord = {
   fork_auto_sync_enabled: boolean
   external_pr_ingestion_enabled: boolean
   distributed_workflow_dag_enabled: boolean
+  question_eagerness: import("../components/QuestionEagernessFields").QuestionEagerness | null
+  question_answer_timeout_seconds: number | null
   auto_approve_mode: string
   feedback_policy: string
   review_policy: RepositoryReviewPolicy
@@ -169,6 +171,8 @@ export type RepositoryInput = {
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_owner_id: string
   github_repository_id: string
+  question_eagerness: import("../components/QuestionEagernessFields").QuestionEagerness | null
+  question_answer_timeout_seconds: number | null
 }
 
 export type RepositoryCredentialStatus = {

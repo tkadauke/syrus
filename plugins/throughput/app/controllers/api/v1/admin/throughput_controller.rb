@@ -1,7 +1,7 @@
 module Api
   module V1
     module Admin
-      class ThroughputController < BaseController
+      class ThroughputController < Syrus::Host::AdminController
         before_action :require_throughput_enabled
 
         # GET /api/v1/admin/throughput
@@ -10,7 +10,7 @@ module Api
         #   ?since=2026-08-30T00:00:00Z
         #   ?until=2026-09-06T00:00:00Z
         def show
-          render json: PerformanceLogging.phase("throughput_admin_metrics", repository_id: repository_filter&.id) {
+          render json: Syrus::Host::PerformanceLogging.phase("throughput_admin_metrics", repository_id: repository_filter&.id) {
             ::Throughput::AdminMetricsPayload.new(
               repository: repository_filter,
               since: params[:since],
@@ -35,10 +35,10 @@ module Api
             if params[:repository].blank?
               nil
             elsif params[:repository].to_s.match?(/\A\d+\z/)
-              ::Repository.find(params[:repository])
+              Syrus::Host::RepositoryRecord.find(params[:repository])
             else
               owner, name = params[:repository].to_s.split("/", 2)
-              ::Repository.find_by!(owner: owner, name: name)
+              Syrus::Host::RepositoryRecord.find_by!(owner: owner, name: name)
             end
         end
       end

@@ -70,9 +70,14 @@ class RebaseWorkflowSelector
     MergeTrain.active.joins(:members).where(merge_train_members: { job_id: job_ids }).distinct
   end
 
+  # The rebases occupying the repository's concurrency slots. Only runnable
+  # units count: a blocked unit (an operator's manual pause, a missing
+  # capable worker) is not rebasing anything. Three manually paused rebases
+  # once held all CONCURRENT_REBASES_PER_REPO slots for days, and no PR in
+  # the repository -- approved work included -- could be rebased to land.
   def self.active_in_repository(repository)
     unit_ids = WorkUnit
-      .where(state: WorkUnits::Ownership::ACTIVE_STATES, kind: TRIGGER_KINDS, repository_id: repository.id)
+      .where(state: WorkUnits::Ownership::RUNNABLE_STATES, kind: TRIGGER_KINDS, repository_id: repository.id)
       .where.not(workflow_id: nil)
       .pluck(:workflow_id)
 

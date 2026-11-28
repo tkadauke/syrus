@@ -18,8 +18,8 @@ module AgentMemory
     ].freeze
 
     REVIEWER_ROLES = [
-      AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
-      AgentRole::WORKFLOW_VISUAL_REVIEWER
+      Syrus::Host::AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+      Syrus::Host::AgentRole::WORKFLOW_VISUAL_REVIEWER
     ].freeze
 
     # Chat gets the workflow set plus sharing controls and, for admins, the
@@ -62,7 +62,7 @@ module AgentMemory
     end
 
     def handle(tool_name, params, server_context)
-      context = McpToolContext.from_server_context(server_context)
+      context = Syrus::Host::ToolContext.from_server_context(server_context)
       klass = self.class.handler_classes(context: context).find { |candidate| candidate.tool_name == tool_name.to_s }
       unless klass
         return MCP::Tool::Response.new([ { type: "text", text: "Unknown Agent Memory tool: #{tool_name.inspect}" } ], error: true)

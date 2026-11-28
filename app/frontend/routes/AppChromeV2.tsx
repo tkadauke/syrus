@@ -40,6 +40,7 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { ActivityProvider } from "../components/activity/ActivityProvider"
 import { PermissionInboxDrawer } from "../components/PermissionInboxDrawer"
+import { QuestionInboxDrawer } from "../components/QuestionInboxDrawer"
 import { ToolPresentationModal } from "./chat/ToolPresentationModal"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -90,6 +91,7 @@ import { Input } from "../components/Input"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { BuildBadge } from "../components/BuildBadge"
+import { AttentionBadge } from "../components/AttentionBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
 import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
@@ -848,6 +850,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     <BugReportTriggerButton onClick={() => openBugReport()} />
                     {user ? <ConnectionStatusButton prefix={prefix} /> : null}
                     {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
+                    {user ? <QuestionInboxDrawer prefix={prefix} /> : null}
                     {user ? <NotificationsBell initialUnreadCount={data?.unread_notifications_count ?? 0} prefix={prefix} /> : null}
                   </div>
                 </div>
@@ -1566,6 +1569,7 @@ function SidebarContent({
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <ConnectionStatusButton onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <PermissionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
+            {user ? <QuestionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <NotificationsBell initialUnreadCount={unreadNotificationsCount} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}
@@ -1634,7 +1638,7 @@ function SidebarContent({
                     {item.icon}
                     <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
                     {!collapsed && item.badge ? (
-                      <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span>
+                      <AttentionBadge className="ml-auto rounded-full px-1.5 py-0.5 text-xs leading-none">{item.badge}</AttentionBadge>
                     ) : null}
                   </Link>
                   {collapsed ? null : <GripIcon />}

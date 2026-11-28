@@ -76,6 +76,13 @@ class SmartFolder < ApplicationRecord
     { key: "triaging",         name: "Triaging",               visibility: :when_present, filter: user_job_attention_preset_filter("triaging") },
     { key: "pinned",           name: "Pinned",                 visibility: :when_present, filter: user_job_attention_preset_filter("pinned") },
     { key: "in_progress",      name: "In progress",            visibility: :when_present, filter: user_job_attention_preset_filter("in_progress") },
+    { key: "waiting_for_answer", name: "Waiting for your answer", visibility: :when_present, filter: {
+      "and" => [
+        { "field" => "has_open_agent_question", "op" => "is_true", "value" => nil },
+        { "field" => "job_type", "op" => "is", "value" => "user" },
+        { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+      ]
+    } },
     { key: "paused",           name: "Paused",                 visibility: :when_present, filter: user_job_attention_preset_filter("paused") },
     { key: "queued",           name: "Queued",                 visibility: :when_present, filter: user_job_attention_preset_filter("queued") },
     { key: "invalid",          name: "Invalid",                visibility: :when_present, filter: user_job_attention_preset_filter("needs_review") },

@@ -13,7 +13,12 @@ class AutoRetryAttempt < ApplicationRecord
   RETRY_KINDS = %w[ failed_step resume_failed_step retry_workflow preserved_merge_train ].freeze
 
   WORKER_DIED_CLASSIFICATION = "worker_died"
-  IN_PLACE_STEP_CLASSIFICATIONS = [ WORKER_DIED_CLASSIFICATION, "git_transport_transient" ].freeze
+  # The worker lacked a system dependency the step needs; the retry runs on
+  # another worker (WorkerEnvironmentGap), so it never fails the Workflow.
+  WORKER_ENVIRONMENT_MISSING_CLASSIFICATION = "worker_environment_missing"
+  IN_PLACE_STEP_CLASSIFICATIONS = [
+    WORKER_DIED_CLASSIFICATION, "git_transport_transient", WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
+  ].freeze
   MAX_ATTEMPTS = 3
   MAX_WORKER_DIED_ATTEMPTS = 20
   BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze

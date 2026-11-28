@@ -80,7 +80,7 @@ module ConnectedAccounts
     def inferred_context(account)
       return account.context if account.respond_to?(:context)
 
-      McpToolContext.new(surface: :api, role: nil, user: Current.user)
+      Syrus::Host::ToolContext.new(surface: :api, role: nil, user: Syrus::Host::Current.user)
     end
 
     def resolve_account!
@@ -97,13 +97,13 @@ module ConnectedAccounts
     def validate_invocation!
       return if context.permission_authorization["system_service_identity"].present?
       raise Denied, "authorized invocation reference is required" if context.permission_authorization.blank?
-      if coworker_context? && !Feature.coworker_connected_accounts_enabled?
+      if coworker_context? && !Syrus::Host::Feature.coworker_connected_accounts_enabled?
         raise Denied, "coworker connected account access is disabled"
       end
     end
 
     def coworker_context?
-      [ AgentRole::COWORKER, AgentRole::COWORKER_CHAT ].include?(context.role)
+      [ Syrus::Host::AgentRole::COWORKER, Syrus::Host::AgentRole::COWORKER_CHAT ].include?(context.role)
     end
 
     def account_denial_reason(account)

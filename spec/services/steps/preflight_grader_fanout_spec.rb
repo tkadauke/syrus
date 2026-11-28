@@ -82,6 +82,47 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(grader_steps.map { |s| s.details["fanout_grader_count"] }).to all(eq(2))
   end
 
+  # Regression: preflight re-ran the whole CI set (~146 graders), queued
+  # behind landing work for hours, and every repair was superseded before its
+  # agent started. A repair only has to recheck what is failing on main.
+  describe "narrowing to the graders failing on main" do
+    before do
+      write_grade_config(<<~YAML)
+        grade:
+          - name: rspec
+            run: bin/rspec
+          - name: lint
+            run: bin/rubocop
+          - name: e2e
+            run: bin/e2e
+      YAML
+    end
+
+    def materialized_names = workflow.steps.where(kind: "preflight_grader").order(:position).map { |s| s.details["name"] }
+
+    it "materializes only the target graders" do
+      workflow.set_artifact!(described_class::TARGET_GRADERS_ARTIFACT_KEY, %w[e2e rspec])
+
+      handler.call
+
+      expect(materialized_names).to eq(%w[rspec e2e])
+    end
+
+    it "runs the full set when none of the targets are in the plan" do
+      workflow.set_artifact!(described_class::TARGET_GRADERS_ARTIFACT_KEY, %w[renamed-grader])
+
+      handler.call
+
+      expect(materialized_names).to eq(%w[rspec lint e2e])
+    end
+
+    it "runs the full set when the repair names no targets" do
+      handler.call
+
+      expect(materialized_names).to eq(%w[rspec lint e2e])
+    end
+  end
+
   it "snapshots each preflight grader target's required capabilities" do
     write_grade_config(<<~YAML)
       grade:

@@ -4,7 +4,7 @@ module WorkerTimeline
   # workflow spans, not-yet-started workflows, and idle InstanceVersions do
   # not share an ActiveRecord relation or even the same set of attributes.
   class MacroQueryFilter
-    include Filters::BaseFilter
+    include Syrus::Host::Filters::BaseFilter
 
     DEFAULT_WINDOW = 3.hours
     OPERATORS = {
@@ -13,12 +13,12 @@ module WorkerTimeline
       "window" => %w[within_last between]
     }.freeze
 
-    def self.schema = Filters::Schema.for(subject: :worker_timeline)
+    def self.schema = Syrus::Host::Filters::Schema.for(subject: :worker_timeline)
 
     def self.from_params(params, smart_folder: nil, user: nil)
-      q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+      q_tree = Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME])
       tree = [ smart_folder&.filter.presence, q_tree ].compact.reduce { |left, right| merge_and(left, right) }
-      new(tree || Filters::Ast.serialize(Filters::Ast::EMPTY), user: user)
+      new(tree || Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY), user: user)
     end
 
     def initialize(tree, user: nil)
@@ -50,11 +50,11 @@ module WorkerTimeline
     # must not also shrink that range to the interval being excluded.
     def positive_window_chips(node = @ast, negated: false)
       case node
-      when Filters::Ast::Chip
+      when Syrus::Host::Filters::Ast::Chip
         node.field == "window" && !negated ? [ node ] : []
-      when Filters::Ast::AndNode, Filters::Ast::OrNode
+      when Syrus::Host::Filters::Ast::AndNode, Syrus::Host::Filters::Ast::OrNode
         node.children.flat_map { |child| positive_window_chips(child, negated:) }
-      when Filters::Ast::NotNode
+      when Syrus::Host::Filters::Ast::NotNode
         positive_window_chips(node.child, negated: !negated)
       else
         []
@@ -63,23 +63,23 @@ module WorkerTimeline
 
     def evaluate(node, preset_stack: [], **context)
       case node
-      when Filters::Ast::AndNode then node.children.all? { |child| evaluate(child, preset_stack:, **context) }
-      when Filters::Ast::OrNode then node.children.any? { |child| evaluate(child, preset_stack:, **context) }
-      when Filters::Ast::NotNode then !evaluate(node.child, preset_stack:, **context)
-      when Filters::Ast::Chip then evaluate_chip(node, preset_stack:, **context)
+      when Syrus::Host::Filters::Ast::AndNode then node.children.all? { |child| evaluate(child, preset_stack:, **context) }
+      when Syrus::Host::Filters::Ast::OrNode then node.children.any? { |child| evaluate(child, preset_stack:, **context) }
+      when Syrus::Host::Filters::Ast::NotNode then !evaluate(node.child, preset_stack:, **context)
+      when Syrus::Host::Filters::Ast::Chip then evaluate_chip(node, preset_stack:, **context)
       else raise ArgumentError, "unsupported worker timeline filter node: #{node.class}"
       end
     end
 
     def evaluate_chip(chip, source:, workflow: nil, attribution: {}, instance: nil, preset_stack: [])
-      if chip.field == Filters::SmartFolderResolution::PRESET_FIELD
+      if chip.field == Syrus::Host::Filters::SmartFolderResolution::PRESET_FIELD
         key = chip.value.to_s
         raise ArgumentError, "recursive smart folder preset: #{key.inspect}" if preset_stack.include?(key)
 
-        definition = SmartFolder.builtin_definition(subject: :worker_timeline, key: chip.value)
+        definition = Syrus::Host::SmartFolder.builtin_definition(subject: :worker_timeline, key: chip.value)
         raise ArgumentError, "unknown smart folder preset: #{chip.value.inspect}" unless definition
 
-        return evaluate(Filters::Ast.parse(definition.fetch(:filter)), source:, workflow:, attribution:, instance:, preset_stack: preset_stack + [ key ])
+        return evaluate(Syrus::Host::Filters::Ast.parse(definition.fetch(:filter)), source:, workflow:, attribution:, instance:, preset_stack: preset_stack + [ key ])
       end
 
       case chip.field
@@ -89,7 +89,7 @@ module WorkerTimeline
       when "status" then workflow && Array(chip.value).map(&:to_s).include?(workflow.state)
       when "job_type" then workflow && job_types(chip.value).include?(workflow.job.kind)
       when "window" then overlaps_window?(chip, source:, workflow:, instance:)
-      else raise Filters::UnknownFilterField, chip.field
+      else raise Syrus::Host::Filters::UnknownFilterField, chip.field
       end
     end
 
@@ -119,28 +119,28 @@ module WorkerTimeline
     def job_types(values)
       groups = Array(values).map(&:to_s)
       kinds = []
-      kinds.concat(Job::Kind.user_facing_values) if groups.include?("user")
-      kinds.concat(Job::Kind.infrastructure_values) if groups.include?("system")
+      kinds.concat(Syrus::Host::JobRecord::Kind.user_facing_values) if groups.include?("user")
+      kinds.concat(Syrus::Host::JobRecord::Kind.infrastructure_values) if groups.include?("system")
       kinds.uniq
     end
 
     def validate!(node, preset_stack: [])
       case node
-      when Filters::Ast::AndNode, Filters::Ast::OrNode
+      when Syrus::Host::Filters::Ast::AndNode, Syrus::Host::Filters::Ast::OrNode
         node.children.each { |child| validate!(child, preset_stack:) }
-      when Filters::Ast::NotNode then validate!(node.child, preset_stack:)
-      when Filters::Ast::Chip
-        if node.field == Filters::SmartFolderResolution::PRESET_FIELD
+      when Syrus::Host::Filters::Ast::NotNode then validate!(node.child, preset_stack:)
+      when Syrus::Host::Filters::Ast::Chip
+        if node.field == Syrus::Host::Filters::SmartFolderResolution::PRESET_FIELD
           key = node.value.to_s
           raise ArgumentError, "recursive smart folder preset: #{key.inspect}" if preset_stack.include?(key)
 
-          definition = SmartFolder.builtin_definition(subject: :worker_timeline, key: key)
+          definition = Syrus::Host::SmartFolder.builtin_definition(subject: :worker_timeline, key: key)
           raise ArgumentError, "unknown smart folder preset: #{key.inspect}" unless definition
 
-          return validate!(Filters::Ast.parse(definition.fetch(:filter)), preset_stack: preset_stack + [ key ])
+          return validate!(Syrus::Host::Filters::Ast.parse(definition.fetch(:filter)), preset_stack: preset_stack + [ key ])
         end
 
-        supported = OPERATORS[node.field] or raise Filters::UnknownFilterField, node.field
+        supported = OPERATORS[node.field] or raise Syrus::Host::Filters::UnknownFilterField, node.field
         raise ArgumentError, "unsupported operator #{node.op.inspect} for worker timeline field #{node.field.inspect}" unless supported.include?(node.op)
         bounds_for(node) if node.field == "window"
       else
@@ -161,7 +161,7 @@ module WorkerTimeline
     def duration_for(value)
       return nil unless value.is_a?(Hash)
       spec = value.transform_keys(&:to_s)
-      unit = Filters::Chips::DateColumn::UNITS[spec["unit"].to_s]
+      unit = Syrus::Host::Filters::Chips::DateColumn::UNITS[spec["unit"].to_s]
       amount = Integer(spec["n"], exception: false)
       unit * amount if unit && amount
     end

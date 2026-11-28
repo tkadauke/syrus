@@ -23,6 +23,49 @@ RSpec.describe SystemAlerts do
       expect(alert).to have_attributes(severity: :warn, cta: { text: "Review plugins", path: "/admin/plugins" })
     end
 
+    describe "open invariant violations" do
+      def record_violation(key, subject_id)
+        InvariantViolation.create!(invariant_key: key, fingerprint: "#{key}:Job:#{subject_id}", severity: "critical",
+                                   subject_type: "Job", subject_id: subject_id, message_params: {}, details: {},
+                                   first_detected_at: Time.current, last_detected_at: Time.current)
+      end
+
+      def invariant_alert(user) = described_class.active_for(user: user).find { |alert| alert.id == "invariant_violations" }
+
+      before { allow(DataRootDiskUsage).to receive(:current).and_return(nil) }
+
+      it "warns admins, summarising open violations per invariant" do
+        record_violation("retry_storms", 1)
+        record_violation("retry_storms", 2)
+        record_violation("failed_blockers", 3)
+
+        alert = invariant_alert(Factories.user(admin: true))
+
+        expect(alert).to have_attributes(severity: :warn, title: I18n.t("services.invariants.alert.title"))
+        expect(alert.message).to include("3", "Deterministic failures are not retried as transient (2)", "Failed Jobs do not silently block other work (1)")
+        expect(described_class.outbound_alerts.map(&:id)).to include("invariant_violations")
+      end
+
+      it "changes its dismissal key when the set of open violations changes" do
+        admin = Factories.user(admin: true)
+        record_violation("retry_storms", 1)
+        first_key = invariant_alert(admin).dismissal_key
+
+        record_violation("retry_storms", 2)
+
+        expect(invariant_alert(admin).dismissal_key).not_to eq(first_key)
+      end
+
+      it "stays quiet for non-admins and once every violation resolves" do
+        admin = Factories.user(admin: true)
+        record = record_violation("retry_storms", 1)
+        expect(invariant_alert(Factories.user(admin: false))).to be_nil
+
+        record.update!(resolved_at: Time.current)
+        expect(invariant_alert(admin)).to be_nil
+      end
+    end
+
     it "keeps the recovery alert for a built-in-only install without a fleet divergence alert" do
       user = Factories.user(admin: true)
       allow(PluginDesiredState::Publisher).to receive(:publish!)

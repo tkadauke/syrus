@@ -1,9 +1,9 @@
 module DesignDocs
   class RepoPageTabs
-    include Syrus::Plugin::RepoPageTab
+    include Syrus::Host::RepoPageTab
 
     def self.repo_page_tabs(repository:, user:)
-      return [] unless Repository.accessible_to(user).exists?(id: repository.id)
+      return [] unless Syrus::Host::RepositoryRecord.accessible_to(user).exists?(id: repository.id)
 
       count = DesignDoc.visible_to(user).joins(:design_doc_repositories)
         .where(design_doc_repositories: { repository_id: repository.id })

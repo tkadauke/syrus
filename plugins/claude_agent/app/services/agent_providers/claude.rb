@@ -1,13 +1,15 @@
 require "tempfile"
 
 module AgentProviders
-  class Claude < Base
-    include Syrus::Plugin::AgentProvider
+  class Claude < Syrus::Host::AgentProviderBase
+    include Syrus::Host::AgentProvider
 
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
     DEFAULT_MODEL = "claude-sonnet-4-6".freeze
 
     def self.provider_key = "claude"
+    # Every agentic step on this provider spawns the `claude` CLI.
+    def self.worker_environment_check = %w[claude --version]
     def self.display_name = "Claude Code"
     def self.available?   = true
 
@@ -30,15 +32,15 @@ module AgentProviders
     # ClaudeInvocation accepts via `--model`.
     def self.available_models
       [
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "claude-opus-4-7", display_name: "Claude Opus 4.7",
           context_window: :large, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6",
           context_window: :large, cost_tier: :medium
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5",
           context_window: :standard, cost_tier: :low
         )
@@ -53,7 +55,7 @@ module AgentProviders
       ].compact.min
       return if minutes.blank?
 
-      evidence.observed_at + Float(minutes).minutes + ProviderQuotaReset::RETRY_BUFFER
+      evidence.observed_at + Float(minutes).minutes + Syrus::Host::ProviderQuotaReset::RETRY_BUFFER
     rescue ArgumentError, TypeError
       nil
     end
@@ -109,7 +111,7 @@ module AgentProviders
       session_id = normalized_session_id(result.session_id)
       return missing_session_capture(result) unless session_id
 
-      path = ProviderSession.canonical_path_for(
+      path = Syrus::Host::ProviderSession.canonical_path_for(
         home: ENV.fetch("HOME"),
         cwd: workspace.path,
         session_id: session_id
@@ -210,7 +212,7 @@ module AgentProviders
         prompt: prompt,
         oauth_token: credential(:claude_oauth_token, user: invocation_user),
         log_sink: log_sink,
-        runner: RunJob.agent_runner,
+        runner: Syrus::Host::RunJob.agent_runner,
         timeout: timeout,
         max_turns: max_turns,
         mcp_config: mcp_config,
@@ -282,7 +284,7 @@ module AgentProviders
             "syrus-mcp-sidecar" => {
               type: "http",
               url: url,
-              headers: { PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => token },
+              headers: { Syrus::Host::PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => token },
               alwaysLoad: true
             }
           }
@@ -294,22 +296,22 @@ module AgentProviders
     end
 
     def persistent_mcp_url(decision)
-      path = decision.mcp_path.presence || PersistentMcpDaemon::MCP_PATH
-      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{path}"
+      path = decision.mcp_path.presence || Syrus::Host::PersistentMcpDaemon::MCP_PATH
+      "http://#{Syrus::Host::PersistentMcpDaemon.host}:#{Syrus::Host::PersistentMcpDaemon.port}#{path}"
     end
 
     def log_mcp_config!(path:, env:)
-      JobLog.append!(
+      Syrus::Host::JobLog.append!(
         run: @run,
         kind: "system",
-        chunk: "[mcp_config] server=syrus-mcp-sidecar command=#{sidecar_command} args=#{sidecar_args.join(' ')} alwaysLoad=true path=#{path} stderr=#{McpSidecarLog.path_for(@run.id)} env_keys=#{env.keys.sort.join(',')}"
+        chunk: "[mcp_config] server=syrus-mcp-sidecar command=#{sidecar_command} args=#{sidecar_args.join(' ')} alwaysLoad=true path=#{path} stderr=#{Syrus::Host::McpSidecarLog.path_for(@run.id)} env_keys=#{env.keys.sort.join(',')}"
       )
     rescue StandardError => e
       Rails.logger.warn("[AgentProviders::Claude] failed to log MCP config for Run ##{@run.id}: #{e.class}: #{e.message}")
     end
 
     def log_persistent_mcp_config!(path:, url:)
-      JobLog.append!(
+      Syrus::Host::JobLog.append!(
         run: @run,
         kind: "system",
         chunk: "[mcp_config] server=syrus-mcp-sidecar transport=persistent url=#{url} alwaysLoad=true path=#{path}"

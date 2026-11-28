@@ -92,6 +92,20 @@ RSpec.describe RunJob, :ci_only do
 
       expect { RunJob.perform_now(missing_run_id) }.not_to raise_error
     end
+
+    # Regression: a pool timeout raised before the Run loaded went through
+    # handle_failure, which crashed appending a JobLog for the nil Run and
+    # buried the timeout under a NoMethodError nothing retried.
+    it "re-enqueues a pool timeout raised before the Run loads instead of failing on the nil Run" do
+      run = job.initial_run
+      allow(AppSetting).to receive(:runs_paused?)
+        .and_raise(ActiveRecord::ConnectionTimeoutError, "all pooled connections were in use")
+
+      expect(JobLog).not_to receive(:append!)
+      expect_any_instance_of(RunJob).to receive(:retry_job).with(hash_including(:wait))
+      expect { RunJob.perform_now(run.id) }.not_to raise_error
+      expect(run.reload).to be_queued
+    end
   end
 
   describe "execution acquisition" do
@@ -121,6 +135,31 @@ RSpec.describe RunJob, :ci_only do
       expect(run.reload).to be_running
       expect(run.step.reload).to be_running
       expect(run.workflow.reload).to be_running
+    end
+
+    # Regression: sibling graders failing together queued on the Job row,
+    # and the last of the burst timed out failing its Run.
+    it "retries a lock wait while failing the Run instead of losing the failure" do
+      run = job.initial_run
+      run.update!(state: "running", started_at: Time.current)
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      attempts = 0
+      allow(run).to receive(:fail!).and_wrap_original do |original, *args, **kwargs, &block|
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+
+        original.call(*args, **kwargs, &block)
+      end
+      allow(run).to receive(:reload).and_return(run)
+
+      run_job.send(:handle_failure, Steps::Base::StepFailed.new("grader rspec failed (exit 1)"))
+
+      expect(run.reload.state).to eq("failed")
+      expect(attempts).to be >= 2
     end
 
     it "records recovered lock contention with queue and lifecycle context" do
@@ -1401,6 +1440,26 @@ RSpec.describe RunJob, :ci_only do
         )
       end
 
+      # Regression: the macOS worker claimed Linux-default graders from the
+      # shared compute queue and ran them while Linux workers sat idle.
+      it "hands back a Run whose placement this worker does not satisfy" do
+        on_host(os: "macos", git_sha: "50d35be290")
+        expect(RunHostAdmission).not_to receive(:call)
+
+        expect { RunJob.perform_now(run.id) }.to have_enqueued_job(RunJob).with(run.id)
+
+        expect(run.reload).to be_queued
+      end
+
+      it "runs a Run whose placement this worker satisfies" do
+        on_host(os: "linux", git_sha: "50d35be290")
+        job_instance = RunJob.new(run.id)
+        job_instance.instance_variable_set(:@run, run)
+        job_instance.instance_variable_set(:@step, run.step)
+
+        expect(job_instance.send(:hand_back_incapable_run?)).to be(false)
+      end
+
       it "does not hold back a Mac worker that runs the active release" do
         on_host(os: "macos", git_sha: "50d35be290")
         job_instance = RunJob.new(run.id)
@@ -2345,6 +2404,13 @@ RSpec.describe RunJob, :ci_only do
   describe "inline successor routing" do
     include ActiveJob::TestHelper
 
+    around do |example|
+      prior = Thread.current[Run::INLINE_HELD_RUN_IDS]
+      example.run
+    ensure
+      Thread.current[Run::INLINE_HELD_RUN_IDS] = prior
+    end
+
     it "defers a queued collect run until every grader dependency is terminal" do
       repository.update!(distributed_workflow_dag_enabled: true)
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
@@ -2448,6 +2514,8 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@run, current_run)
       allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-grader")
       allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+      # Created while this perform drove the workflow, so it holds the Run.
+      Thread.current[Run::INLINE_HELD_RUN_IDS] = [ collect_run.id ]
 
       clear_enqueued_jobs
       result = nil
@@ -2493,6 +2561,7 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@step, build)
       run_job.instance_variable_set(:@run, current_run)
       allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-main")
+      Thread.current[Run::INLINE_HELD_RUN_IDS] = [ collect_run.id ]
 
       clear_enqueued_jobs
 

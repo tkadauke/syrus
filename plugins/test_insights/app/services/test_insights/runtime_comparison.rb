@@ -67,7 +67,7 @@ module TestInsights
     end
 
     def accessible_scope
-      @user.admin? ? Repository.all : Repository.accessible_to(@user)
+      @user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(@user)
     end
 
     def selected_identities(repository)
@@ -270,8 +270,8 @@ module TestInsights
       private
 
       def self.run_scope(user)
-        visible_jobs = user.admin? ? Job.visible_to(user, scope: Job.all) : Job.visible_to(user)
-        Run.joins(job: :repository).merge(visible_jobs)
+        visible_jobs = user.admin? ? Syrus::Host::JobRecord.visible_to(user, scope: Syrus::Host::JobRecord.all) : Syrus::Host::JobRecord.visible_to(user)
+        Syrus::Host::RunRecord.joins(job: :repository).merge(visible_jobs)
       end
 
       def self.normalize_numeric_ref(value, prefix:)
@@ -299,7 +299,7 @@ module TestInsights
       end
 
       def worker_health_payload
-        WorkerHealthRunCorrelation.for_run(@run, sample_limit: 0).slice(:run_id, :primary_hostname, :range, :pressure, :command_spans)
+        Syrus::Host::WorkerHealthRunCorrelation.for_run(@run, sample_limit: 0).slice(:run_id, :primary_hostname, :range, :pressure, :command_spans)
       end
     end
 
@@ -320,7 +320,7 @@ module TestInsights
       private
 
       def self.job_scope(user)
-        user.admin? ? Job.visible_to(user, scope: Job.all) : Job.visible_to(user)
+        user.admin? ? Syrus::Host::JobRecord.visible_to(user, scope: Syrus::Host::JobRecord.all) : Syrus::Host::JobRecord.visible_to(user)
       end
 
       def self.normalize_numeric_ref(value, prefix:)

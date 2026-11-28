@@ -222,6 +222,9 @@ export type JobRecord = {
   delivery_target_ref: string
   needs_attention: boolean
   needs_attention_reason: string | null
+  has_open_agent_question?: boolean
+  question_eagerness?: import("../components/QuestionEagernessFields").QuestionEagerness | null
+  question_eagerness_source?: "job" | "repository" | "user" | "default"
   blocked_workflow_dismissal?: { workflow_id: number; slug: string; reason_text: string | null; app_dismiss_path: string } | null
   needs_attention_since: string | null
   grace_period_expires_at: string | null
@@ -1105,6 +1108,8 @@ export type RunFailureClassification = {
 
 export type JobActions = {
   can_write: boolean
+  recovery_decision?: JobRecoveryDecision | null
+  recovery_timeline?: JobRecoveryIntervention[]
   can_override_planned_execution?: boolean
   planned_execution_override_blocked_reason?: string | null
   can_submit_feedback?: boolean
@@ -1121,6 +1126,7 @@ export type JobActions = {
   can_retry: boolean
   can_retry_from_failed_step: boolean
   retry_failed_step_action?: JobRetryAction | null
+  retry_failed_step_blocker?: JobRetryBlocker | null
   retry_implementation_action?: JobRetryAction | null
   can_restart: boolean
   reset_job_action?: JobResetAction | null
@@ -1157,6 +1163,41 @@ export type JobActions = {
   retry_agent_options: string[]
 }
 
+export type JobRecoveryDecision = {
+  kind: string
+  outcome?: "measured_failure" | "no_verdict" | "interrupted" | "restart_required"
+  headline?: string
+  recommended_action: "rerun_unchanged" | "resume" | "repair_with_guidance" | "fresh_implementation" | "restart"
+  mode: string
+  explanation: string
+  guidance?: string | null
+  measured_failures?: string[]
+  inconclusive_infrastructure_failures?: Array<{
+    name?: string
+    classification?: string
+    affected_decision?: boolean
+  }>
+  evidence: {
+    source_workflow_id?: number
+    source_revision?: string
+    failure_classification?: string
+    compared_iterations?: Record<string, number>
+  }
+}
+
+export type JobRecoveryIntervention = {
+  id: number
+  action: string
+  actor: string
+  actor_type: string
+  origin: string
+  reason?: string | null
+  guidance?: string | null
+  source_revision?: string | null
+  resulting_revision?: string | null
+  performed_at?: string | null
+}
+
 export type JobResetAction = {
   path: string
   destroys: { open_pr_number?: number; branch?: string; checkpoints?: number; active_workflows?: number[] }
@@ -1170,6 +1211,14 @@ export type JobRetryAction = {
   step_id?: number
   step_kind?: string
   step_label?: string
+}
+
+export type JobRetryBlocker = {
+  reason_code: "active_work_lock"
+  workflow_id?: number
+  workflow_slug?: string
+  work_unit_id?: number
+  message: string
 }
 
 export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"
@@ -1366,7 +1415,9 @@ export type JobVisualEvidence = {
   viewport?: { width?: number; height?: number; device_scale_factor?: number } | null
   device?: string | null
   submission_failed: boolean
-  image_url: string
+  image_url?: string
+  original_url: string
+  thumbnail_url: string
 }
 
 export type JobVisualEvidenceGallery = {
@@ -1760,6 +1811,7 @@ export type JobRunArtifactsPayload = {
   base_ref: string | null
   head_ref: string | null
   artifact: "transcript" | "agent_diff" | "step_agent_diff"
+  prompt?: string | null
   agent_diff?: string | null
   agent_diff_bytes?: number
   step_agent_diff?: string | null

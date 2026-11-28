@@ -1,0 +1,43 @@
+# Prepare declares a dependency install that lost its registry connection
+# prepare_network_transient, from the command's own output tail. The Job
+# retries prepare and continues once the registry answers -- decided by the
+# declaration, not by the diagnostic message, which on its own ("prepare
+# command failed") reads as a deterministic setup failure.
+name: declared prepare registry failure retries
+max_ticks: 60
+repository:
+  owner: simulation
+  name: declared-prepare-registry-failure-retries
+runner:
+  auto_retry_failed_jobs: false
+jobs:
+  flaky_registry:
+    title: The npm registry drops one connection
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+  steps:
+    prepare:
+      - status: failure
+        problem_code: prepare_network_transient
+        error_message: "prepare command failed (exit 1): npm ci"
+      - status: success
+expect:
+  jobs:
+    flaky_registry:
+      - implemented
+  run_evidence:
+    - job: flaky_registry
+      step: prepare
+      classification: prepare_network_transient
+  events:
+    # The dispatcher reruns the retryable step in place, so the retry shows
+    # as the step's second, successful run rather than an auto-retry attempt.
+    - 'prepare -> {"status" => "success"}'
+success_states:
+  flaky_registry:
+    - implemented

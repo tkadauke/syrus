@@ -306,7 +306,7 @@ module TestInsights
     def truncate(text)
       return nil if text.blank?
 
-      Mcp::Tools.truncate_text(Mcp::Tools.utf8(text), FAILURE_SNIPPET_BYTES)
+      Syrus::Host::McpTools.truncate_text(Syrus::Host::McpTools.utf8(text), FAILURE_SNIPPET_BYTES)
     end
 
     def truncate_legacy(text)

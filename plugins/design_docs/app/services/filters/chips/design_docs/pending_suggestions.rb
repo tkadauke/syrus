@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module DesignDocs
-      class PendingSuggestions < Base
+      class PendingSuggestions < Syrus::Host::Filters::Chips::Base
         filter_name "pending_suggestions"
         label "Pending suggestions"
         bucket :boolean

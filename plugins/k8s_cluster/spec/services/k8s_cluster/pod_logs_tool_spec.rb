@@ -61,7 +61,7 @@ RSpec.describe K8sCluster::PodLogsTool do
     response = described_class.call(server_context: { chat_session: coworker_chat }, cluster_id: cluster.id,
       name: "web-1", namespace: "default")
 
-    expect(response.content.first[:text]).to include(ToolPayloadRedactor::REDACTED)
+    expect(response.content.first[:text]).to include(Syrus::Host::ToolPayloadRedactor::REDACTED)
     expect(response.content.first[:text]).not_to include("very-secret-token-value")
     expect(K8sCluster::AgenticAudit).to have_received(:log!).with(hash_including(context: have_attributes(agent_actor: coworker)))
   end

@@ -35,7 +35,7 @@ module AgentInsights
 
       def apply!
         result = nil
-        ApplicationRecord.transaction do
+        Syrus::Host::Record.transaction do
           suggestions = AgentInsights::Suggestion.where(id: ids).order(:id).lock.to_a
           failures = target_failures(suggestions)
           failures.concat(suggestions.filter_map { |suggestion| validation_failure(suggestion) })

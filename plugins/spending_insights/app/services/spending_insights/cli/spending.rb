@@ -2,7 +2,7 @@
 
 module SpendingInsights
   module Cli
-    class Spending < Syrus::Plugin::CliCommandHandler
+    class Spending < Syrus::Host::CliCommandHandler
       GROUPS = {
         "repo" => [ "repository", :repositories ],
         "user" => [ "user", :users ],

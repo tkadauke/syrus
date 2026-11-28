@@ -4910,6 +4910,71 @@ without the fix.
 
 ---
 
+## F140. A runaway-protected Job relaunched a failing landing forever — fixed
+
+**Property.** Under a fixed failure classification, automatic retries
+terminate (`RetryTermination`). The auto-retry ladder does
+(`ladder_length_bound`); the landing deferral loop did not.
+
+**Counterexample.** `RetryTermination.before_landing_loops`: a Job with
+`runaway_protection` set that an operator approved. Its landing fails the same
+way every time with a transient-blocker classification (a prepare that cannot
+build reads as `prepare command failed`, and any retryable classification maps
+to `TRANSIENT_BLOCKER`). `LandingFailureHandler` defers, the Job stays
+approved, `LandingQueueProcessor#land` relaunches on the next tick, and
+`Job#enforce_workflow_runaway_limits!` returns early because the flag is
+already set: `approved → landing → approved` forever, with no operator action.
+
+**Evidence.** Production, read-only: a direct Job with runaway protection
+`too_many_failed_workflows`, approved by an operator, had 43 `auto_merge`
+Workflows among the newest 500 failed Runs (77 `prepare` failures classified
+`provider_transient`, 39 `timeout`), one every few minutes, still running.
+
+**Fix.** `LandingFailureHandler#runaway_retry_refused?`: a transient-blocker
+failure of a runaway-protected Job fails the landing back to `:implemented`
+instead of deferring it, as runaway protection promises ("automatic retries
+are blocked until the operator manually retries"); the operator's next
+approval buys one more attempt. Other deferrals (capability hold, landing
+start blocked, rebuild, rebase cap) are unchanged. `after_terminates` gives a
+ranking function for the fixed loop and `after_stops_named` shows it stops
+with runaway protection set.
+
+**Spec.** `spec/services/landing_failure_handler_spec.rb` ("fails instead of
+deferring once runaway protection is active") and the simulator scenario
+`runaway_protected_transient_landing_failure_stops.yml`, which exhausts its
+ticks relaunching without the fix.
+
+---
+
+## F141. Capacity soundness and approved-work progress — proved; by design for landing lanes
+
+**Properties.** `SlotCapacity`: every rebase-slot holder is runnable and the
+count is monotone in the runnable holders (`rebase_holder_runnable`,
+`demote_frees_rebase`, `paused_never_starve`); `before_paused_starve` is the
+production incident fixed by counting `RUNNABLE_STATES`. `ApprovedProgress`:
+every approved state that nothing names has an enabled step
+(`no_silent_stall`), a ranking function bounds every run
+(`eventually_lands_or_named`), and `before_silent_stall` is the incident.
+
+**By design.** Landing lanes are counted over `ACTIVE_STATES`, so an in-flight
+landing blocked for a reason that is not externally cleared keeps its lane
+(`inflight_blocked_holds_lane`): `provider_availability`, `admission_control`,
+`resource_safety`, `main_branch_health`, `urgent_job_active`,
+`auto_retry_backoff`. That keeps the running-landing ⇔ slot contract
+(LandingSlot.lean) and is live only if each such reason wakes up
+(`LaneHoldingReasonsClear`, assumed). A new lane-holding block reason without
+a wake-up would repeat the rebase-slot bug.
+
+**Gap (open, low).** An approved Job whose PR needs a rebase while every rebase
+slot is held by runnable work has no `blocked_reason` in the landing queue:
+`mergeability_admits_landing?` refuses, `land` rolls back, and the merge-state
+poll declines at the cap with only a log line. It progresses (the holders are
+runnable) but cannot say why it waits. Rebase slots are not allocated in FIFO
+order either, so the progress theorem assumes no competing work is admitted
+ahead of the Job.
+
+---
+
 ## F138. A coworker base revoked during a promotion could be made active again — fixed
 
 **Invariant.** `BaseReleases` documents revoked as terminal and at most one

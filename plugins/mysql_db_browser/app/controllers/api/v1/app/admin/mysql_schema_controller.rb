@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class MysqlSchemaController < BaseController
+        class MysqlSchemaController < Syrus::Host::AppAdminController
           before_action :require_mysql_db_browser_enabled
           before_action :set_connection
 
@@ -37,14 +37,14 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(
-              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user,
-              allowed_repository_ids: Repository.ids
+            Syrus::Host::ToolContext.new(
+              surface: Syrus::Host::MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
+              allowed_repository_ids: Syrus::Host::RepositoryRecord.ids
             )
           end
 
           def set_connection
-            @connection = MysqlConnection.find(params[:id])
+            @connection = Syrus::Host::MysqlConnection.find(params[:id])
           end
 
           def require_mysql_db_browser_enabled

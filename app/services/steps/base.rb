@@ -59,9 +59,16 @@ module Steps
       # claim to know. Unmapped codes resolve to nil rather than raising: this
       # runs on the failure path, where a new exception turns a handled
       # failure into a crash.
+      #
+      # A step that did not declare a code but raised this while handling a
+      # GitRunner::GitError or an Octokit error -- `rescue GitError => e;
+      # raise StepFailed, "...: #{e.message}"` is the common shape -- still
+      # declares what that underlying failure was (FailureProblems), so a
+      # dropped connection is retryable and a missing ref is not without the
+      # classifier reading the wrapped message back.
       def problem
         code = @explicit_problem_code || self.class.problem_code
-        return nil if code.blank?
+        return FailureProblems.for_exception(cause) if code.blank?
 
         Problem.resolve(code, evidence: evidence)
       end
@@ -92,6 +99,7 @@ module Steps
     end
 
     class AuthorizationCheckpointReached < StandardError; end
+    class AwaitingOperatorAnswer < StandardError; end
 
     # Raised when the Run was ended from outside -- a reaper, a workspace
     # repair or an operator stop -- while this handler was still preparing.
@@ -419,6 +427,11 @@ module Steps
       ensure_run_still_active!("launching the agent")
       prompt = AgentEnvironmentSnapshot.new(run: run, workspace_path: workspace.path).apply_to(prompt)
       prompt = JobAttachmentContext.new(job: job, workspace_path: workspace.path).apply_to(prompt)
+      if McpToolPolicy.for(McpToolContext.from_run(run)).include?(Mcp::Tools::AskOperatorQuestionTool)
+        resolution = AgentQuestions::PolicyResolution.for(job)
+        prompt = [ prompt, QuestionEagerness::Base.for(resolution.eagerness).prompt,
+          "Resolved from: #{resolution.eagerness_source}. Answer timeout: #{resolution.timeout ? resolution.timeout.inspect : 'off'} (#{resolution.timeout_source})." ].join("\n\n")
+      end
       adapter = resume_session_id.equal?(DEFAULT_AGENT_RESUME) ? agent_adapter : agent_adapter_for(resume_session_id)
       sink, flush = buffered_log_sink
       begin
@@ -437,6 +450,7 @@ module Steps
       end
 
       adapter.record_result!(result, log: ->(message) { log(message) })
+      raise AwaitingOperatorAnswer if run.agent_questions.active.exists?
       raise AuthorizationCheckpointReached if authorization_checkpoint_waiting?
       missing_required_tools = log_mcp_required_tool_health(required_mcp_tools)
       capture_mcp_sidecar_stderr if result.outcome == "mcp_sidecar_failed" || required_mcp_tools.present?

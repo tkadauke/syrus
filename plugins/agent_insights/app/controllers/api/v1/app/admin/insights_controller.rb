@@ -2,8 +2,8 @@ module Api
   module V1
     module App
       module Admin
-        class InsightsController < BaseController
-          include Paginatable
+        class InsightsController < Syrus::Host::AppAdminController
+          include Syrus::Host::Paginatable
 
           prepend_before_action :require_agent_insights_feature
           before_action :require_admin
@@ -91,17 +91,17 @@ module Api
           private
 
           def current_filter(active_folder: self.active_smart_folder, raw_params: params)
-            ::Filters::SmartFolderResolution.call(
+            Syrus::Host::Filters::SmartFolderResolution.call(
               filter_class: AgentInsights::Filter, subject: AgentInsights::SmartFolders::SUBJECT,
-              params: raw_params, active_smart_folder: active_folder, user: Current.user
+              params: raw_params, active_smart_folder: active_folder, user: Syrus::Host::Current.user
             ).filter
           end
 
           def active_smart_folder
             @active_smart_folder ||= begin
-              explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+              explicit_folder = Syrus::Host::SmartFolderNavigation.active_folder(
                 subject: AgentInsights::SmartFolders::SUBJECT,
-                user: Current.user,
+                user: Syrus::Host::Current.user,
                 params: params
               )
               explicit_folder || default_smart_folder
@@ -110,7 +110,7 @@ module Api
 
           def default_smart_folder
             return if smart_folder_param_present?
-            return if params[::Filters::QueryParam::PARAM_NAME].present?
+            return if params[Syrus::Host::Filters::QueryParam::PARAM_NAME].present?
             return if params[:state].present?
 
             AgentInsights::SmartFolders.default_folder
@@ -125,10 +125,10 @@ module Api
           end
 
           def smart_folders
-            ::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
-            ::Admin::SmartFolderNavigation.new(
+            Syrus::Host::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+            Syrus::Host::SmartFolderNavigation.new(
               subject: AgentInsights::SmartFolders::SUBJECT,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               active_folder: active_smart_folder,
               base_scope: AgentInsights::Suggestion.all,
               filter_class: AgentInsights::Filter

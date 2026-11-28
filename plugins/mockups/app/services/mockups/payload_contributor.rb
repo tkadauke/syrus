@@ -3,7 +3,7 @@ module Mockups
   # ChatSerialization, which meant it knew PreviewPanel's URL scheme, entry
   # metadata, and version serialization.
   module PayloadContributor
-    include Syrus::Plugin::ChatPayloadContributor
+    include Syrus::Host::ChatPayloadContributor
 
     def self.chat_payload(chat_session:, context:)
       scheme = context[:ssl] ? "https" : "http"
@@ -14,7 +14,7 @@ module Mockups
       chat_session.preview_panels.where(state: "open").includes(:latest_version).order(:created_at, :id).map do |panel|
         base = "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}"
         # Core owns the shape; chat adds the close mutation only it offers.
-        PreviewPanel::Payload.new(panel, base_path: base, scheme: scheme).as_json.merge(
+        Syrus::Host::PreviewPanelRecord::Payload.new(panel, base_path: base, scheme: scheme).as_json.merge(
           app_close_path: base
         )
       end

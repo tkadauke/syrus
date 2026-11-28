@@ -168,9 +168,11 @@ class PollExternalPrJob < ApplicationJob
   end
 
   def unapprove_stale_approval!
-    return unless @job.may_unapprove?
-
-    Job::ApprovalUnapprover.call(job: @job, user: @job.user)
+    @job.with_lock do
+      @job.stop_landing! if @job.landing?
+      @job.reload
+      Job::ApprovalUnapprover.call(job: @job, user: @job.user) if @job.may_unapprove?
+    end
   end
 
   # Same-repo external PR (job.external_pr_fork? == false): Syrus already
@@ -180,28 +182,33 @@ class PollExternalPrJob < ApplicationJob
   # fix-and-push workflow. Mirrors
   # PollPullRequestJob#enqueue_followup_run / #pending_followup?.
   def dispatch_fix_and_push!(qualifying_records, all_comments)
-    return if pending_external_pr_feedback?
+    workflow = nil
+    @job.with_lock do
+      @job.reload
+      return if pending_external_pr_feedback?
 
-    unapprove_stale_approval!
+      @job.stop_landing! if @job.landing?
+      @job.reload
+      Job::ApprovalUnapprover.call(job: @job, user: @job.user) if @job.may_unapprove?
 
-    iteration = @job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
-    source_handle = qualifying_records.first&.github_handle
-
-    artifacts = {
-      "pr_comments" => all_comments.map { |c| serialize_comment(c) },
-      "feedback_cutoff" => @job.last_seen_comment_at&.iso8601,
-      "pr_feedback_iteration" => iteration,
-      "pr_feedback_auto" => true,
-      "pr_feedback_source_handle" => source_handle,
-      "pr_review_comment_ids" => qualifying_records.map(&:id)
-    }
-    result = WorkUnits::Launcher.create_and_start!(
-      kind: "external_pr_feedback",
-      job: @job,
-      artifacts: artifacts,
-      agent_provider: @job.workflow_agent_provider
-    )
-    workflow = result.workflow
+      iteration = @job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
+      source_handle = qualifying_records.first&.github_handle
+      artifacts = {
+        "pr_comments" => all_comments.map { |c| serialize_comment(c) },
+        "feedback_cutoff" => @job.last_seen_comment_at&.iso8601,
+        "pr_feedback_iteration" => iteration,
+        "pr_feedback_auto" => true,
+        "pr_feedback_source_handle" => source_handle,
+        "pr_review_comment_ids" => qualifying_records.map(&:id)
+      }
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "external_pr_feedback",
+        job: @job,
+        artifacts: artifacts,
+        agent_provider: @job.workflow_agent_provider
+      )
+    end
+    WorkUnits::Launcher.start!(workflow)
 
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
   rescue WorkUnits::Launcher::LockConflict => e
@@ -209,7 +216,7 @@ class PollExternalPrJob < ApplicationJob
   end
 
   def pending_external_pr_feedback?
-    WorkUnits::Ownership.active_for_job?(@job)
+    WorkUnits::Ownership.active_for_job_kind?(@job, Workflow::TriggerKind.feedback_values)
   end
 
   def notify_external_feedback(record)

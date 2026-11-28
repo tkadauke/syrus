@@ -23,9 +23,12 @@ module Syrus
           return Failed.new(value: decline_value(on_decline, :circuit_open), exception_class: nil, message: nil, reason: :circuit_open)
         end
 
+        started_at = monotonic_now if timeout
         result = PerformanceLogging.plugin_call(extension_point: extension_point, provider: provider, operation: operation) do
           timeout ? Timeout.timeout(timeout, &block) : block.call
         end
+        raise Timeout::Error, "execution expired" if timeout && monotonic_now - started_at >= timeout
+
         runtime_health.record_success(plugin: plugin, extension_point: extension_point)
         result
       rescue StandardError, NotImplementedError => error
@@ -58,6 +61,10 @@ module Syrus
       def provider_name(provider)
         target = provider.is_a?(Class) ? provider : provider.class
         target.name.presence || target.to_s
+      end
+
+      def monotonic_now
+        Process.clock_gettime(Process::CLOCK_MONOTONIC)
       end
 
       def test_framework_exception?(error)

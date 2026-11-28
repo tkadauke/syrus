@@ -95,9 +95,16 @@ gem "kamal", require: false
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
 gem "thruster", require: false
 
-# Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-gem "image_processing", "~> 2.2"
-gem "ruby-vips", "~> 2.0"
+# Image processing: Active Storage variants and analysis, avatar resizing, the
+# terminal renderer. Required where an image is processed, never by
+# Bundler.require. macOS workers never process images and install their bundle
+# without this group (BUNDLE_WITHOUT=images), so no libvips -- on such a host
+# only a shared Homebrew one -- is ever loaded there; Active Storage treats the
+# missing gem as "vips unavailable".
+group :images do
+  gem "image_processing", "~> 2.2", require: false
+  gem "ruby-vips", "~> 2.0", require: false
+end
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

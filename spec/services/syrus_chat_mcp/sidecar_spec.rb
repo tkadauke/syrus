@@ -126,6 +126,8 @@ RSpec.describe Mcp::Sidecar do
         read_job
         inspect_workflow_outcome_overrides
         request_workflow_outcome_override
+        list_open_agent_questions
+        answer_agent_question
         list_epics
         read_epic
         approve_job
@@ -144,7 +146,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(32)
+      expect(tool_names.size).to eq(34)
       expect(tool_names).not_to include("complete_implement_step")
     end
 
@@ -394,6 +396,7 @@ RSpec.describe Mcp::Sidecar do
         "reenqueue_work",
         "repair_queue_affinity",
         "force_rebase",
+        "detach_job",
         "restack_epic",
         "force_landing_recheck",
         "manual_agentic_run",
@@ -416,6 +419,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).not_to include(
         "reconcile_job_state",
         "force_rebase",
+        "detach_job",
         "restack_epic",
         "rerun_ci_repair",
         "override_landing_blocker_once"

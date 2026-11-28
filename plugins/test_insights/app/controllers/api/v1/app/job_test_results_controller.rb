@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class JobTestResultsController < BaseController
+      class JobTestResultsController < Syrus::Host::AppController
         def index
           job = find_job
           render json: TestInsights::RunResults.for_job(
@@ -15,7 +15,7 @@ module Api
         private
 
         def find_job
-          scope = Job.visible_to(Current.user)
+          scope = Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user)
           find_job_by_ref(scope, params[:job_id])
         end
       end

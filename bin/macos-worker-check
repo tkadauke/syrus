@@ -145,12 +145,50 @@ if [[ -f "$ROOT/.ruby-version" ]] && have_command ruby; then
     fail "Ruby openssl extension does not load"
   fi
 fi
+
+# Homebrew and /usr/local are shared with every account on the host; nothing
+# the worker runs may resolve through them (bin/macos-runtime-env).
+shared_path_entries="$(tr ':' '\n' <<<"$PATH" | grep -E '^/opt/homebrew(/|$)|^/usr/local(/|$)' | tr '\n' ' ' || true)"
+if [[ -z "$shared_path_entries" ]]; then
+  ok "PATH has no Homebrew or /usr/local entries"
+else
+  fail "PATH includes shared directories other accounts can change: $shared_path_entries"
+fi
+
+if [[ -f "$ROOT/.node-version" ]]; then
+  pinned_node="$(tr -d '[:space:]' < "$ROOT/.node-version")"
+  running_node="$(node --version 2>/dev/null || true)"
+  if [[ "$running_node" == "v$pinned_node" ]]; then
+    ok "Node matches .node-version: $pinned_node"
+  else
+    fail "Node on PATH is ${running_node:-not runnable}, but the release pins $pinned_node (.node-version)"
+  fi
+fi
 require_command node Node
 require_command npm NPM
 require_command git Git
 require_command mise Mise
 require_command codex Codex
 require_command claude Claude
+
+# The browser tools and visual review spawn `playwright-mcp` with the
+# release's pinned Chromium (bin/macos-runtime-env). Not run with --version:
+# a playwright-mcp that did not take the flag would start a server and hang.
+if have_command playwright-mcp; then
+  ok "Playwright MCP: $(command -v playwright-mcp)"
+else
+  fail "Playwright MCP: playwright-mcp not found on PATH"
+fi
+if [[ -f "$ROOT/bin/macos-runtime-env" ]]; then
+  # shellcheck source=bin/macos-runtime-env
+  source "$ROOT/bin/macos-runtime-env"
+  browser_executable="$(syrus_macos_browser_env "$ROOT" 2>/dev/null | sed -n 's/^SYRUS_BROWSER_EXECUTABLE_PATH=//p')"
+  if [[ -n "$browser_executable" && -x "$browser_executable" ]]; then
+    ok "browser Chromium: $browser_executable"
+  else
+    fail "browser Chromium: ${browser_executable:-the release pins no Playwright} is not installed; run bin/install-macos-worker"
+  fi
+fi
 
 if xcode_select_path="$(xcode-select -p 2>/dev/null)"; then
   ok "Xcode command line tools: $xcode_select_path"
@@ -224,6 +262,22 @@ if [[ "$worker_capabilities" == *"os:macos"* ]]; then
   ok "worker capabilities include macOS"
 else
   fail "SYRUS_WORKER_CAPABILITIES should include os:macos"
+fi
+
+# The same checks the worker runs at boot to decide which work it claims
+# (WorkerEnvironmentSmoke): the toolchain actually builds and runs, not just
+# exists -- a C extension compiles, mysql2 finds a usable MySQL client, and the
+# data root supports flock, hardlinks and rename. A failed check every Run needs
+# fails this check; any other only warns, because the worker keeps taking the
+# work that does not need it.
+if [[ -x "$ROOT/bin/worker-environment-smoke" ]] && have_command ruby; then
+  while IFS= read -r line; do
+    case "$line" in
+      "OK   "*) ok "environment ${line#OK   }" ;;
+      "WARN "*) warn "environment ${line#WARN }" ;;
+      "FAIL "*) fail "environment ${line#FAIL }" ;;
+    esac
+  done < <(ruby "$ROOT/bin/worker-environment-smoke" 2>&1 || true)
 fi
 
 if [[ "$FAILURES" -gt 0 ]]; then

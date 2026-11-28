@@ -1,6 +1,6 @@
 module ContainerExecution
-  class Backend < Execution::Backend
-    include Syrus::Plugin::ExecutionBackend
+  class Backend < Syrus::Host::ExecutionBackendBase
+    include Syrus::Host::ExecutionBackend
 
     MCP_SOCKET_CONTAINER_PATH = "/run/syrus/mcp.sock".freeze
 
@@ -26,7 +26,7 @@ module ContainerExecution
     private
 
     def run_in_image(request, policy, image)
-      ProcessRunner.new(
+      Syrus::Host::ProcessRunner.new(
         env: policy.process_env,
         command: docker_command(request, image),
         mounts: request.mounts,
@@ -53,7 +53,7 @@ module ContainerExecution
         agent: request.agent,
         display_command: request.display_command || request.command.join(" "),
         on_spawned_process: request.on_spawned_process,
-        backend: Execution::Local.new
+        backend: Syrus::Host::LocalExecution.new
       ).run
     end
 

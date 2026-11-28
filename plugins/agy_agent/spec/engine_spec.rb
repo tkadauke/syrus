@@ -20,7 +20,7 @@ RSpec.describe SyrusAgyAgent::Engine do
   it "registers a manifest named 'agy_agent'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "agy_agent" }
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
+    expect(manifest.version).to eq(Syrus::Host::PluginApi.default_version)
     expect(manifest.category).to eq("agent_provider")
   end
 

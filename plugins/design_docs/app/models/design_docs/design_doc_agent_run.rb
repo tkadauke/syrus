@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocAgentRun < ApplicationRecord
+  class DesignDocAgentRun < Syrus::Host::Record
     self.table_name = "design_doc_agent_runs"
 
     STATUSES = %w[queued running succeeded failed canceled].freeze
@@ -16,7 +16,7 @@ module DesignDocs
     has_many :comments, class_name: "DesignDocs::DesignDocComment", dependent: :nullify
     has_many :suggestions, class_name: "DesignDocs::DesignDocSuggestion", dependent: :nullify
 
-    validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+    validates :agent_provider, presence: true, inclusion: { in: -> { Syrus::Host::UserRecord.agent_providers } }
     validates :status, presence: true, inclusion: { in: STATUSES }
     validates :triggering_comment_id, uniqueness: true
     validate :thread_belongs_to_doc

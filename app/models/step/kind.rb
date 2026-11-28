@@ -45,6 +45,13 @@ class Step
     # agent_role: AgentRole constant this step's agent runs as, for steps whose
     #   role is not the default implementer. Both core and plugin-owned
     #   agentic steps declare specialized roles here.
+    #
+    # worker_checks: worker environment smoke checks this step needs beyond
+    #   the ones every Run needs, as `{ name:, command: [...] }` hashes. Each
+    #   command runs at worker boot (WorkerEnvironmentSmoke); a worker whose
+    #   check failed is not chosen for this step kind. A plugin whose step
+    #   shells out to its own tool declares it here so a worker missing the
+    #   tool stops claiming the step instead of failing it.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
                         :required_mcp_tools, :dynamic_required_mcp_tools,
                         :fail_policy, :reconcile_strategy,
@@ -53,7 +60,7 @@ class Step
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_fallback_step_kinds, :resource_profile_default_overrides, :waits_for_terminal_step_kind,
                         :review_gate, :panel_capable, :reviewer_target_required, :runtime_inserted,
-                        :outcome_override_collector_kind, :placement_policy) do
+                        :outcome_override_collector_kind, :placement_policy, :worker_checks) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      dynamic_required_mcp_tools: nil,
@@ -74,8 +81,10 @@ class Step
                      reviewer_target_required: false,
                      runtime_inserted: false,
                      outcome_override_collector_kind: nil,
-                     placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
+                     placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE,
+                     worker_checks: [])
         repair_semantics ||= agentic ? :agentic : :operator_review
+        worker_checks = Array(worker_checks).map { |check| check.to_h.transform_keys(&:to_s).freeze }.freeze
         resource_profile_step_kinds ||= [ kind ]
         resource_profile_fallback_step_kinds ||= []
         super

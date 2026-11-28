@@ -11,7 +11,7 @@ module DesignDocs
 
     def call
       recipients.find_each do |recipient|
-        AppEvents.broadcast(
+        Syrus::Host::AppEvents.broadcast(
           user: recipient,
           type: "design_doc.updated",
           resource: "design_doc",
@@ -26,7 +26,7 @@ module DesignDocs
     attr_reader :design_doc, :changed
 
     def recipients
-      User.where(id: recipient_ids)
+      Syrus::Host::UserRecord.where(id: recipient_ids)
     end
 
     def recipient_ids
@@ -38,11 +38,11 @@ module DesignDocs
 
     def public_repository_member_ids
       repository_ids = design_doc.design_doc_repositories.select(:repository_id)
-      direct_member_ids = RepositoryMembership.where(repository_id: repository_ids).select(:user_id)
-      team_ids = TeamRepository.where(repository_id: repository_ids).select(:team_id)
-      team_member_ids = TeamMembership.where(team_id: team_ids).select(:user_id)
+      direct_member_ids = Syrus::Host::RepositoryMembershipRecord.where(repository_id: repository_ids).select(:user_id)
+      team_ids = Syrus::Host::TeamRepositoryRecord.where(repository_id: repository_ids).select(:team_id)
+      team_member_ids = Syrus::Host::TeamMembershipRecord.where(team_id: team_ids).select(:user_id)
 
-      User.where(id: direct_member_ids).or(User.where(id: team_member_ids)).pluck(:id)
+      Syrus::Host::UserRecord.where(id: direct_member_ids).or(Syrus::Host::UserRecord.where(id: team_member_ids)).pluck(:id)
     end
   end
 end

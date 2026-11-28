@@ -1,6 +1,6 @@
 module CredentialStore
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [ ListCredentialsTool, SshExecTool ].freeze
 
@@ -9,7 +9,7 @@ module CredentialStore
     end
 
     def self.available_for_context?(context)
-      context.run? && AgentRole::WORKFLOW_ROLES.include?(context.role) && available_for?(context.repository)
+      context.run? && Syrus::Host::AgentRole::WORKFLOW_ROLES.include?(context.role) && available_for?(context.repository)
     end
 
     def self.tool_definitions(context: nil)
@@ -28,7 +28,7 @@ module CredentialStore
 
     def handle(tool_name, params, server_context)
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown credential store workflow tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown credential store workflow tool: #{tool_name.inspect}") unless klass
 
       klass.call(**symbolize(params), server_context: server_context)
     end

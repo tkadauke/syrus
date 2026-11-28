@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -184,6 +184,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["deleted_by_user_id"], name: "index_agent_memory_entries_on_deleted_by_user_id"
     t.index ["scope_id", "published", "scope"], name: "index_agent_memory_entries_on_scope_id_and_published_and_scope"
     t.index ["user_id", "scope", "scope_id"], name: "index_agent_memory_entries_on_user_id_and_scope_and_scope_id"
+  end
+
+  create_table "agent_question_events", force: :cascade do |t|
+    t.integer "agent_question_id", null: false
+    t.string "event_type", null: false
+    t.string "source", null: false
+    t.json "payload"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agent_question_id"], name: "index_agent_question_events_on_agent_question_id"
   end
 
   create_table "agents", force: :cascade do |t|
@@ -489,7 +500,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
   end
 
   create_table "chat_agent_questions", force: :cascade do |t|
-    t.integer "chat_session_id", null: false
+    t.integer "chat_session_id"
     t.datetime "asked_at", null: false
     t.datetime "answered_at"
     t.datetime "expired_at"
@@ -498,9 +509,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.json "questions"
     t.json "answers"
     t.integer "response_chat_session_id"
+    t.integer "run_id"
+    t.integer "answered_by_id"
+    t.string "answer_source"
+    t.json "defaults"
+    t.datetime "times_out_at"
+    t.datetime "timed_out_at"
+    t.datetime "withdrawn_at"
+    t.index ["answered_by_id"], name: "index_chat_agent_questions_on_answered_by_id"
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
     t.index ["response_chat_session_id"], name: "index_chat_agent_questions_on_response_chat_session_id"
+    t.index ["run_id", "answered_at", "expired_at"], name: "idx_agent_questions_run_active"
+    t.index ["run_id"], name: "index_chat_agent_questions_on_run_id"
   end
 
   create_table "chat_attachments", force: :cascade do |t|
@@ -806,6 +827,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.integer "proposer_id"
     t.integer "response_chat_session_id"
     t.bigint "insert_after_job_id"
+    t.string "question_eagerness"
+    t.text "question_eagerness_reason"
     t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
@@ -1241,6 +1264,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["coworker_id", "source_chat_session_id"], name: "idx_coworker_chats_mention_source", unique: true
     t.index ["main_coworker_id"], name: "index_coworker_chats_on_main_coworker_id", unique: true
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
+  end
+
+  create_table "coworker_environment_revisions", force: :cascade do |t|
+    t.integer "coworker_environment_id", null: false
+    t.integer "number", null: false
+    t.string "state", default: "draft", null: false
+    t.string "source_digest", limit: 191, null: false
+    t.json "source_manifest"
+    t.string "recipe_digest", limit: 191
+    t.integer "runtime_image_build_request_id"
+    t.integer "runtime_image_id"
+    t.integer "coworker_base_release_id"
+    t.integer "runtime_abi"
+    t.integer "compat_min"
+    t.integer "compat_max"
+    t.integer "created_by_user_id"
+    t.integer "audit_event_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coworker_environment_id", "number"], name: "idx_coworker_env_revisions_number", unique: true
+    t.index ["coworker_environment_id", "source_digest"], name: "idx_coworker_env_revisions_source"
+    t.index ["runtime_image_build_request_id"], name: "idx_coworker_env_revisions_build"
+    t.index ["runtime_image_id"], name: "idx_coworker_env_revisions_image"
+  end
+
+  create_table "coworker_environments", force: :cascade do |t|
+    t.integer "coworker_id", null: false
+    t.string "state", default: "unconfigured", null: false
+    t.integer "active_revision_id"
+    t.integer "candidate_revision_id"
+    t.integer "active_runtime_image_id"
+    t.integer "candidate_runtime_image_id"
+    t.integer "last_audit_event_id"
+    t.string "last_error_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coworker_id"], name: "index_coworker_environments_on_coworker_id", unique: true
+    t.index ["state"], name: "index_coworker_environments_on_state"
   end
 
   create_table "coworker_grants", force: :cascade do |t|
@@ -1942,6 +2003,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["last_heartbeat_at"], name: "index_instance_versions_on_last_heartbeat_at"
   end
 
+  create_table "invariant_violations", force: :cascade do |t|
+    t.string "invariant_key", limit: 64, null: false
+    t.string "fingerprint", limit: 255, null: false
+    t.string "open_fingerprint", limit: 255
+    t.string "severity", limit: 16, null: false
+    t.string "subject_type", limit: 64, null: false
+    t.bigint "subject_id"
+    t.json "message_params"
+    t.json "details"
+    t.json "affected_ids"
+    t.datetime "violating_since"
+    t.datetime "first_detected_at", null: false
+    t.datetime "last_detected_at", null: false
+    t.datetime "resolved_at"
+    t.integer "detection_count", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["open_fingerprint"], name: "index_invariant_violations_on_open_fingerprint", unique: true
+    t.index ["resolved_at", "invariant_key"], name: "index_invariant_violations_on_resolved_at_and_invariant_key"
+    t.index ["subject_type", "subject_id"], name: "index_invariant_violations_on_subject_type_and_subject_id"
+  end
+
   create_table "invitations", force: :cascade do |t|
     t.datetime "accepted_at"
     t.datetime "created_at", null: false
@@ -2216,6 +2299,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.string "proposer_type"
     t.integer "proposer_id"
     t.json "landing_blocker_override_params"
+    t.string "question_eagerness"
+    t.integer "question_answer_timeout_seconds"
+    t.text "question_eagerness_reason"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
@@ -3543,6 +3629,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["session_id"], name: "index_provider_sessions_on_session_id"
   end
 
+  create_table "recovery_interventions", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "source_workflow_id"
+    t.integer "source_step_id"
+    t.integer "source_run_id"
+    t.integer "resulting_workflow_id"
+    t.integer "resulting_step_id"
+    t.integer "resulting_run_id"
+    t.string "source_loop_id"
+    t.string "resulting_loop_id"
+    t.string "actor_type", null: false
+    t.integer "actor_id"
+    t.string "actor_display"
+    t.string "origin", null: false
+    t.string "action", null: false
+    t.string "recovery_kind", null: false
+    t.string "recovery_mode", null: false
+    t.text "reason"
+    t.text "guidance"
+    t.string "source_revision"
+    t.string "resulting_revision"
+    t.string "failure_classification"
+    t.json "failure_evidence"
+    t.datetime "performed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "performed_at"], name: "idx_recovery_interventions_job_time"
+    t.index ["resulting_workflow_id"], name: "index_recovery_interventions_on_resulting_workflow_id"
+    t.index ["source_workflow_id"], name: "index_recovery_interventions_on_source_workflow_id"
+  end
+
   create_table "ref_movement_actions", force: :cascade do |t|
     t.bigint "repository_id", null: false
     t.bigint "job_id"
@@ -3624,6 +3741,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.string "pr_check_gate", default: "all", null: false
     t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.integer "landing_concurrency", default: 1, null: false
+    t.string "question_eagerness"
+    t.integer "question_answer_timeout_seconds"
+    t.json "worker_environment_requirements"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
@@ -4263,6 +4383,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["user_id"], name: "index_scheduled_task_cron_templates_on_user_id"
   end
 
+  create_table "scheduled_task_occurrences", force: :cascade do |t|
+    t.integer "scheduled_task_id", null: false
+    t.datetime "due_at", null: false
+    t.integer "job_id"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "failed_at"
+    t.index ["job_id"], name: "index_scheduled_task_occurrences_on_job_id", unique: true
+    t.index ["scheduled_task_id", "due_at"], name: "index_scheduled_task_occurrences_on_task_and_due_at", unique: true
+  end
+
   create_table "scheduled_tasks", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
@@ -4861,6 +4993,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.json "approval_delivery_preferences"
     t.string "time_zone", default: "Etc/UTC", null: false
     t.string "time_zone_mode", default: "automatic", null: false
+    t.string "question_eagerness"
+    t.integer "question_answer_timeout_seconds"
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["color_theme_id"], name: "index_users_on_color_theme_id"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
@@ -5040,6 +5174,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["scope_type", "scope_id", "state"], name: "idx_work_units_scope_state"
     t.index ["work_intent_id", "state"], name: "idx_work_units_intent_state"
     t.index ["workflow_id"], name: "idx_work_units_workflow"
+  end
+
+  create_table "worker_environment_gaps", force: :cascade do |t|
+    t.string "hostname", null: false
+    t.string "worker_storage_key"
+    t.integer "repository_id"
+    t.string "missing_kind", null: false
+    t.string "missing_name"
+    t.integer "run_id"
+    t.json "evidence"
+    t.datetime "detected_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "cleared_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname", "cleared_at"], name: "idx_worker_environment_gaps_host_active"
+    t.index ["repository_id", "cleared_at"], name: "idx_worker_environment_gaps_repo_active"
   end
 
   create_table "worker_host_health_samples", force: :cascade do |t|

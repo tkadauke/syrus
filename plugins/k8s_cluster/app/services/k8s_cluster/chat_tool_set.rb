@@ -11,11 +11,11 @@ module K8sCluster
   # SetNodeCordonTool) additionally require `allow_writes` via
   # AgenticAccess.cluster_with_write_access!. The TOOL_CLASSES/dispatch
   # skeleton itself is shared with MysqlDbBrowser::ChatToolSet via
-  # Syrus::Plugin::GatedToolSet.
+  # Syrus::Host::GatedToolSet.
   class ChatToolSet
-    include Syrus::Plugin::GatedToolSet
+    include Syrus::Host::GatedToolSet
 
-    gated_by plugin: K8sCluster, model: KubernetesCluster, label: "K8s Cluster"
+    gated_by plugin: K8sCluster, model: Syrus::Host::KubernetesCluster, label: "K8s Cluster"
 
     TOOL_CLASSES = [
       ListClustersTool,
@@ -71,12 +71,12 @@ module K8sCluster
       max_policy: "auto",
       scope: {
         options: lambda { |user:|
-          context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+          context = Syrus::Host::ToolContext.new(surface: :chat, role: Syrus::Host::AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_cluster_metadata(context: context).pluck(:id)
         },
-        label: ->(id) { KubernetesCluster.find_by(id: id)&.label || "Kubernetes cluster #{id}" },
+        label: ->(id) { Syrus::Host::KubernetesCluster.find_by(id: id)&.label || "Kubernetes cluster #{id}" },
         valid: lambda { |id, user:|
-          context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+          context = Syrus::Host::ToolContext.new(surface: :chat, role: Syrus::Host::AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_cluster_metadata(context: context).any? { |cluster| cluster.fetch(:id).to_s == id.to_s }
         }
       }

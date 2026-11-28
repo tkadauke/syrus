@@ -92,6 +92,28 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(payload[:transcript][:tail]).to include("tail")
   end
 
+  it "returns the bounded recovery decision and intervention provenance" do
+    job = Factories.job_record(user:, repository:, state: "failed")
+    workflow = Workflow.create!(job:, trigger_kind: "initial", state: "failed")
+    step = workflow.steps.create!(kind: "implement", position: 0, state: "failed")
+    run = step.runs.create!(job:, trigger_kind: "initial", state: "failed")
+    job.recovery_interventions.create!(
+      source_workflow: workflow, source_step: step, source_run: run,
+      actor_type: "agent", actor_display: "Repair agent", origin: "mcp_retry_job",
+      action: "repair", recovery_kind: "measured_failure", recovery_mode: "failed_step",
+      guidance: "Fix the persistent assertion.", failure_evidence: {}, performed_at: Time.current
+    )
+
+    recovery = response_payload(call_tool(job_id: job.id)).fetch(:recovery)
+
+    expect(recovery[:decision]).to include(outcome: "measured_failure", headline: be_present)
+    expect(recovery.dig(:decision, :references)).to include(job: "JOB-#{job.id}", source_workflow: "WF-#{workflow.id}")
+    expect(recovery.dig(:interventions, :items, 0)).to include(
+      recovery_kind: "measured_failure", origin: "mcp_retry_job",
+      requested_actor: include(type: "agent", display: "Repair agent")
+    )
+  end
+
   it "presents an agent-blocked Job with its cannot-proceed reason" do
     job = Factories.job_record(user: user, repository: repository, state: "running")
     workflow = Workflow.create!(

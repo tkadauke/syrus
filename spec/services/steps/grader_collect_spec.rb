@@ -329,6 +329,49 @@ RSpec.describe Steps::GraderCollect do
     expect(workflow.reload.artifact("ci_repair_covered_checks")).to be_nil
   end
 
+  # Regression: a rebuilt merge train restarted its repair loop at iteration
+  # 1, but the previous loop's all-green iteration 3 stayed last in the
+  # rollup, so landing_fix read the stale entry as the current verdict and
+  # made no change while the same shards kept failing.
+  describe "iteration rollup across repair loops" do
+    let(:stale_green) { [ { "name" => "rspec-ci-1-of-8", "required" => true, "status" => "passed" } ] }
+
+    before do
+      workflow.steps.find_by!(kind: "grader").update!(
+        iteration: 1, state: "failed",
+        details: { "name" => "rspec-ci-1-of-8", "required" => true, "exit_code" => 1, "output" => "1 failure" }
+      )
+    end
+
+    it "drops rounds past the current one so the newest entry is this round" do
+      workflow.set_artifact!("iterations", [ stale_green, stale_green, stale_green ])
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+      iterations = workflow.reload.artifact("iterations")
+      expect(iterations.size).to eq(1)
+      expect(iterations.last).to contain_exactly(include("name" => "rspec-ci-1-of-8", "status" => "failed"))
+    end
+
+    it "starts a fresh history when a new repair loop takes over" do
+      loop_steps = workflow.steps.where(id: [ step.id, workflow.steps.find_by!(kind: "grader").id ])
+      loop_steps.update_all(loop_id: "rebuilt-loop")
+      step.reload
+      workflow.set_artifact!("iterations", [ stale_green, stale_green ])
+      workflow.set_artifact!(described_class::ITERATIONS_LOOP_ARTIFACT_KEY, "earlier-loop")
+      step.update!(iteration: 2)
+      run.update!(iteration: 2)
+      workflow.steps.find_by!(kind: "grader").update!(iteration: 2)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+      iterations = workflow.reload.artifact("iterations")
+      expect(iterations.compact.size).to eq(1)
+      expect(iterations.last).to contain_exactly(include("status" => "failed"))
+      expect(workflow.artifact(described_class::ITERATIONS_LOOP_ARTIFACT_KEY)).to eq("rebuilt-loop")
+    end
+  end
+
   it "marks a failed grader iteration that repeats the previous result" do
     workflow.set_artifact!("iterations", [
       [

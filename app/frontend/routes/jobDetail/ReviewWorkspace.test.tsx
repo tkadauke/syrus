@@ -1322,14 +1322,15 @@ describe("ReviewWorkspace", () => {
             page: { path: "/dashboard", title: "Dashboard" },
             viewport: { width: 1440, height: 900 },
             submission_failed: false,
-            image_url: "/api/v1/app/jobs/42/visual_evidence/evidence-1"
+            original_url: "/api/v1/app/jobs/42/visual_evidence/evidence-1",
+            thumbnail_url: "/api/v1/app/jobs/42/visual_evidence/evidence-1/thumbnail"
           }
         ]
       }
     })
 
     await screen.findByText("Review artifacts")
-    expect(screen.getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", "/api/v1/app/jobs/42/visual_evidence/evidence-1")
+    expect(screen.getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", "/api/v1/app/jobs/42/visual_evidence/evidence-1/thumbnail")
 
     expect(screen.getByRole("img", { name: "Visual diff baseline" })).toHaveAttribute(
       "src",
@@ -1414,7 +1415,8 @@ describe("ReviewWorkspace", () => {
       page: { path: `/${id}`, title },
       viewport: { width: 1440, height: 900 },
       submission_failed: false,
-      image_url: `/api/v1/app/jobs/42/visual_evidence/${id}`
+      original_url: `/api/v1/app/jobs/42/visual_evidence/${id}`,
+      thumbnail_url: `/api/v1/app/jobs/42/visual_evidence/${id}/thumbnail`
     })
 
     renderWorkspace({
@@ -1443,7 +1445,8 @@ describe("ReviewWorkspace", () => {
       page: { path: `/${id}`, title },
       viewport: { width: 1440, height: 900 },
       submission_failed: false,
-      image_url: `/${id}.png`
+      original_url: `/${id}.png`,
+      thumbnail_url: `/${id}-thumbnail.png`
     })
 
     renderWorkspace(
@@ -2228,9 +2231,7 @@ describe("ReviewWorkspace", () => {
       })
     )
     // Comments resolve after the diff, as they can on a loaded grader.
-    vi.mocked(fetchDiffReviewComments).mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(commentsPayload([lineComment])), 50))
-    )
+    vi.mocked(fetchDiffReviewComments).mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(commentsPayload([lineComment])), 50)))
 
     renderWorkspace()
 

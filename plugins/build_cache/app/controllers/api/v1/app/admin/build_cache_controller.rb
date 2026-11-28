@@ -9,7 +9,7 @@ module Api
         # BuildCache::ClearRequest with a required audit reason, and a
         # separate `confirm` call actually mutates the bucket. See
         # BuildCache::ClearRequest.
-        class BuildCacheController < BaseController
+        class BuildCacheController < Syrus::Host::AppAdminController
           def show
             render json: payload.show(include_stats: include_stats?)
           end
@@ -19,7 +19,7 @@ module Api
           end
 
           def create_clear_request
-            request = BuildCache::ClearRequest.new(clear_request_params.merge(user: Current.user))
+            request = BuildCache::ClearRequest.new(clear_request_params.merge(user: Syrus::Host::Current.user))
             if request.save
               render json: payload.request(request), status: :created
             else
@@ -31,7 +31,7 @@ module Api
 
           def confirm_clear_request
             request = BuildCache::ClearRequest.find(params[:id])
-            if request.confirm!(user: Current.user)
+            if request.confirm!(user: Syrus::Host::Current.user)
               render json: payload.request(request.reload)
             else
               render_error("cannot_confirm", "Request is no longer pending, or the build cache bucket is not configured.",

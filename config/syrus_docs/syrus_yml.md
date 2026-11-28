@@ -353,6 +353,14 @@ prepare:
 
 Use `prepare: []` or `prepare: false` to opt out entirely. If `.syrus.yml` is absent, Syrus auto-detects a single setup command from lockfiles in this priority order: `Gemfile` → `yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`. Auto-detected commands soft-fail (warning + agent still runs); explicit `.syrus.yml` commands hard-fail and abort the chain.
 
+A failed command is run once more before it counts. When it still fails, Syrus reads that command's own exit status and output to decide whether the step is worth retrying:
+
+- **Retried** (within the normal retry budget): the package registry or network failed — connection resets, DNS failures, TLS errors, registry 5xx responses, fetch timeouts — or the command ran past its time limit.
+- **Moved to another worker**: the worker is missing something the install needs — a system library or header a native extension links against, or an executable the command calls (`command not found`). The change is not at fault, so the step does not fail, is never handed to a repair agent, and is not charged against the change: the worker is marked as unable to run this repository's setup and the step reruns on another worker. When no live worker has what is needed, the step waits on `no_capable_worker` with the reason `worker_environment_check_failed` (the same hold a failed worker environment check produces; see the multi-worker docs), naming the missing library or tool, until a provisioned worker is available. The mark lapses after a few hours, when that worker restarts, when its environment check for the same thing passes, or when the same setup succeeds there.
+- **Not retried**: the install itself cannot succeed as configured — a native extension whose own source fails to compile, a manifest and lockfile that do not resolve, a script the repository references but does not contain, or any other failure with no sign of a network or worker problem. The failure names the command and, when the output says, the package involved.
+
+The same rules apply to the dependency install a grader runs in its own checkout: a worker-environment failure there reruns the grader on another worker and never counts as a red grader.
+
 Set `Repository#prepare_enabled` to false in the admin UI to disable the prepare step for all workflows on a repo. Add the `syrus-skip-prepare` label to an issue to skip it for that Job only.
 
 In the root `.syrus.yml`, `prepare:` remains the automatic baseline setup for
@@ -926,8 +934,11 @@ A CPU request is a claim about the work, not a reservation. At spawn time Syrus
 resolves it against the worker's capacity and what concurrent graders already
 claim: a grader that declares nothing is assumed serial and charged one core,
 so a `cpu: all` grader receives everything the declared and undeclared peers
-leave behind. Two concurrent `cpu: all` graders split the remainder rather than
-both taking it. The resolved width reaches the command as
+leave behind, but never less than half the worker's capacity (or `cpu_min`):
+the grant is fixed for the grader's whole run, and CPU contention only slows
+processes down, so a grader that starts on a busy worker still runs in
+parallel. Measured free memory (about 750 MB per parallel process) bounds the
+grant. The resolved width reaches the command as
 `SYRUS_PROCESS_PARALLELISM`, and a declared `memory` as
 `SYRUS_MEMORY_LIMIT_BYTES`; a grader command should read those rather than
 calling `nproc` itself, which on a container without a CPU quota reports the

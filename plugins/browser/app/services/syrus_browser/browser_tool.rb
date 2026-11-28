@@ -71,7 +71,7 @@ module SyrusBrowser
         return error(missing_arguments_message(missing)) if missing.any?
 
         context = SessionContext.resolve(server_context)
-        lease_error = enforce_input_lease(context)
+        lease_error = enforce_input_lease(context, owner: server_context[:runtime_control_owner], event: params)
         return lease_error if lease_error
 
         session = SessionRegistry.fetch(context.session_key)
@@ -99,16 +99,25 @@ module SyrusBrowser
       # the calling RuntimeSession's agent does not currently hold one; nil
       # (proceed) otherwise, including for any call that does not target a
       # RuntimeSession at all (the workflow Run path).
-      def enforce_input_lease(context)
+      def enforce_input_lease(context, owner: nil, event: {})
         return nil unless requires_input_lease?
 
         runtime_session = context.owner
-        return nil unless runtime_session.is_a?(RuntimeSession)
-        return nil if runtime_session.active_agent_input_lease
+        return nil unless runtime_session.is_a?(Syrus::Host::RuntimeSessionRecord)
+        owner = owner.to_s == "user" ? "user" : "agent"
+        lease = if owner == "user"
+          runtime_session.runtime_control_leases.active.held_by("user").for_mode("input").first
+        else
+          runtime_session.active_agent_input_lease
+        end
+        if lease
+          lease.record_input!(event.merge(tool: tool_name))
+          return nil
+        end
 
-        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: { tool: tool_name })
+        Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: { tool: tool_name })
         error(
-          "lease_required: the agent must hold an active runtime_acquire_control(mode: \"input\") " \
+          "lease_required: the #{owner} must hold an active runtime_acquire_control(mode: \"input\") " \
           "lease on this Runtime Session before calling #{tool_name}."
         )
       end
@@ -176,10 +185,10 @@ module SyrusBrowser
             content_type: block[:mimeType].presence || "image/png",
             title: "#{tool_name} capture", metadata:
           )
-          content << { type: "text", text: "Draft visual evidence ID: #{evidence.stable_id}" } if evidence.is_a?(WorkflowVisualEvidence)
+          content << { type: "text", text: "Draft visual evidence ID: #{evidence.stable_id}" } if evidence.is_a?(Syrus::Host::WorkflowVisualEvidence)
         end
       rescue StandardError => e
-        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{Syrus::Host::CommandRedactor.redact(e.message)}")
       end
 
 
@@ -203,7 +212,7 @@ module SyrusBrowser
         parsed["subject"] = { "type" => "snapshot_ref", "ref" => params[:target] } if params[:target].present?
         parsed
       rescue StandardError => e
-        Rails.logger.warn("[SyrusBrowser::BrowserTool] screenshot metadata capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] screenshot metadata capture failed: #{e.class}: #{Syrus::Host::CommandRedactor.redact(e.message)}")
         {}
       end
     end

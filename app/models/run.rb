@@ -45,6 +45,7 @@ class Run < ApplicationRecord
   has_one :agent, as: :resumable, dependent: :destroy
   has_one :run_checkpoint, dependent: :destroy
   has_one :provider_session, as: :resumable, dependent: :destroy
+  has_many :agent_questions, class_name: "AgentQuestion", dependent: :destroy
   has_one :provider_session_metadata,
           -> { metadata_only },
           as: :resumable,
@@ -174,7 +175,7 @@ class Run < ApplicationRecord
     before_all_events { Lineage.lock!(self) if persisted? }
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
+    state :running, :awaiting_answer, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
@@ -198,6 +199,14 @@ class Run < ApplicationRecord
 
     event :block do
       transitions from: [ :queued, :running ], to: :blocked, after: -> { self.finished_at = Time.current }
+    end
+
+    event :await_answer do
+      transitions from: :running, to: :awaiting_answer
+    end
+
+    event :resume_from_answer do
+      transitions from: [ :awaiting_answer, :blocked ], to: :queued
     end
   end
 
@@ -495,6 +504,9 @@ class Run < ApplicationRecord
   # silently stalling.
   def block_for_missing_capable_worker!(decision)
     message = "no live worker can satisfy Run queue requirements for #{decision.queue_name}: #{decision.requirements.inspect}"
+    if (summary = decision.environment_check_summary)
+      message += "; worker environment checks failed: #{summary}"
+    end
     Rails.logger.warn("[Run##{id}] #{message}")
     details = decision.details.merge(
       "reason" => decision.blocked_reason,

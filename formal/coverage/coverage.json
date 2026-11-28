@@ -1444,8 +1444,8 @@
         "repeated_pr_open_failure_retry_recovers"
       ],
       "status": "partial",
-      "done_by": "F44, F45 · Agreement.planned_retry_never_skipped",
-      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11 decided A: per-Step budget kept. M48 (production, 7 days): the only repeating exempt skip was the branch-rewritten loop on worker versions predating F45; none since F45 went live. 'That agent is not available' did not occur. Note the worker_died budget is MAX_WORKER_DIED_ATTEMPTS = 20, not 3."
+      "done_by": "F44, F45 · Agreement.planned_retry_never_skipped · RetryTermination.ladder_length_bound, after_terminates",
+      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11 decided A: per-Step budget kept. M48 (production, 7 days): the only repeating exempt skip was the branch-rewritten loop on worker versions predating F45; none since F45 went live. 'That agent is not available' did not occur. Note the worker_died budget is MAX_WORKER_DIED_ATTEMPTS = 20, not 3. RetryTermination.lean: the ladder admits at most limit charged attempts per (job, provider, classification) (ladder_charged_bound), so at most limit + e attempts when e were exempt; with the classification and provider fixed the two change-reporting exempt reasons cannot be written (fixed_classification_no_change_skip, fixed_provider_no_change_skip), leaving environmental ones assumed to occur finitely often. Found: the landing deferral loop (transient-blocker landing failure -> defer -> relaunch) had no budget once runaway protection was set, so an operator-approved runaway-protected Job relaunched a deterministically failing landing forever (before_landing_loops). Fixed in LandingFailureHandler#runaway_retry_refused?; after_terminates gives a ranking function and after_stops_named shows the loop stops with runaway protection set."
     },
     {
       "id": "resumable-agent-session",
@@ -3349,6 +3349,44 @@
       "producer": "WorkEngine::Reconciler.reopened_awaiting_run_at; Reconciler#classify_queued_steps_without_runs; RepairExecutor ResumeQueuedStep",
       "done_by": "F119 (Lead L13)",
       "notes": "ReopenedStepLiveness.lean: before_strands, after_live, after_exclusive, resume_agrees."
+    },
+    {
+      "id": "slot-capacity-soundness",
+      "area": "concurrency",
+      "title": "Only runnable work occupies a rebase slot or a landing lane",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RebaseWorkflowSelector.active_in_repository, repo_rebase_concurrency_reached?, WorkDefinitions.landing_capacity_full?, WorkUnit#block!",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "blocked_no_capable_worker_does_not_hold_landing_slot"
+      ],
+      "status": "done",
+      "done_by": "SlotCapacity.rebase_holder_runnable, demote_frees_rebase, paused_never_starve, lane_holder_sound",
+      "notes": "Rebase slots count RUNNABLE_STATES only: every holder is queued or running and blocking or finishing a unit never makes a slot less available; the old ACTIVE_STATES count let three paused rebases fill all three slots (before_paused_starve). Landing lanes are held by runnable units or by in-flight landings blocked for a reason that is not externally cleared (inflight_blocked_holds_lane); that is by design and live only if every lane-holding block reason has a wake-up (LaneHoldingReasonsClear, assumed)."
+    },
+    {
+      "id": "approved-work-progress",
+      "area": "landing",
+      "title": "An approved Job lands or carries a named blocker",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "LandingQueueProcessor#blockage_for / #land, PollMergeStateJob, AutoRetryJob#skip_if_failure_no_longer_retryable",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "pr_open_branch_diverged_retries_from_current_branch"
+      ],
+      "status": "partial",
+      "done_by": "ApprovedProgress.no_silent_stall, eventually_lands_or_named, planned_retry_not_rechecked_away",
+      "notes": "Modelled: one approved Job, its blocker, mergeability needing a rebase, its own rebase, the repository's rebase slots and its landing lanes. Every unnamed approved state has a step and a ranking function bounds every run, under fairness: enabled steps are taken, no competing work is admitted ahead of the Job, and lane-holding blocks wake up. Counterexample before the slot fix: before_silent_stall. Gap: a Job waiting for a rebase slot shows no blocked_reason (the wait is explained only by the runnable slot holders). Merge-train dispatch (MergeTrainDispatcher#try_dispatch!) is not modelled beyond its blocker_reason."
     }
   ],
   "needs_you": [

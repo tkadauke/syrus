@@ -9,7 +9,7 @@ module AgentInsights
 
       AgentInsights::Suggestion
         .joins(:repository)
-        .where(repositories: { id: Repository.accessible_to(user).select(:id) })
+        .where(repositories: { id: Syrus::Host::RepositoryRecord.accessible_to(user).select(:id) })
         .find_by(id: id)
     end
 

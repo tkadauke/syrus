@@ -23,7 +23,7 @@ require "tempfile"
 # Failure contract: NOTHING may strand a walkthrough in "analyzing" — every
 # exit path either marks it analyzed or failed (the retry endpoint only
 # accepts failed rows, and the chat chip spins until a terminal broadcast).
-class VideoWalkthroughs::AnalysisJob < PluginJob
+class VideoWalkthroughs::AnalysisJob < Syrus::Host::PluginJob
   plugin :video_walkthroughs
   queue_as :videos
 
@@ -237,8 +237,8 @@ class VideoWalkthroughs::AnalysisJob < PluginJob
   # Post the walkthrough as a first-class chat turn. The message is the VIDEO
   # itself (plus the operator's note) — NOT the analysis, which used to read as a
   # wall of text the user supposedly typed. `video_walkthrough_id` makes
-  # ChatTurnJob orient the agent to pull the analysis with its tools and work
-  # autonomously toward an Epic (see ChatTurnJob#walkthrough_orientation), and it
+  # Syrus::Host::ChatTurnJob orient the agent to pull the analysis with its tools and work
+  # autonomously toward an Epic (see Syrus::Host::ChatTurnJob#walkthrough_orientation), and it
   # surfaces the video in the chat's attached-media sidebar.
   #
   # Returns true once the message is queued (whether or not the promoter delivers
@@ -259,9 +259,9 @@ class VideoWalkthroughs::AnalysisJob < PluginJob
     unless queued_message_exists?(chat, walkthrough)
       chat.queued_messages.create!(content: content)
     end
-    # Delivers immediately when the agent is idle; otherwise ChatTurnJob's
+    # Delivers immediately when the agent is idle; otherwise Syrus::Host::ChatTurnJob's
     # turn-end promotion picks it up — either way, no turn collision.
-    ChatQueuedMessagePromoter.deliver_one_if_idle!(chat)
+    Syrus::Host::ChatQueuedMessagePromoter.deliver_one_if_idle!(chat)
     true
   rescue StandardError => error
     Rails.logger.error("[VideoWalkthroughs::AnalysisJob] chat delivery failed: #{error.class}: #{error.message}")
@@ -293,7 +293,7 @@ class VideoWalkthroughs::AnalysisJob < PluginJob
   end
 
   def broadcast(walkthrough)
-    AppEvents.broadcast(
+    Syrus::Host::AppEvents.broadcast(
       user: walkthrough.user,
       type: "video_walkthrough.#{walkthrough.state}",
       resource: "video_walkthrough",

@@ -1,11 +1,11 @@
 module Api
   module V1
     module Admin
-      class MysqlController < BaseController
+      class MysqlController < Syrus::Host::AdminController
         before_action :require_admin_mysql_enabled
 
         def show
-          render json: PerformanceLogging.suppress {
+          render json: Syrus::Host::PerformanceLogging.suppress {
             ::AdminMysql::Inspector.new.snapshot(limit: params[:limit], include_slow_log: boolean_param(:include_slow_log),
               include_idle: boolean_param(:include_idle), sections: params[:sections].to_s.split(","))
           }
@@ -14,7 +14,7 @@ module Api
         end
 
         def kill_query
-          render json: PerformanceLogging.suppress {
+          render json: Syrus::Host::PerformanceLogging.suppress {
             ::AdminMysql::Inspector.new.kill_query(params.require(:thread_id))
           }
         rescue ArgumentError => e

@@ -128,6 +128,35 @@ RSpec.describe StackBaseFreshness, :ci_only do
     expect(sh(child, "rev-list", "--count", "#{live}..HEAD")).to eq("1")
   end
 
+  # Regression (a stacked Epic child after an Epic-wide stack rebase): the
+  # parent was rewritten with changes to its own files, and the child's retry
+  # inherited a prepared SHA naming the *new* parent head while its
+  # workspace still held work built on the old one. The plain-rebase
+  # fallback replayed the parent's superseded commit too and conflicted
+  # add/add on every retry; the old head was on record in an earlier
+  # workflow's conflict evidence.
+  it "replays from an earlier recorded base when the inherited one is not an ancestor" do
+    sh(parent_clone, "checkout", "-q", "main")
+    commit(parent_clone, "main-moved.txt")
+    sh(parent_clone, "push", "-q", "origin", "main")
+    sh(parent_clone, "checkout", "-q", "-B", "parent", "main")
+    commit(parent_clone, "parent.txt", "parent, revised during the stack rebase")
+    sh(parent_clone, "push", "-q", "--force", "origin", "HEAD:refs/heads/#{parent_ref}")
+    live = sh(parent_clone, "rev-parse", "HEAD")
+
+    Workflow.create!(job: workflow.job, trigger_kind: "retry").set_artifact!(
+      "stack_base_rebase_conflict", { "prepared_sha" => @prepared, "live_sha" => live }
+    )
+    workflow.set_artifact!(described_class::PREPARED_ARTIFACT, { "ref" => parent_ref, "sha" => live })
+
+    result = barrier.ensure_fresh!
+
+    expect(result.status).to eq(:rebased)
+    expect(barrier.descends_from?(live)).to be(true)
+    expect(sh(child, "rev-list", "--count", "#{live}..HEAD")).to eq("1")
+    expect(File.read(child.join("parent.txt"))).to eq("parent, revised during the stack rebase")
+  end
+
   it "re-checks after a rebase and rebases again when the parent moves during validation" do
     force_rebase_parent!
     moved = nil

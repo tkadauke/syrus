@@ -173,6 +173,23 @@ module Admin
       }
     end
 
+    # A failed environment smoke check (WorkerEnvironmentSmoke) is why a live
+    # worker is not taking some work, so it belongs in the worker's health:
+    # critical for a check every Run needs, a warning for one that only keeps
+    # it off the work that needs it. Advisory checks (gh) gate silently.
+    def environment_smoke_health(diagnostics)
+      report = diagnostics.is_a?(Hash) ? diagnostics[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY] : nil
+      return nil unless report.is_a?(Hash)
+
+      checks = report["checks"].to_h
+      failures = WorkerEnvironmentSmoke.failed_checks(report).reject { |name| checks.dig(name, "advisory") }
+      return nil if failures.empty?
+
+      level = failures.any? { |name| checks.dig(name, "essential") } ? "critical" : "warning"
+      reasons = failures.map { |name| "environment check #{name} failed: #{checks.dig(name, 'reason')}" }
+      { level: level, reasons: reasons }
+    end
+
     def health_for(sample:, instance: nil)
       reasons = []
       level = "ok"
@@ -180,6 +197,12 @@ module Admin
       if instance&.stale?
         level = "critical"
         reasons << "worker heartbeat stale"
+      end
+
+      environment = environment_smoke_health(instance&.capability_diagnostics.presence || sample&.capability_diagnostics)
+      if environment
+        level = WorkerHealthSampleAnalysis.max_level(level, environment.fetch(:level))
+        reasons.concat(environment.fetch(:reasons))
       end
 
       if sample.nil?

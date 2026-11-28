@@ -1,10 +1,10 @@
 module PendingActions
-  class FireScheduledTaskNow < Base
+  class FireScheduledTaskNow < Syrus::Host::PendingActionBase
     action_key "fire_scheduled_task_now"
 
     def authorize_execution!
       task = scheduled_task
-      raise ArgumentError, "Repository write access is required to fire this scheduled task." unless RepositoryPolicy.new(user, task.repository).write?
+      raise ArgumentError, "Repository write access is required to fire this scheduled task." unless Syrus::Host::RepositoryPolicy.new(user, task.repository).write?
     end
 
     def execute
@@ -42,7 +42,7 @@ module PendingActions
 
     def presentation_resource
       job = action.result
-      return nil unless job.is_a?(Job)
+      return nil unless job.is_a?(Syrus::Host::JobRecord)
 
       { resource_title: job.issue_title, resource_url: "/jobs/#{job.id}" }
     end

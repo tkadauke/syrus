@@ -72,6 +72,60 @@ RSpec.describe MaintenanceTasks::Runner do
     end
   end
 
+  class SpecPacedMaintenanceDefinition < MaintenanceTasks::Definitions::Base
+    key "spec_paced"
+    title "Spec paced"
+    summary "Exercises pacing between batches."
+    category "backfill"
+    recurrence "one_off"
+    required_role "admin"
+    pause_between_batches 2
+
+    def estimate_total_units = 10
+
+    def perform_batch(_task)
+      Result.new(done: false, processed: 1, failed: 0, message: "Processed one.", level: "progress")
+    end
+  end
+
+  # Regression: batches re-enqueued with no pause ran a ~50 million row
+  # backfill back-to-back, held MySQL at its memory limit, and took
+  # production down.
+  describe "pacing between batches" do
+    let(:definition) { SpecPacedMaintenanceDefinition.new }
+    let(:task) do
+      MaintenanceTask.create!(
+        definition_key: "spec_paced", task_key: "spec_paced", trigger_kind: "manual", trigger_key: "spec_paced",
+        title: "Spec paced", summary: "Exercises pacing.", category: "backfill", recurrence: "one_off",
+        required_role: "admin", state: "running", total_units: 10, completed_units: 0, failed_units: 0,
+        batch_size: 1, max_parallelism: 1, checkpoint: {}
+      )
+    end
+
+    before { allow(MaintenanceTasks::Registry).to receive(:fetch).with("spec_paced").and_return(definition) }
+
+    it "waits the definition's pause before the next batch" do
+      allow_any_instance_of(described_class).to receive(:database_busy?).and_return(false)
+      configured = class_double(MaintenanceTaskRunJob, perform_later: true)
+      allow(MaintenanceTaskRunJob).to receive(:set).and_return(configured)
+
+      described_class.new(task).call
+
+      expect(MaintenanceTaskRunJob).to have_received(:set).with(wait: 2.0)
+      expect(configured).to have_received(:perform_later).with(task.id)
+    end
+
+    it "steps aside for a minute while the database is busy" do
+      allow_any_instance_of(described_class).to receive(:database_busy?).and_return(true)
+      configured = class_double(MaintenanceTaskRunJob, perform_later: true)
+      allow(MaintenanceTaskRunJob).to receive(:set).and_return(configured)
+
+      described_class.new(task).call
+
+      expect(MaintenanceTaskRunJob).to have_received(:set).with(wait: 60.0)
+    end
+  end
+
   it "persists step progress when the definition mutates the task before locking" do
     task = MaintenanceTask.create!(
       definition_key: "spec_dirty_step",

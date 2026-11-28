@@ -68,6 +68,7 @@ module App
 
         {
           artifact: "transcript",
+          prompt: run.prompt.presence,
           logs_count: logs_count,
           logs_page: page,
           logs_per_page: per,
@@ -85,6 +86,7 @@ module App
 
         {
           artifact: "transcript",
+          prompt: run.prompt.presence,
           logs_count: logs_count,
           logs_page: 1,
           logs_per_page: per,

@@ -160,6 +160,7 @@ module Admin
       force_fail_job
       force_landing_recheck
       force_rebase
+      detach_job
       force_state_transition
       grant_permission
       hold_job
@@ -204,6 +205,7 @@ module Admin
     ].freeze
 
     WORKFLOW_MCP_CAPABILITIES = %w[
+      ask_user_question
       patch_workflow
       propose_job
       report_cannot_proceed

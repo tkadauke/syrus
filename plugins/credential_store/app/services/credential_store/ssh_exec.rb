@@ -277,7 +277,7 @@ module CredentialStore
     end
 
     def truncate(value)
-      Mcp::Tools.truncate_text(Mcp::Tools.utf8(value), MAX_OUTPUT_BYTES)
+      Syrus::Host::McpTools.truncate_text(Syrus::Host::McpTools.utf8(value), MAX_OUTPUT_BYTES)
     end
 
     def target

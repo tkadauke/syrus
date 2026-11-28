@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module SpendingReport
-      class CreatedAt < DateColumn
+      class CreatedAt < Syrus::Host::Filters::Chips::DateColumn
         filter_name "created_at"
         label "Completion date"
         column :finished_at

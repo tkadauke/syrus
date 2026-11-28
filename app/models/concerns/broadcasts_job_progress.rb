@@ -81,6 +81,40 @@ module BroadcastsJobProgress
     )
 
     owner_job.broadcast_app_chat_job_status_updates
+    broadcast_landing_lanes_changed(owner_job) if landing_lane_progress?
+  end
+
+  def landing_lane_progress?
+    workflow = respond_to?(:workflow) ? self.workflow : (self if is_a?(Workflow))
+    workflow && WorkDefinitions.landing_workflow_kinds.include?(workflow.trigger_kind)
+  end
+
+  def broadcast_landing_lanes_changed(owner_job)
+    landing_lane_recipients(owner_job.repository_id).find_each do |recipient|
+      AppEvents.broadcast(
+        user: recipient,
+        type: "landing_lanes.updated",
+        resource: "landing_lanes",
+        id: owner_job.repository_id,
+        changed: [ "#{self.class.name.underscore}.state" ],
+        payload: { "path" => "/api/v1/app/landing_lanes", "repository_id" => owner_job.repository_id }
+      )
+    end
+  end
+
+  # Mirrors RepositoryPolicy::Scope: the endpoint is available to direct
+  # repository admins and members of teams with an admin grant. Global admins
+  # do not bypass that scope, so they are deliberately absent here too.
+  def landing_lane_recipients(repository_id)
+    direct_user_ids = RepositoryMembership.at_least("admin")
+      .where(repository_id:)
+      .select(:user_id)
+    admin_team_ids = TeamRepository.at_least("admin")
+      .where(repository_id:)
+      .select(:team_id)
+    team_user_ids = TeamMembership.where(team_id: admin_team_ids).select(:user_id)
+
+    User.where(id: direct_user_ids).or(User.where(id: team_user_ids))
   end
 
   def job_progress_patch_fields

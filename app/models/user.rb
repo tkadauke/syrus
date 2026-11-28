@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  include HasAgentQuestionPolicy
   # The User ranks first in the row-lock order (NY40); its dependents'
   # destroy cascades lock their subtrees, so the User row comes before them.
   before_destroy(prepend: true) { self.class.lock.where(id: id).to_a }
@@ -170,6 +171,7 @@ class User < ApplicationRecord
   }.freeze
   DASHBOARD_SORT_DIRECTIONS = %w[asc desc].freeze
   NOTIFICATION_PREFERENCES_DEFAULTS = {
+    "agent_question_asked" => true,
     "job_failed" => true,
     "job_implemented" => true,
     "pr_comment_addressed" => true,

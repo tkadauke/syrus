@@ -1674,6 +1674,25 @@ RSpec.describe Workflow, :ci_only do
       expect(LandingQueueProcessor).to have_received(:try_land!).with(job)
     end
 
+    # Regression, found by the simulator fuzzer: the hook launched the landing
+    # inside the rebase's success transition, locking the new auto_merge
+    # lineage while holding the rebase Workflow (NY40 row-lock order).
+    it "re-dispatches the landing only once the rebase's success transaction commits" do
+      job = landing_job
+      rebase_wf = Workflows::Rebase.instantiate(job: job)
+      rebase_wf.update!(state: "running")
+
+      allow(LandingQueueProcessor).to receive(:try_land!)
+
+      described_class.transaction do
+        rebase_wf.succeed!
+        rebase_wf.save!
+        expect(LandingQueueProcessor).not_to have_received(:try_land!)
+      end
+
+      expect(LandingQueueProcessor).to have_received(:try_land!).with(job)
+    end
+
     it "skips LandingQueueProcessor.try_land! when the succeeding workflow is not a rebase" do
       job = landing_job
       initial_wf = described_class.create!(job: job, trigger_kind: "initial", state: "running")

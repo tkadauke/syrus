@@ -1,6 +1,6 @@
 module AgentMemory
   # Append-only history of every write to an Entry.
-  class AuditEvent < ApplicationRecord
+  class AuditEvent < Syrus::Host::Record
     self.table_name = "agent_memory_audit_events"
 
     EVENT_TYPES = %w[ created updated deleted ].freeze
@@ -33,9 +33,9 @@ module AgentMemory
 
     def self.resolve_actor(actor)
       case actor
-      when ::User
+      when Syrus::Host::UserRecord
         [ "user", actor, nil ]
-      when ::Run
+      when Syrus::Host::RunRecord
         [ "agent", nil, actor ]
       else
         [ "system", nil, nil ]

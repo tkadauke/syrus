@@ -1,0 +1,110 @@
+# Acknowledged decision drift for the failure corpus replay
+# (spec/lib/failure_corpus/failure_corpus_replay_spec.rb).
+#
+# Each entry names the cases whose replayed verdict differs from the verdict
+# production recorded, the exact new verdict (`to`), why it changed, and a
+# status:
+#
+#   intentional          a deliberate fix; the new verdict is right
+#   unreviewed           a commit says it is deliberate; not yet confirmed
+#   suspected_regression the new verdict looks wrong; kept visible until fixed
+#
+# `to` is "<classification>/<retryable|final>" for a verdict change, or
+# "recheck:retry" / "recheck:skip" for AutoRetryJob's retryability recheck.
+# An entry whose change stops happening fails the replay, so a reverted fix
+# is caught and stale entries are pruned when the corpus is re-exported.
+
+- status: intentional
+  to: provider_transient/retryable
+  reason: >-
+    A bare "agent exited N" with no agent outcome is now a retryable
+    provider_transient instead of an unclassified application_error. A Codex
+    session that exited 1 while committing finished work was never retried
+    and stranded every Job stacked on it; the retry budget still bounds a
+    real crash loop.
+  cases:
+    - 63e694edff75-64163105a20229b9
+
+- status: intentional
+  to: application_error/final
+  reason: >-
+    A prepare failure whose only "transient" evidence was a Ruby backtrace
+    frame ('Bundler::Settings#temporary', including frames wrapped across
+    output lines) or Syrus's own system log is no longer a retryable
+    provider_transient. These deterministic `bundle install` failures were
+    retried many times an hour.
+  cases:
+    - 3cd93e5ef444-59db1525fbf0e121
+    - 6149d20624a8-22046b594c43a24c
+    - 6149d20624a8-3fe0f86556a59c27
+    - 677f9523d61d-6e29afb4fda593b9
+    - 677f9523d61d-7cf1e40449bc16ba
+    - a8e261f7b1e5-4e267189f954367f
+    - a8e261f7b1e5-a376a1fec222928d
+    - d837875c7de1-4aa5982fa6534fe0
+    - d837875c7de1-58d75f84606a9e96
+    - e24bfe746fa3-8ebb93ad62fc60dd
+    - e24bfe746fa3-9b9029a8cd5179db
+    - e3322097a1a0-c921127b6bb2f948
+    - eb2a243e2075-5884b8b9dd6b4b8f
+    - eb2a243e2075-cf1e88c70eda2beb
+
+- status: intentional
+  to: schema_version_skew/retryable
+  reason: >-
+    A missing table or column ("Table '...' doesn't exist") is now retryable
+    schema_version_skew: a Run still on the previous release right after a
+    deploy migrated.
+  cases:
+    - a9181beed9ea-71c550ae57be2fe3
+    - c37a5c04b380-ba19ee9601db3ae7
+    - cc4a0544711d-943a5f640dece12b
+
+- status: intentional
+  to: prepare_network_transient/retryable
+  reason: >-
+    An immutable-source `npm ci` that failed with ECONNRESET is now a
+    retryable prepare_network_transient. It used to read as
+    provider_auth_or_config because "webauthn" in the install log matched a
+    bare `auth`.
+  cases:
+    - 8c865d05fcdf-8bca6791ea0678c5
+
+- status: intentional
+  to: recheck:retry
+  reason: >-
+    AutoRetryJob's retryability recheck no longer skips a reconciler-planned
+    retry of a pr_open whose PR branch diverged: that repair is a retry from
+    the current branch (REPAIRED_BY_RETRY_CLASSIFICATIONS). Production
+    skipped all three attempts here and the Job sat failed. This is the fix
+    for the diverged-branch regression.
+  cases:
+    - 30c5cad992e5-451c5e655700f63a
+
+- status: intentional
+  to: application_error/final
+  reason: >-
+    A recorded `bundle install` prepare failure is no longer a retryable
+    timeout just because the install log said "Fetching timeout 0.6.1" (a gem
+    named timeout). Timeout evidence now has to be an actual timeout signal.
+    New prepare failures declare prepare_install_failed at the source.
+  cases:
+    - 224666711b01-5de92ccca77a8cc6
+    - 224666711b01-f07056a485707175
+    - 59e8401330d7-597c1205e3377793
+    - 59e8401330d7-ba7ddbe97e89e405
+    - 8d1edc0e68fa-9d581a384554844d
+    - c002d2ce511c-1bb72bbee0cf9beb
+    - c002d2ce511c-457bcc3adf6da62c
+
+- status: intentional
+  to: workspace_lost/retryable
+  reason: >-
+    A grader_collect whose workflow workspace directory vanished (the
+    spawn's chdir raised Errno::ENOENT on the workflow root; its graders
+    ended process_outcome=missing_exit_status) is a retryable
+    workspace_lost: infrastructure, not the change. It used to be a timeout
+    only because the collect log prints every grader's configured_timeout.
+    New failures declare workspace_lost at the source.
+  cases:
+    - 44e11365805e-48cdad746a0b7504

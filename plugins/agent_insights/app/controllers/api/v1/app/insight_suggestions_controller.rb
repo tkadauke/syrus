@@ -1,10 +1,10 @@
 module Api
   module V1
     module App
-      class InsightSuggestionsController < BaseController
-        include ChatSessionLifecycle
-        include ChatLockErrors
-        include Paginatable
+      class InsightSuggestionsController < Syrus::Host::AppController
+        include Syrus::Host::ChatSessionLifecycle
+        include Syrus::Host::ChatLockErrors
+        include Syrus::Host::Paginatable
         prepend_before_action :require_agent_insights_feature
 
         PER_PAGE = 20
@@ -19,7 +19,7 @@ module Api
           repository = find_repository
           return unless repository
 
-          job = AgentInsights::Scheduler.enqueue_if_idle!(repository, user: Current.user)
+          job = AgentInsights::Scheduler.enqueue_if_idle!(repository, user: Syrus::Host::Current.user)
           unless job
             render json: { message: "An insight analysis job is already running for #{repository.slug}.", started: false }
             return
@@ -99,9 +99,9 @@ module Api
           chat_session = nil
           user_message = nil
 
-          ApplicationRecord.transaction do
-            chat_session = ChatSession.create!(
-              user: Current.user,
+          Syrus::Host::Record.transaction do
+            chat_session = Syrus::Host::ChatSessionRecord.create!(
+              user: Syrus::Host::Current.user,
               repository: suggestion.repository,
               title: nil,
               last_message_at: Time.current
@@ -134,17 +134,17 @@ module Api
         private
 
         def current_filter(active_folder: self.active_smart_folder, raw_params: params)
-          ::Filters::SmartFolderResolution.call(
+          Syrus::Host::Filters::SmartFolderResolution.call(
             filter_class: AgentInsights::Filter, subject: AgentInsights::SmartFolders::SUBJECT,
-            params: raw_params, active_smart_folder: active_folder, user: Current.user
+            params: raw_params, active_smart_folder: active_folder, user: Syrus::Host::Current.user
           ).filter
         end
 
         def active_smart_folder
           @active_smart_folder ||= begin
-            explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+            explicit_folder = Syrus::Host::SmartFolderNavigation.active_folder(
               subject: AgentInsights::SmartFolders::SUBJECT,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               params: params
             )
             explicit_folder || default_smart_folder
@@ -153,7 +153,7 @@ module Api
 
         def default_smart_folder
           return if smart_folder_param_present?
-          return if params[::Filters::QueryParam::PARAM_NAME].present?
+          return if params[Syrus::Host::Filters::QueryParam::PARAM_NAME].present?
           return if params[:state].present?
 
           AgentInsights::SmartFolders.default_folder
@@ -168,10 +168,10 @@ module Api
         end
 
         def smart_folders(repository)
-          ::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
-          ::Admin::SmartFolderNavigation.new(
+          Syrus::Host::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+          Syrus::Host::SmartFolderNavigation.new(
             subject: AgentInsights::SmartFolders::SUBJECT,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             active_folder: active_smart_folder,
             base_scope: AgentInsights::Suggestion.for_repository(repository),
             filter_class: AgentInsights::Filter
@@ -201,7 +201,7 @@ module Api
         def find_repository
           # run_insight_analysis is routed with :id; the listing routes use
           # :repository_id.
-          repo = Repository.accessible_to(Current.user).find_by(id: params[:repository_id] || params[:id])
+          repo = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find_by(id: params[:repository_id] || params[:id])
           unless repo
             render_error("not_found", "Repository not found.", status: :not_found)
             return nil
@@ -220,11 +220,11 @@ module Api
         end
 
         def accessible_suggestions
-          return AgentInsights::Suggestion.all if Current.user.admin?
+          return AgentInsights::Suggestion.all if Syrus::Host::Current.user.admin?
 
           AgentInsights::Suggestion
             .joins(:repository)
-            .where(repositories: { id: Repository.accessible_to(Current.user).select(:id) })
+            .where(repositories: { id: Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).select(:id) })
         end
 
         def preview_suggestion
@@ -232,7 +232,7 @@ module Api
         end
 
         def handle_accept(suggestion)
-          result = AgentInsights::Proposals::Base.for(suggestion).accept!(actor: Current.user, params: params)
+          result = AgentInsights::Proposals::Base.for(suggestion).accept!(actor: Syrus::Host::Current.user, params: params)
           unless result&.ok?
             render_error("validation_failed", result&.message || "AgentInsights::Suggestion could not be accepted.", status: :unprocessable_content)
             return
@@ -279,9 +279,9 @@ module Api
           repository = suggestion.repository
 
           memory = nil
-          ApplicationRecord.transaction do
+          Syrus::Host::Record.transaction do
             memory = AgentMemory::Entry.create!(
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               kind: "project_fact",
               scope: "repository",
               scope_id: repository.id,
@@ -416,7 +416,7 @@ module Api
         def insight_evidence_lines(suggestion)
           evidence_json(suggestion.evidence).filter_map do |entry|
             links = []
-            links << "#{::App::Presentation.job_slug(entry[:job_id])}: #{entry[:job_path]}" if entry[:job_path]
+            links << "#{Syrus::Host::AppPresentation.job_slug(entry[:job_id])}: #{entry[:job_path]}" if entry[:job_path]
             links << "run transcript #{entry[:run_id]}: #{entry[:run_transcript_path]}" if entry[:run_transcript_path]
             next if links.empty?
 
@@ -430,7 +430,7 @@ module Api
             slug: repository.slug,
             repository_path: repository_path(repository),
             insights_path: "/repositories/#{repository.id}/plugin/insights",
-            can_write: RepositoryPolicy.new(Current.user, repository).write?
+            can_write: Syrus::Host::RepositoryPolicy.new(Syrus::Host::Current.user, repository).write?
           }
         end
 

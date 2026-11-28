@@ -20,8 +20,8 @@ module ProviderRouting
       end
     end
 
-    Decision = Data.define(:candidate, :original_candidate, :reason, :availability, :candidate_availability, :decided_at, :exhausted, :routing_resolution, :provider_account) do
-      def initialize(candidate:, original_candidate:, reason:, availability:, candidate_availability:, decided_at:, exhausted:, routing_resolution:, provider_account: nil)
+    Decision = Data.define(:candidate, :original_candidate, :reason, :availability, :candidate_availability, :decided_at, :exhausted, :routing_resolution, :provider_account, :decision_mode) do
+      def initialize(candidate:, original_candidate:, reason:, availability:, candidate_availability:, decided_at:, exhausted:, routing_resolution:, provider_account: nil, decision_mode: nil)
         super
       end
       def selected_provider = candidate&.provider
@@ -49,7 +49,8 @@ module ProviderRouting
           "evidence_observed_at" => utc_iso8601(evidence_observed_at(availability)),
           "candidate_evidence_observed_at" => utc_iso8601(evidence_observed_at(candidate_availability)),
           "decided_at" => utc_iso8601(decided_at),
-          "automatic_failover" => true,
+          "decision_mode" => decision_mode,
+          "automatic_failover" => decision_mode == "availability_failover",
           "manual_override" => false,
           "exhausted" => exhausted?,
           "held" => held?,
@@ -159,7 +160,7 @@ module ProviderRouting
         available, account, candidate_availability = select_account(candidate)
         unless available
           first_unavailable_candidate ||= candidate
-          first_unavailable_availability ||= candidate_availability
+          first_unavailable_availability ||= candidate_availability.to_h.merge(provider: candidate.provider)
           next
         end
 
@@ -168,12 +169,19 @@ module ProviderRouting
         # without an account. Grader admission crashed on that nil here and
         # stopped creating grader Runs; panels already tolerate it.
         selected_candidate = candidate.with(account_id: account&.public_id || candidate.account_id)
-        return decision(selected_candidate, candidate_availability: candidate_availability, exhausted: false, provider_account: account)
+        return decision(
+          selected_candidate,
+          candidate_availability: candidate_availability,
+          unavailable_availability: first_unavailable_availability,
+          exhausted: false,
+          provider_account: account
+        )
       end
 
       decision(
         first_unavailable_candidate || candidates.first,
         candidate_availability: first_unavailable_availability,
+        unavailable_availability: first_unavailable_availability,
         exhausted: true
       )
     end
@@ -237,17 +245,26 @@ module ProviderRouting
 
     def user = job.owner_user || job.user
 
-    def decision(candidate, candidate_availability:, exhausted:, provider_account: nil)
+    def decision(candidate, candidate_availability:, exhausted:, provider_account: nil, unavailable_availability: nil)
+      original = original_candidate || candidate
+      selection_changed = candidate&.provider.present? && original&.provider.present? && candidate.provider != original.provider
+      mode = if selection_changed && unavailable_availability
+        "availability_failover"
+      elsif selection_changed
+        "policy_routing"
+      end
+
       Decision.new(
         candidate: candidate,
-        original_candidate: original_candidate || candidate,
+        original_candidate: original,
         reason: reason,
-        availability: availability,
+        availability: unavailable_availability || availability,
         candidate_availability: candidate_availability,
         decided_at: now,
         exhausted: exhausted,
         routing_resolution: routing_resolution,
-        provider_account: provider_account
+        provider_account: provider_account,
+        decision_mode: mode
       )
     end
 

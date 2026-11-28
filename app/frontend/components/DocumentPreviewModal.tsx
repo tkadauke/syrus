@@ -95,7 +95,12 @@ export function DocumentPreviewModal({ file, footerActions, onClose }: { file: P
       <div className="min-h-0 flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
         {image ? (
           <div className="flex min-h-full items-center justify-center p-4">
-            <img alt={file.title} className="max-h-full max-w-full rounded bg-white object-contain shadow dark:bg-gray-950" src={file.rawUrl} />
+            <img
+              alt={file.title}
+              className="max-h-full max-w-full rounded bg-white object-contain shadow dark:bg-gray-950"
+              decoding="async"
+              src={file.rawUrl}
+            />
           </div>
         ) : content.isPending ? (
           <FilePreviewState message={t("document_preview.loading")} />

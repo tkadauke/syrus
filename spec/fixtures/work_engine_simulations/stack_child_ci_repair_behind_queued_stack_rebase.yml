@@ -1,0 +1,67 @@
+# Found by the simulator fuzzer (bin/simulator --fuzz --seed 5, iteration 29,
+# shrunk to one event) on already_landed_stack_rebase: CI fails on a stacked
+# child while the Epic's stack rebase is still queued. The child's CI repair
+# is held back by the epic-wide rebase (epic_wide_workflow_active), and the
+# rebase, being patient, waited for the child's repair to finish publishing
+# (patient_rebase_waiting_for_active_workflow). Each waited on the other, both
+# with a named reason, forever. The patient-rebase gate no longer waits on a
+# workflow that is itself held behind this rebase.
+name: stack child CI repair behind a queued stack rebase
+runner:
+  auto_retry_failed_jobs: false
+  global_reconcile: true
+repository:
+  owner: simulation
+  name: stack-child-ci-repair-behind-queued-stack-rebase
+epics:
+  stack:
+    title: Plugin architecture stack
+    state: in_progress
+jobs:
+  root:
+    title: Root job already landed but still failed
+    epic: stack
+    state: failed
+    branch_name: syrus/direct-root
+    pr_number: 3397
+    workflow:
+      template: true
+      kind: stack_rebase
+  child:
+    title: Child job waiting behind the root
+    epic: stack
+    state: approved
+    parent_job: root
+    depends_on:
+      - root
+    branch_name: syrus/direct-child
+    pr_number: 3400
+    pr_checks_state: passing
+    approved_at: "2026-09-08 12:00:00"
+events:
+  - name: CI fails on the child while the stack rebase is queued
+    once: true
+    when: { tick: 0 }
+    do:
+      report_ci_failure:
+        job: child
+outcomes:
+  default: success
+  steps:
+    stack_auto_rebase:
+      status: success
+      stack_results:
+        root: already_landed
+        child: rebased
+expect:
+  jobs:
+    root:
+      - closed
+    child:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - ci_failure workflow for
+    - stack_auto_rebase -> 

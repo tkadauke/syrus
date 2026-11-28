@@ -1,4 +1,4 @@
-class TerminalSessionJob < PluginJob
+class TerminalSessionJob < Syrus::Host::PluginJob
   plugin :terminal
 
   def perform(terminal_session_id, runtime_session_id: nil, provider_key: nil)
@@ -15,8 +15,8 @@ class TerminalSessionJob < PluginJob
     end
 
     provider_env = if runtime_session_id && provider_key
-      runtime_session = RuntimeSession.find(runtime_session_id)
-      RuntimeSessionProviders.for(provider_key).new.environment_for_terminal(runtime_session).to_h
+      runtime_session = Syrus::Host::RuntimeSessionRecord.find(runtime_session_id)
+      Syrus::Host::RuntimeSessionRegistry.for(provider_key).new.environment_for_terminal(runtime_session).to_h
     else
       {}
     end
@@ -26,9 +26,9 @@ class TerminalSessionJob < PluginJob
     Terminal::Relay.new(
       session: session,
       command: [ "bash" ],
-      env: ProcessRunner.forwarded_env([]).merge(provider_env)
+      env: Syrus::Host::ProcessRunner.forwarded_env([]).merge(provider_env)
     ).run
-  rescue RuntimeSessionProviders::ConfigurationError => e
+  rescue Syrus::Host::RuntimeSessionRegistry::ConfigurationError => e
     finish_environment_failure!(session, runtime_session, e)
   end
 

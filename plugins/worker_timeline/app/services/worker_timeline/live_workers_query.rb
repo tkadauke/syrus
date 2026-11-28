@@ -232,7 +232,7 @@ module WorkerTimeline
     def critical_dimensions_for(sample)
       return [] unless sample
 
-      WorkerHealthSampleAnalysis.critical_dimensions_for(sample).map(&:to_s)
+      Syrus::Host::WorkerHealthSampleAnalysis.critical_dimensions_for(sample).map(&:to_s)
     end
 
     # Two unrelated conditions share this status: a host over its thread
@@ -359,7 +359,7 @@ module WorkerTimeline
     end
 
     def activity_queue_roles
-      @activity_queue_roles ||= WorkflowActivityEvent
+      @activity_queue_roles ||= Syrus::Host::WorkflowActivityEvent
         .where(workflow_id: running_workflows.map(&:id) + running_processes.filter_map { |process| workflow_for_process(process)&.id })
         .where.not(queue_role: nil)
         .order(:occurred_at, :id)
@@ -368,7 +368,7 @@ module WorkerTimeline
     end
 
     def running_step_by_workflow_id
-      @running_step_by_workflow_id ||= Step
+      @running_step_by_workflow_id ||= Syrus::Host::Step
         .where(workflow_id: running_processes.filter_map { |process| workflow_for_process(process)&.id }, state: "running")
         .order(:position, :id)
         .group_by(&:workflow_id)
@@ -376,7 +376,7 @@ module WorkerTimeline
     end
 
     def running_processes
-      @running_processes ||= SpawnedProcess.running
+      @running_processes ||= Syrus::Host::SpawnedProcess.running
         .includes({ workflow: :job }, run: [ :job, { step: :workflow } ])
         .then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }
         .order(:started_at, :id)
@@ -384,7 +384,7 @@ module WorkerTimeline
     end
 
     def running_runs
-      @running_runs ||= Run.where(state: "running")
+      @running_runs ||= Syrus::Host::RunRecord.where(state: "running")
         .joins(step: :workflow)
         .where(workflows: { state: "running" })
         .includes(:job, step: :workflow)
@@ -393,7 +393,7 @@ module WorkerTimeline
     end
 
     def running_steps
-      @running_steps ||= Step.where(state: "running")
+      @running_steps ||= Syrus::Host::Step.where(state: "running")
         .joins(:workflow)
         .where(workflows: { state: "running" })
         .includes(workflow: :job)
@@ -402,7 +402,7 @@ module WorkerTimeline
     end
 
     def running_workflows
-      @running_workflows ||= Workflow.where(state: "running")
+      @running_workflows ||= Syrus::Host::WorkflowRecord.where(state: "running")
         .includes(:job)
         .then { |scope| hostname_filter ? scope.where(worker_hostname: hostname_filter) : scope }
         .order(:started_at, :id)
@@ -412,7 +412,7 @@ module WorkerTimeline
     def worker_processes
       @worker_processes ||= SolidQueue::Process
         .where(kind: "Worker")
-        .where("last_heartbeat_at > ?", InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
+        .where("last_heartbeat_at > ?", Syrus::Host::InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
         .then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }
         .order(:hostname, :pid)
         .to_a
@@ -421,7 +421,7 @@ module WorkerTimeline
     end
 
     def instance_versions
-      @instance_versions ||= InstanceVersion.fresh.where(role: "worker").then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(:hostname).to_a
+      @instance_versions ||= Syrus::Host::InstanceVersion.fresh.where(role: "worker").then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(:hostname).to_a
     end
 
     def latest_samples_by_key
@@ -461,9 +461,9 @@ module WorkerTimeline
     end
 
     def stale_terminal_runs
-      @stale_terminal_runs ||= Run.where(state: "running")
+      @stale_terminal_runs ||= Syrus::Host::RunRecord.where(state: "running")
         .joins(step: :workflow)
-        .merge(Workflow.terminal)
+        .merge(Syrus::Host::WorkflowRecord.terminal)
         .includes(:job, step: { workflow: :job })
         .order(:started_at, :id)
         .to_a
@@ -471,9 +471,9 @@ module WorkerTimeline
     end
 
     def stale_terminal_steps
-      @stale_terminal_steps ||= Step.where(state: "running")
+      @stale_terminal_steps ||= Syrus::Host::Step.where(state: "running")
         .joins(:workflow)
-        .merge(Workflow.terminal)
+        .merge(Syrus::Host::WorkflowRecord.terminal)
         .includes(workflow: :job)
         .order(:started_at, :id)
         .to_a
@@ -481,13 +481,13 @@ module WorkerTimeline
     end
 
     def samples
-      @samples ||= WorkerHostHealthSample.worker_role.where(observed_at: from..to).then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(observed_at: :desc).to_a
+      @samples ||= Syrus::Host::WorkerHostHealthSample.worker_role.where(observed_at: from..to).then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(observed_at: :desc).to_a
     end
 
     def health_payload(sample)
       return { level: "unknown", reasons: [ "no recent host health sample" ], observed_at: nil } unless sample
 
-      analysis = WorkerHealthSampleAnalysis.health_for(sample)
+      analysis = Syrus::Host::WorkerHealthSampleAnalysis.health_for(sample)
       {
         level: analysis.fetch(:level),
         reasons: analysis.fetch(:reasons),
@@ -532,13 +532,13 @@ module WorkerTimeline
     end
 
     def queue_names(raw)
-      InstanceVersion.queue_names(raw)
+      Syrus::Host::InstanceVersion.queue_names(raw)
     end
 
     def command_excerpt(command)
       return nil if command.blank?
 
-      CommandRedactor.redact(command).squish.truncate(180, omission: "...")
+      Syrus::Host::CommandRedactor.redact(command).squish.truncate(180, omission: "...")
     end
 
     def elapsed_seconds(started_at)

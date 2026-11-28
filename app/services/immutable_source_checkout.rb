@@ -519,7 +519,7 @@ class ImmutableSourceCheckout
         return
       end
 
-      raise Steps::Base::StepFailed, "immutable source prepare command failed: #{command}"
+      raise_prepare_failure!(command)
     end
 
     record_prepared!(snapshot, plan, prepare_cache)
@@ -530,7 +530,20 @@ class ImmutableSourceCheckout
   def fail_on_prepare_plan_error!(plan)
     message = "invalid prepare configuration in #{plan.source} at #{path}: #{plan.error}"
     log("[immutable_source_checkout] prepare failure: #{message}")
-    raise Steps::Base::StepFailed, message
+    raise Steps::Base::StepFailed.new(message, problem_code: :validation_or_user_error,
+                                               evidence: { configuration_error: true, source: plan.source })
+  end
+
+  # The same declaration Steps::Prepare makes, from the final attempt's exit
+  # status and output tail: a registry blip is retryable, a native extension
+  # that will not build is not, and neither is left for the run classifier to
+  # guess from the grader's logs. The message stays as it was.
+  def raise_prepare_failure!(command)
+    message = "immutable source prepare command failed: #{command}"
+    problem = @last_prepare_failure && FailureProblems::Prepare.for(@last_prepare_failure)
+    raise Steps::Base::StepFailed, message unless problem
+
+    raise Steps::Base::StepFailed.new(message, problem_code: problem.code, evidence: problem.evidence)
   end
 
   def record_prepared!(snapshot, plan, prepare_cache)
@@ -581,6 +594,7 @@ class ImmutableSourceCheckout
       idempotency_scope: "prepare:#{@step.id}:#{occurrence}#{":#{attempt}" if attempt > 1}:#{Digest::SHA256.hexdigest(command)}"
     ) if current_run
     runner_command = span_recorder ? span_recorder.wrap(span_plan.shell_command) : command
+    tail = +""
 
     result = ProcessRunner.new(
       env: prepare_env,
@@ -596,6 +610,7 @@ class ImmutableSourceCheckout
       on_output_chunk: ->(chunk) {
         visible_chunk = span_recorder ? span_recorder.consume(chunk) : chunk
         log(visible_chunk.to_s.chomp) if visible_chunk.present?
+        append_prepare_output_tail(tail, visible_chunk)
       }
     ).run
     trailing_chunk = span_recorder&.flush_visible
@@ -607,13 +622,40 @@ class ImmutableSourceCheckout
       operator_killed: result.operator_killed
     )
 
-    return :timed_out if result.timed_out?
-    return :stopped if result.stopped || result.operator_killed
-
-    result.success? ? :ok : :failed
+    append_prepare_output_tail(tail, trailing_chunk)
+    outcome = if result.timed_out?
+      :timed_out
+    elsif result.stopped || result.operator_killed
+      :stopped
+    else
+      result.success? ? :ok : :failed
+    end
+    @last_prepare_failure = prepare_failure_payload(command, result, tail) unless outcome == :ok
+    outcome
   rescue StandardError
     span_recorder&.finalize!(exit_code: nil, timed_out: false)
     raise
+  end
+
+  def append_prepare_output_tail(tail, chunk)
+    return if chunk.blank?
+
+    limit = Steps::Prepare::OUTPUT_TAIL_BYTES
+    tail << chunk.to_s
+    tail.replace(tail.safe_byteslice(-limit, limit)) if tail.bytesize > limit
+  end
+
+  def prepare_failure_payload(command, result, tail)
+    {
+      "command" => command,
+      "exit_status" => result.exit_status,
+      "timed_out" => result.timed_out?,
+      "stopped" => result.stopped?,
+      "operator_killed" => result.operator_killed?,
+      "aliveness_failed" => result.aliveness_failed?,
+      "duration_s" => result.duration_s&.round(2),
+      "output_tail" => tail.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?")
+    }
   end
 
   def prepare_env

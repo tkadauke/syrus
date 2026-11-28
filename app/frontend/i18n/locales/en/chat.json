@@ -1398,7 +1398,20 @@
     "execution_status": "Execution status",
     "execution_message": "Execution message"
   },
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" },
+  "retry_job": {
+    "job": "Job",
+    "jobs": "Jobs",
+    "missing_target": "Not provided",
+    "started_workflows": "Retry workflow started",
+    "recovery_kind": "Recovery kind",
+    "recovery_mode": "Recovery mode",
+    "source_failure": "Source failure",
+    "source_workflow": "Source workflow",
+    "guidance": "Guidance",
+    "reason": "Reason",
+    "requested_by": "Requested by",
+    "origin": "Origin"
+  },
   "tool_card_examples": {
     "priority_changed": "Priority changed",
     "invalid_priority": "Invalid priority",
@@ -1478,6 +1491,13 @@
     "job": "Job",
     "base": "Base",
     "push": "Push",
+    "github_access": "Authenticated GitHub access",
+    "destructive": "Destructive operations",
+    "confirmed": "separately confirmed",
+    "unavailable": "unavailable",
+    "break_glass_hint": "Break-glass credential use and external writes are limited to this repository, audited, and verified against declared outcomes.",
+    "expected_outcomes": "Expected remote outcomes",
+    "full_expected_outcomes": "Full expected remote outcomes",
     "true": "true",
     "false": "false",
     "failed_workflow": "Failed workflow",
@@ -1489,7 +1509,8 @@
     "failed_summary": "Manual agentic run failed: {{message}}",
     "error_details": "Error details",
     "valid_bases": "Valid bases",
-    "example_pending": "Pending manual run"
+    "example_pending": "Pending manual run",
+    "example_break_glass": "Pending break-glass GitHub repair"
   },
   "retire_terminal_work_unit": {
     "reason": "Reason",

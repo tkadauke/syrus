@@ -373,8 +373,10 @@ it("loads older activity through the returned cursors", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
   fireEvent.click(await screen.findByRole("button", { name: "Load more" }))
 
-  expect(await screen.findByText(/JOB-1/)).toBeInTheDocument()
-  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("jobs_cursor=NTE"))).toBe(true)
+  await waitFor(() => {
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("jobs_cursor=NTE"))).toBe(true)
+  })
+  expect(await screen.findByRole("link", { name: /^JOB-1\b/ })).toBeInTheDocument()
 })
 
 it("renders Job-centered activity with linked attempts and a bounded failure reason", async () => {

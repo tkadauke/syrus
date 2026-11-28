@@ -124,8 +124,9 @@ approvals/unapprovals behind one operator confirmation is exactly the
 higher-risk case this infrastructure exists for.
 
 `retry_job` accepts an explicit retry mode for both single and grouped calls.
-Use `auto` (the default) for the existing smart retry without changing the
-base, `failed_step` to rerun the failed step or grader loop against the same
+Use `auto` (the default) to select the canonical recovery operation without
+changing the base, `failed_step` to resume, rerun, or repair the failed step or
+grader loop against the same
 immutable source snapshot, `implementation` to begin a fresh implementation
 attempt from the Job's current effective base, and `refresh_base` to restore a
 published mutation checkpoint onto the current effective base. Base refresh
@@ -141,6 +142,14 @@ refresh remains waiting until every selected upstream refresh workflow
 succeeds; an upstream failure fails that dependent without launching it.
 Members still report outcomes independently, and a later failure does not
 roll back an earlier successful refresh.
+
+Recovery operations are intentionally distinct. A measured failure or a
+no-progress grader loop requires specific `context`; without it `retry_job`
+returns `guidance_required`, the persistent failures, and editable suggested
+guidance without creating a pending action. An infrastructure-only outcome has
+no trustworthy verdict and may rerun unchanged. Interrupted work resumes the
+selected failed Step. Starting a fresh implementation from the effective base
+requires explicit `mode: implementation`.
 
 Automatic retry selection and Job-page recovery actions still prefer the
 narrowest safe retry. An explicitly requested `implementation` mode is an
@@ -290,6 +299,14 @@ selects the newest Run with a stored diff and prefers its per-Step diff. Pass
 `run_id` to inspect a particular iteration and set `artifact` to
 `step_agent_diff` or `agent_diff` when the caller needs that exact artifact;
 diff text remains paginated and redacted.
+
+`read_job` also returns the canonical bounded recovery decision and durable
+intervention history: outcome, headline, measured and inconclusive failures,
+whether infrastructure affected the verdict, compared repair revisions, stop
+reason, recommended action, canonical references, and actor/origin provenance.
+`read_workflow` returns the same decision plus bounded repair-loop and stop
+summaries; callers do not need to reconstruct recovery state from every Step or
+the transcript.
 
 Mention gating: `ChatSession#should_trigger_agent?` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human
@@ -789,6 +806,34 @@ operator can clear it before confirming so the Job materializes without an
 Epic. There is no UI to assign or change the target Epic to a different one
 from the edit modal — only remove it.
 
+## Break-glass GitHub access for manual runs
+
+Use deterministic repair tools whenever they can express the repair. As an
+explicit last resort, `manual_agentic_run` accepts `github_access: true` plus
+provider-verifiable `expected_outcomes`. The confirmation identifies the
+repository, GitHub App identity, permissions, credential use, external-write
+risk, and whether destructive operations were separately requested.
+
+The credential exists only for that manual Run, is scoped to the Job's
+repository, and is removed when the agent invocation ends. Authenticated
+repository-scoped `gh api` and Git transport reject other repositories.
+High-level `gh pr`, `gh issue`, and other GraphQL-backed commands are
+unavailable because their requests cannot be safely repository-bound. Direct
+Git pushes are treated as destructive because the credential boundary cannot
+safely distinguish every force/delete ref update; ordinary committed output
+should use Syrus's normal publication step. Invocations are audited without
+recording the credential, and Syrus checks declared branch/PR state, labels,
+or comments through its own provider client after publication. Agent prose is
+never accepted as proof. A failed check fails the Workflow and records
+publication recovery evidence. Ordinary implementation, grader, reviewer, and
+manual Runs remain credential-free. Permission, pending-action, repository
+policy, and secret-redaction boundaries still apply.
+
+For a branch produced by the manual implementation itself, set the declared
+branch `sha` to `local_head`; verification then requires the provider branch to
+equal the exact implementation HEAD recorded by the Run. Otherwise provide an
+exact 40-character SHA.
+
 ## Cross-chat messaging bridge
 
 Chat agents can ask to create a coordinated batch of new threads with the
@@ -826,3 +871,26 @@ and its first delivery run inside one transaction, so a failure partway
 through never leaves a stray open thread with no first message. The tool
 returns the thread's id, `state`, `hop_count`, `max_hops`,
 `hops_remaining`, and the recipient chat session id.
+
+## Workflow questions
+
+Implementation, response, and review agents can ask the operator up to four
+structured questions in one batch. The workflow step waits in
+`awaiting_answer` rather than failing or entering the retryable blocked state.
+An answer from chat or another operator surface closes the question everywhere
+and resumes the same provider session when possible. Chat and coworker agents
+can use `list_open_agent_questions` and `answer_agent_question` to handle open
+questions they are authorized to see.
+Answering requires write access to the Job. A workflow already blocked by
+`report_cannot_proceed` appears as one free-text question; answering it resumes
+the blocked run and its provider session. Workflows waiting for an answer do
+not delay patient automatic rebases.
+
+Question eagerness resolves from a Job override, then repository setting, then
+user setting, and defaults to `balanced`. The available levels are
+`autonomous`, `independent`, `balanced`, `collaborative`, and `inquisitive`.
+Proposal tools accept an override only with a reason recording the operator's
+agreement. Optional answer timeouts use the same precedence, accept values
+from one hour through four weeks, and otherwise wait indefinitely. When a
+timeout expires, the agent's stated defaults answer the question and resume
+the workflow.

@@ -28,18 +28,20 @@ module Mcp::Tools
         session, error = resolve_runtime_session(chat_session, session_id)
         return error if error
 
-        provider = provider_instance_for(session)
-        result = provider.build_or_reload(session.id, normalize_options(options))
-        session.update!(
-          state: "running",
-          last_error: nil,
-          metadata: session.metadata.merge(result.to_h.deep_stringify_keys)
-        )
-        Mcp::Tools.success(result)
+        current = RuntimeSessions::Operation.reconcile_expired!(session)
+        return Mcp::Tools.success(runtime_session_payload(session)) if current&.fetch("state", nil) == "active"
+
+        lease = session.runtime_control_leases.active.held_by("agent").for_mode("build").first
+        session.update!(state: "building", last_error: nil)
+        operation = RuntimeSessions::Operation.new(session: session, kind: :build, lease: lease)
+        result = operation.call { provider_instance_for(session).build_or_reload(session.id, normalize_options(options)) }
+        return Mcp::Tools.invalid("failed to build/reload runtime session: #{result.error.message}") if result.error && !result.timed_out?
+        return Mcp::Tools.invalid(result.error) if result.timed_out?
+
+        Mcp::Tools.success(result.value)
       rescue RuntimeSessionProviders::ConfigurationError => e
         Mcp::Tools.invalid(e.message)
       rescue StandardError => e
-        session&.update!(state: "failed", last_error: "#{e.class}: #{e.message}")
         Mcp::Tools.invalid("failed to build/reload runtime session: #{e.message}")
       end
     end

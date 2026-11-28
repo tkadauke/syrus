@@ -144,12 +144,20 @@ module Api
           artifacts = ctx.present? ? { "replay_context" => ctx } : nil
           agent_provider = params[:agent_provider].to_s.presence
 
-          result = RetryWorkflowEnqueuer.call(
-            job: job,
-            artifacts: artifacts,
-            agent_provider: agent_provider,
-            provider_validation: :retry_alternate
-          )
+          selected_workflow = job.workflows.find_by(id: params[:branch_divergence_workflow_id])
+          source_workflow = selected_workflow&.artifact("branch_divergence").present? ? selected_workflow : job.latest_workflow
+          result = RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "rerun_check", mode: "auto",
+            actor_type: "operator", actor: Current.user, origin: "job_page",
+            reason: params[:reason], guidance: ctx.presence
+          ) do
+            RetryWorkflowEnqueuer.call(
+              job: job,
+              artifacts: artifacts,
+              agent_provider: agent_provider,
+              provider_validation: :retry_alternate
+            )
+          end
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return
@@ -177,7 +185,13 @@ module Api
             return
           end
 
-          result = mode.execute
+          source_workflow = job.workflows.find_by(id: preflight.details["source_workflow_id"])
+          guidance = params[:retry_context].presence || params[:replay_context]
+          result = RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "repair", mode: "implementation",
+            actor_type: "operator", actor: Current.user, origin: "job_page",
+            reason: params[:reason], guidance:
+          ) { mode.execute }
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return
@@ -191,58 +205,66 @@ module Api
         def restart
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
-          ApplicationRecord.transaction do
-            job.cancel_active_runs_and_close!("replaced") if job.open?
-            skip_prepare = job.sync_skip_prepare_from_source!
+          source_workflow = job.latest_workflow
+          new_job = nil
+          RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "restart", mode: "restart",
+            actor_type: "operator", actor: Current.user, origin: "job_page", reason: params[:reason]
+          ) do
+            ApplicationRecord.transaction do
+              job.cancel_active_runs_and_close!("replaced") if job.open?
+              skip_prepare = job.sync_skip_prepare_from_source!
 
-            attrs = {
-              repository: job.repository,
-              issue_number: job.issue_number,
-              skip_prepare: skip_prepare,
-              kind: job.kind,
-              investigation: job.investigation?,
-              skill_name: job.skill_name,
-              skill_args: job.skill_args,
-              system_kind: job.system_kind,
-              agent_provider: job.workflow_agent_provider,
-              job_provider_setting: job.job_provider_setting,
-              model: job.model,
-              effort_level: job.effort_level,
-              target_branch: job.target_branch,
-              delivery_track: job.delivery_track,
-              epic: job.epic,
-              planned_execution_project_label: job.planned_execution_project_label,
-              planned_execution_target_label: job.planned_execution_target_label,
-              planned_execution_capabilities: job.planned_execution_capabilities,
-              planned_execution_source: job.planned_execution_source
-            }
+              attrs = {
+                repository: job.repository,
+                issue_number: job.issue_number,
+                skip_prepare: skip_prepare,
+                kind: job.kind,
+                investigation: job.investigation?,
+                skill_name: job.skill_name,
+                skill_args: job.skill_args,
+                system_kind: job.system_kind,
+                agent_provider: job.workflow_agent_provider,
+                job_provider_setting: job.job_provider_setting,
+                model: job.model,
+                effort_level: job.effort_level,
+                target_branch: job.target_branch,
+                delivery_track: job.delivery_track,
+                epic: job.epic,
+                planned_execution_project_label: job.planned_execution_project_label,
+                planned_execution_target_label: job.planned_execution_target_label,
+                planned_execution_capabilities: job.planned_execution_capabilities,
+                planned_execution_source: job.planned_execution_source
+              }
 
-            if job.direct?
-              attrs.merge!(
-                issue_title: job.issue_title,
-                issue_body: job.issue_body
-              )
+              if job.direct?
+                attrs.merge!(
+                  issue_title: job.issue_title,
+                  issue_body: job.issue_body
+                )
+              end
+
+              new_job = Current.user.jobs.create!(attrs)
+              new_job.advance_after_triage! if new_job.may_advance_after_triage?
+
+              job.dependent_links.find_each do |dependency|
+                dependency.update!(depends_on_job_id: new_job.id)
+              end
+
+              broadcast_job_change(job.reload, [ "state" ])
+              broadcast_job_change(new_job.reload, [ "created" ])
+
+              RecoveryInterventions::Result.for_workflow(new_job.latest_workflow)
             end
-
-            new_job = Current.user.jobs.create!(attrs)
-            new_job.advance_after_triage! if new_job.may_advance_after_triage?
-
-            job.dependent_links.find_each do |dependency|
-              dependency.update!(depends_on_job_id: new_job.id)
-            end
-
-            broadcast_job_change(job.reload, [ "state" ])
-            broadcast_job_change(new_job.reload, [ "created" ])
-
-            render json: job_payload(
-              new_job,
-              message: lifecycle_t("started_over"),
-              tab: nil
-            ).merge(
-              old_job: job_json(job.reload),
-              redirect_to: job_path(new_job)
-            ), status: :created
           end
+          render json: job_payload(
+            new_job,
+            message: lifecycle_t("started_over"),
+            tab: nil
+          ).merge(
+            old_job: job_json(job.reload),
+            redirect_to: job_path(new_job)
+          ), status: :created
         end
 
         # Keeps the same Job (id, Epic membership, dependency edges, history) and
@@ -262,9 +284,15 @@ module Api
             return
           end
 
-          ResetJobs::Operation.new(
-            job: job, user: Current.user, reason: lifecycle_t("reset_reason", user: Current.user.try(:display_name) || Current.user.id)
-          ).call
+          reason = params[:reason].presence || lifecycle_t("reset_reason", user: Current.user.try(:display_name) || Current.user.id)
+          source_workflow = job.latest_workflow
+          RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "restart", mode: "restart",
+            actor_type: "operator", actor: Current.user, origin: "job_page", reason:
+          ) do
+            ResetJobs::Operation.new(job:, user: Current.user, reason:).call
+            RecoveryInterventions::Result.for_workflow(job.latest_workflow)
+          end
           render_job(job.reload, message: lifecycle_t("reset_done", slug: job.slug), changed: [ "state", "workflows", "runs" ], tab: "workflows")
         end
 
@@ -281,6 +309,18 @@ module Api
           render_job(job.reload, message: lifecycle_t("cancellation_requested"), changed: [ "state", "runs" ])
         end
 
+        def file_question_fix
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          result = AgentQuestions::FileFixJob.call(job: job, actor: Current.user)
+          render_job(job.reload, message: lifecycle_t("question_fix_filed", slug: result.job.slug), changed: [ "dependencies" ])
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue AgentQuestions::FileFixJob::RetryFailed => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
         # Cancels (or dismisses, when already blocked) one auxiliary workflow.
         # Reuses WorkUnits::WorkflowCancellation so Runs are cancelled and the
         # WorkUnit and its locks are retired together.
@@ -293,7 +333,7 @@ module Api
             render_error("not_found", lifecycle_t("workflow_not_found"), status: :not_found)
             return
           end
-          unless Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+          unless Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
             render_error("validation_failed", lifecycle_t("dismiss_auxiliary_only"), status: :unprocessable_content)
             return
           end
@@ -329,41 +369,47 @@ module Api
           return unless authorize_job_mutation!(job)
           return if reject_stale_job_revision?(job)
 
-          unless job.auto_merge_enabled?
-            render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
-            return
-          end
-          if job.approval_blocking_runtime_work?
-            render_error("validation_failed", lifecycle_t("run_active"), status: :unprocessable_content)
-            return
-          end
-          unless job.can_add_job_approval?(Current.user)
-            render_error("validation_failed", lifecycle_t("approval_forbidden"), status: :unprocessable_content)
-            return
+          approved = job.with_lock do
+            job.reload
+            unless job.auto_merge_enabled?
+              render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
+              return
+            end
+            unless job.can_add_job_approval?(Current.user)
+              render_error("validation_failed", lifecycle_t("approval_forbidden"), status: :unprocessable_content)
+              return
+            end
+
+            approval = job.job_approvals.find_or_initialize_by(user: Current.user)
+            stale_withdrawn_approval = job.approval_withdrawn? &&
+              approval.approved_at.present? &&
+              approval.approved_at <= job.approval_withdrawn_at
+            if stale_withdrawn_approval
+              approval.approved_at = Time.current
+            else
+              approval.approved_at ||= Time.current
+            end
+            approval.save!
+            Metrics::ProductUsage.record(:job_approved)
+
+            if job.approval_satisfied? && job.may_approve?
+              job.approve!(via: "operator", by_user: Current.user)
+              true
+            else
+              false
+            end
           end
 
-          approval = job.job_approvals.find_or_initialize_by(user: Current.user)
-          stale_withdrawn_approval = job.approval_withdrawn? &&
-            approval.approved_at.present? &&
-            approval.approved_at <= job.approval_withdrawn_at
-          if stale_withdrawn_approval
-            approval.approved_at = Time.current
-          else
-            approval.approved_at ||= Time.current
-          end
-          approval.save!
-          Metrics::ProductUsage.record(:job_approved)
-
-          if job.approval_satisfied? && job.may_approve?
-            job.approve!(via: "operator", by_user: Current.user)
-            github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
-            landing_workflow = LandingQueueProcessor.try_land!(job)
-            landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
-            changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
-            render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
-          else
+          unless approved
             render_job(job.reload, message: lifecycle_t("approval_recorded"), changed: [ "approval" ])
+            return
           end
+
+          github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
+          landing_workflow = LandingQueueProcessor.try_land!(job)
+          landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
+          changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
+          render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
         end
 
         def unapprove

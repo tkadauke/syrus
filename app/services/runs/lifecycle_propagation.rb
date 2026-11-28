@@ -35,6 +35,7 @@ module Runs
     def failed!
       refresh_resource_summary_after_completion!
       classify_failure!
+      record_worker_environment_gap!
       cascade_failure_to_step!
       record_provider_failure_evidence!
       broadcast_provider_availability_after_failure!
@@ -42,6 +43,7 @@ module Runs
 
     def succeeded!
       clear_stale_failure_evidence!
+      clear_worker_environment_gaps!
       record_provider_success_evidence!
       broadcast_provider_availability_after_success!
     end
@@ -143,8 +145,15 @@ module Runs
       AutoRetryAttempt::MAX_ATTEMPTS
     end
 
+    # No backoff for a lost worker or an unprovisioned one: the retry goes to
+    # a different worker, so waiting buys nothing.
+    IMMEDIATE_IN_PLACE_RETRY_CLASSIFICATIONS = [
+      AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      AutoRetryAttempt::WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
+    ].freeze
+
     def in_place_step_retry_delay(attempt_number, classification)
-      backoff = classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? 0.seconds : AutoRetryAttempt::BACKOFFS.fetch(attempt_number - 1)
+      backoff = classification.in?(IMMEDIATE_IN_PLACE_RETRY_CLASSIFICATIONS) ? 0.seconds : AutoRetryAttempt::BACKOFFS.fetch(attempt_number - 1)
       backoff + (run.id % (Run::WORKER_DIED_STEP_RETRY_JITTER_SECONDS + 1)).seconds
     end
 
@@ -169,6 +178,32 @@ module Runs
       @failure_classification_record = RunFailureClassifier.persist!(run)
     rescue StandardError => e
       Rails.logger.warn("[RunFailureClassifier] failed for Run ##{run.id}: #{e.class}: #{e.message}")
+      nil
+    end
+
+    # The worker this Run failed on lacks a system dependency the repository's
+    # setup needs. Recorded before the failure cascades, so the in-place retry
+    # it schedules is already placed away from that worker (RunQueueResolver).
+    def record_worker_environment_gap!
+      return unless failure_classification_record&.classification == AutoRetryAttempt::WORKER_ENVIRONMENT_MISSING_CLASSIFICATION
+
+      WorkerEnvironmentGap.record_from_run!(run, problem_evidence: run_diagnostic&.problem_evidence)
+    rescue StandardError => e
+      Rails.logger.warn("[Run##{run.id}] failed to record worker environment gap: #{e.class}: #{e.message}")
+      nil
+    end
+
+    # A setup that just installed on this worker proves the worker has what
+    # this repository needs, whatever an earlier failure recorded.
+    GAP_CLEARING_STEP_KINDS = %w[prepare].freeze
+
+    def clear_worker_environment_gaps!
+      return unless step&.kind.in?(GAP_CLEARING_STEP_KINDS)
+
+      hostname = WorkerEnvironmentGap.failure_hostname(run)
+      WorkerEnvironmentGap.clear!(hostname: hostname, repository_id: job&.repository_id) if hostname.present?
+    rescue StandardError => e
+      Rails.logger.warn("[Run##{run.id}] failed to clear worker environment gaps: #{e.class}: #{e.message}")
       nil
     end
 

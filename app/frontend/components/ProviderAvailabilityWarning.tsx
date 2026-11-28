@@ -3,6 +3,9 @@ import type { TFunction } from "i18next"
 import { useT } from "../hooks/useT"
 import { TonePill } from "./StatusPill"
 
+type ProviderFailoverValue = NonNullable<ProviderFailover>
+type RoutingConditionResults = Record<string, unknown>
+
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
   const { t } = useT("common")
   if (!availability) return null
@@ -45,15 +48,22 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
   if (!failover) return null
 
   const copy = providerFailoverCopy(failover, t)
-  const label = failoverLabel(failover, copy, t)
+  const pillCopy = providerFailoverPillCopy(failover, t)
+  const details = failoverDetails(failover, t)
 
   return (
-    <span
-      className={`inline-flex max-w-full items-center rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}
-      title={label}
+    <details
+      className={`group inline-block max-w-full rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}
     >
-      {copy}
-    </span>
+      <summary
+        aria-label={t("provider_warning.show_details", { label: pillCopy })}
+        className="flex cursor-pointer list-none items-center gap-1 whitespace-nowrap font-medium [&::-webkit-details-marker]:hidden"
+      >
+        <span>{pillCopy}</span>
+        <InfoIcon />
+      </summary>
+      <span className="block max-w-md whitespace-normal break-words pt-1 font-normal">{[copy, details].filter(Boolean).join(" ")}</span>
+    </details>
   )
 }
 
@@ -63,13 +73,33 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
 export function providerFailoverTooltip(failover: ProviderFailover | null | undefined, t: TFunction<"common">): string | undefined {
   if (!failover) return undefined
 
-  return failoverLabel(failover, providerFailoverCopy(failover, t), t)
+  return [providerFailoverCopy(failover, t), failoverDetails(failover, t)].filter(Boolean).join(" ")
 }
 
 function providerFailoverCopy(failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
-  return failover.automatic
-    ? t("provider_warning.automatic_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
-    : t("provider_warning.operator_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+  if (failover.mode === "policy_routing") {
+    return t("provider_warning.policy_routing", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+  }
+  if (failover.mode === "operator") {
+    return t("provider_warning.operator_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+  }
+  return t("provider_warning.automatic_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+}
+
+function providerFailoverPillCopy(failover: ProviderFailoverValue, t: TFunction<"common">): string {
+  if (failover.mode === "policy_routing") return t("provider_warning.policy_routing_pill", { selected: failover.selected_provider_label })
+  if (failover.mode === "operator") return t("provider_warning.operator_pill", { selected: failover.selected_provider_label })
+  return t("provider_warning.automatic_failover_pill", { selected: failover.selected_provider_label })
+}
+
+function InfoIcon() {
+  return (
+    <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
 }
 
 // Compact alternative to ProviderFailoverNotice for dense list rows (e.g. the
@@ -129,24 +159,59 @@ function warningLabel(availability: NonNullable<ProviderAvailability>, lowUsage:
   return parts.join(". ")
 }
 
-function failoverLabel(failover: NonNullable<ProviderFailover>, base: string, t: TFunction<"common">): string {
+function failoverDetails(failover: ProviderFailoverValue, t: TFunction<"common">): string {
   const unavailable = failover.unavailable
-  if (!unavailable) return base
+  const routing = failover.routing
 
   return [
-    base,
-    unavailable.state ? t("provider_warning.state", { provider: unavailable.label || failover.original_provider_label, state: unavailable.state }) : null,
-    unavailable.reason ? t("provider_warning.reason", { reason: unavailable.reason }) : null,
-    unavailable.retry_after ? t("provider_warning.retry_after", { time: formatTimestamp(unavailable.retry_after) }) : null,
-    unavailable.reset_at ? t("provider_warning.reset", { time: formatTimestamp(unavailable.reset_at) }) : null,
-    unavailable.evidence_source || unavailable.evidence_status
+    routing?.matched_rule_id ? t("provider_warning.routing_rule", { id: routing.matched_rule_id }) : null,
+    routing?.condition_results ? routingConditionSummary(routing.condition_results, failover, t) : null,
+    unavailable?.state ? t("provider_warning.state", { provider: unavailable.label || failover.original_provider_label, state: unavailable.state }) : null,
+    unavailable?.reason ? t("provider_warning.reason", { reason: unavailable.reason }) : null,
+    unavailable?.retry_after ? t("provider_warning.retry_after", { time: formatTimestamp(unavailable.retry_after) }) : null,
+    unavailable?.reset_at ? t("provider_warning.reset", { time: formatTimestamp(unavailable.reset_at) }) : null,
+    unavailable && (unavailable.evidence_source || unavailable.evidence_status)
       ? t("provider_warning.evidence", { status: unavailable.evidence_status || "—", source: unavailable.evidence_source || "—" })
       : null,
-    unavailable.observed_at ? t("provider_warning.observed", { time: formatTimestamp(unavailable.observed_at) }) : null,
+    unavailable?.observed_at ? t("provider_warning.observed", { time: formatTimestamp(unavailable.observed_at) }) : null,
     failover.decided_at ? t("provider_warning.decided", { time: formatTimestamp(failover.decided_at) }) : null
   ]
     .filter(Boolean)
     .join(". ")
+}
+
+function routingConditionSummary(conditionResults: RoutingConditionResults, failover: ProviderFailoverValue, t: TFunction<"common">): string {
+  const conditions = recordValue(conditionResults.conditions)
+  const usage = recordValue(conditions?.usage)
+  const expected = recordValue(usage?.expected)
+  const actual = recordValue(usage?.actual)
+  const provider = stringValue(actual?.provider) || stringValue(expected?.provider)
+  const remaining = numberValue(actual?.remaining_percent)
+  const threshold = numberValue(expected?.remaining_percent_less_than)
+
+  if (provider && remaining != null && threshold != null) {
+    const providerLabel =
+      provider === failover.original_provider
+        ? failover.original_provider_label
+        : provider === failover.selected_provider
+          ? failover.selected_provider_label
+          : provider
+    return t("provider_warning.routing_usage_below", { provider: providerLabel, remaining, threshold })
+  }
+
+  return t("provider_warning.routing_conditions_matched")
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function scopeLabel(evidence: NonNullable<NonNullable<ProviderAvailability>["evidence"]>["current"], t: TFunction<"common">): string | null {
