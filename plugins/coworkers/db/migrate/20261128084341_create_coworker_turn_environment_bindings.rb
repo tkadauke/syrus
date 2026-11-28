@@ -18,12 +18,21 @@ class CreateCoworkerTurnEnvironmentBindings < ActiveRecord::Migration[8.1]
       t.string :revocation_state, limit: 32, null: false
       t.timestamps
     end
-    add_index :coworker_turn_environment_bindings, :user_message_id,
-              unique: true, name: "idx_coworker_turn_env_bindings_message"
-    add_index :coworker_turn_environment_bindings, [ :chat_session_id, :created_at ],
-              name: "idx_coworker_turn_env_bindings_chat"
-    add_index :coworker_turn_environment_bindings, :image_digest,
-              name: "idx_coworker_turn_env_bindings_digest"
+    unless index_exists?(:coworker_turn_environment_bindings, :user_message_id,
+                         name: "idx_coworker_turn_env_bindings_message")
+      add_index :coworker_turn_environment_bindings, :user_message_id,
+                unique: true, name: "idx_coworker_turn_env_bindings_message"
+    end
+    unless index_exists?(:coworker_turn_environment_bindings, [ :chat_session_id, :created_at ],
+                         name: "idx_coworker_turn_env_bindings_chat")
+      add_index :coworker_turn_environment_bindings, [ :chat_session_id, :created_at ],
+                name: "idx_coworker_turn_env_bindings_chat"
+    end
+    unless index_exists?(:coworker_turn_environment_bindings, :image_digest,
+                         name: "idx_coworker_turn_env_bindings_digest")
+      add_index :coworker_turn_environment_bindings, :image_digest,
+                name: "idx_coworker_turn_env_bindings_digest"
+    end
   end
 
   def down

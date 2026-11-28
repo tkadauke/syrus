@@ -4243,6 +4243,7 @@ Supported members:
 - `active_base`
 - `audit`
 - `available?`
+- `base_launch`
 - `current_verification_attestation`
 - `delete`
 - `find`
