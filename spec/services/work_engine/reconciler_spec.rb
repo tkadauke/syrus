@@ -4980,6 +4980,54 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
   end
 
+  # A live claim proves the worker process is alive, not the thread running
+  # this Run: a grader thread hung for hours after its last command while its
+  # worker kept the claim, so nothing ever repaired it.
+  it "repairs a Run wedged inside a live worker once it has gone an hour without activity" do
+    ensure_solid_queue_test_tables!
+    heartbeat_at = (described_class::WEDGED_RUNNING_RUN_AFTER + 5.minutes).ago
+    live_worker = SolidQueue::Process.create!(
+      hostname: "worker-1", kind: "worker", last_heartbeat_at: 10.seconds.ago, metadata: {},
+      name: "worker-1:1", pid: 123, created_at: heartbeat_at - 2.minutes
+    )
+    solid_queue_run_job(run, claimed: true, process_id: live_worker.id, created_at: heartbeat_at - 2.minutes)
+    step.update_columns(kind: "grader", state: "running", started_at: heartbeat_at - 2.minutes)
+    workflow.update_columns(state: "running", started_at: heartbeat_at - 2.minutes)
+    run.update_columns(state: "running", created_at: heartbeat_at - 3.minutes, started_at: heartbeat_at - 2.minutes, last_heartbeat_at: heartbeat_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(issue.evidence).to include("solid_queue_execution_live" => true, "wedged_in_live_worker" => true)
+  end
+
+  it "keeps a quiet Run inside a live worker while it is short of the wedged threshold" do
+    ensure_solid_queue_test_tables!
+    heartbeat_at = (described_class::WEDGED_RUNNING_RUN_AFTER - 5.minutes).ago
+    live_worker = SolidQueue::Process.create!(
+      hostname: "worker-1", kind: "worker", last_heartbeat_at: 10.seconds.ago, metadata: {},
+      name: "worker-1:1", pid: 123, created_at: heartbeat_at - 2.minutes
+    )
+    solid_queue_run_job(run, claimed: true, process_id: live_worker.id, created_at: heartbeat_at - 2.minutes)
+    step.update_columns(kind: "grader", state: "running", started_at: heartbeat_at - 2.minutes)
+    workflow.update_columns(state: "running", started_at: heartbeat_at - 2.minutes)
+    run.update_columns(state: "running", created_at: heartbeat_at - 3.minutes, started_at: heartbeat_at - 2.minutes, last_heartbeat_at: heartbeat_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    issue = kind(reconcile(run_id: run.id), :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(safe_to_auto_repair: false, recommended_repair_action: "capture_diagnostics")
+    expect(issue.evidence).to include("wedged_in_live_worker" => false)
+  end
+
   it "cancels a stale running Run left behind under an already-cancelled Workflow" do
     ensure_solid_queue_test_tables!
     run.update_columns(

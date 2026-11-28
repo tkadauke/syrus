@@ -93,6 +93,9 @@ module WorkEngine
 
       def self.call(...) = new(...).call
 
+      # Set by a `wedged: true` Run fixture: a thread hung inside a live worker.
+      WEDGED_RUN_ARTIFACT = "simulation_wedged"
+
       def initialize(
         job_ids:,
         work_intent_ids: [],
@@ -1973,6 +1976,7 @@ module WorkEngine
           .reject { |run| queued_run_held_for_worker_environment?(run) }
           .reject { |run| run.running? && terminal_spawned_process_for?(run) }
           .reject { |run| run.running? && stale_simulated_worker_evidence?(run) }
+          .reject { |run| run.running? && run.artifacts.to_h[WEDGED_RUN_ARTIFACT] }
       end
 
       # Run#enqueue never hands a Run to SolidQueue while every live worker

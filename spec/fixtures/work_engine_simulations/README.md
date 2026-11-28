@@ -288,6 +288,11 @@ run:
     claimed: true
 ```
 
+Mark a running Run `wedged: true` to model a thread hung inside a worker that
+is otherwise alive: the simulator never drives that Run, so only the
+reconciler can notice and recover it. Pair it with a claimed `solid_queue:`
+block to keep the worker's queue claim and process heartbeat live.
+
 Use `host_admission_deferral:` when the reconciler must see repeated
 host-admission deferrals for the Run. The loader stamps the created Run,
 Step, and Workflow ids into `workflow.artifacts["run_host_admission"]`:

@@ -43,6 +43,15 @@ module WorkEngine
     # was pinned to that worker's storage-affinity resume queue no other worker
     # was eligible either. Five idle workers, two starved Jobs, no detection.
     WEDGED_QUEUE_CLAIM_AFTER = 3.hours
+    # The running-Run counterpart. A live queue claim proves the worker
+    # process is alive, not that the thread running this Run is: a grader
+    # thread once hung inside its worker for hours after its last command,
+    # with no child process and no heartbeat, while the worker kept the claim
+    # and heartbeated to SolidQueue. Long Ruby-side operations heartbeat
+    # through RunHeartbeat.during and commands heartbeat through their output,
+    # so this long without either, and with no live spawned process, is a
+    # wedged thread rather than slow work.
+    WEDGED_RUNNING_RUN_AFTER = 1.hour
     RESOURCE_CONGESTION_CHECK_AFTER = 5.minutes
     RATE_LIMIT_CHECK_AFTER = 10.minutes
 
@@ -991,7 +1000,9 @@ module WorkEngine
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
         non_agentic_no_process = non_agentic_run_without_live_process?(run, live_process)
         non_agentic_no_process_ready = non_agentic_no_process && older_than?(last_activity_at, NON_AGENTIC_NO_PROCESS_GRACE)
-        repair_ready = terminal_orphan_ready || (!heartbeat_fresh && (
+        wedged_in_live_worker = queue_execution_live && !live_process &&
+          older_than?(last_activity_at, WEDGED_RUNNING_RUN_AFTER)
+        repair_ready = terminal_orphan_ready || wedged_in_live_worker || (!heartbeat_fresh && (
           (heartbeat_stale && !live_process && !queue_execution_live) ||
           detached_ready ||
           (non_agentic_no_process_ready && !queue_execution_live)
@@ -1025,7 +1036,8 @@ module WorkEngine
             live_spawned_process: live_process&.id,
             terminal_spawned_process: terminal_process&.id,
             terminal_spawned_process_outcome: terminal_process&.outcome,
-            terminal_orphan_process_ready: terminal_orphan_ready
+            terminal_orphan_process_ready: terminal_orphan_ready,
+            wedged_in_live_worker: wedged_in_live_worker
           ),
           explanation: "Run ##{run.id} is running without enough evidence of a live worker continuing it."
         )

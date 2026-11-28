@@ -1,0 +1,54 @@
+# A grader thread hung inside its worker after its last command: no child
+# process and no Run heartbeat for over an hour, while the worker process
+# stayed alive, kept the queue claim and kept heartbeating to Solid Queue.
+# The live claim used to read as proof the Run was progressing, so nothing
+# repaired it and the Job sat in grading indefinitely.
+name: grader wedged in live worker retries
+repository:
+  owner: simulation
+  name: grader-wedged-in-live-worker-retries
+jobs:
+  job:
+    title: Grader wedged in live worker retries
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_hostname: worker-main
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: grader
+          state: running
+          details:
+            name: desktop-typecheck
+          run:
+            state: running
+            wedged: true
+            created_at: "2000-01-01 00:00:00 UTC"
+            started_at: "2000-01-01 00:00:00 UTC"
+            solid_queue:
+              queue_name: runs
+              claimed: true
+              created_at: "2000-01-01 00:00:00 UTC"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - running_run_without_live_worker_evidence

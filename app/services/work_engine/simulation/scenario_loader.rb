@@ -558,6 +558,9 @@ module WorkEngine
             )
           end
           create_solid_queue_state!(run, config["solid_queue"]) if config["solid_queue"].present?
+          # The Run's executing thread is hung: the simulator never drives it,
+          # so only the reconciler can notice and recover it.
+          run.update_columns(artifacts: run.artifacts.to_h.merge(Runner::WEDGED_RUN_ARTIFACT => true)) if config["wedged"] == true
         end
       end
 
