@@ -35,7 +35,9 @@ expect:
       step: prepare
       classification: prepare_network_transient
   events:
-    - "auto retry"
+    # The dispatcher reruns the retryable step in place, so the retry shows
+    # as the step's second, successful run rather than an auto-retry attempt.
+    - 'prepare -> {"status" => "success"}'
 success_states:
   flaky_registry:
     - implemented

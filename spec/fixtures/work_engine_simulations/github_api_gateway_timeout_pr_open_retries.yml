@@ -37,7 +37,9 @@ expect:
       step: pr_open
       classification: github_api_transient
   events:
-    - "auto retry"
+    # The dispatcher reruns the retryable step in place, so the retry shows
+    # as the step's second, successful run rather than an auto-retry attempt.
+    - 'pr_open -> {"status" => "success"}'
 success_states:
   gateway_timeout:
     - implemented
