@@ -85,9 +85,9 @@ module RuntimeImages
           Telemetry.revocation_terminations(terminated)
           Audit.record("revoke.termination", outcome: :ok, image:, actor:,
                        details: { reason:, requested_processes: terminated,
-                                  recovery_guidance: "promote or roll back to a compatible non-revoked image before retrying the turn" })
+                                  recovery_guidance: I18n.t("services.runtime_images.revocation.recovery_guidance") })
           OperationalLogging.ingest(level: "warn", source: "runtime_images",
-                                    message: "severe runtime image revocation requested fleet process termination",
+                                    message: I18n.t("services.runtime_images.revocation.termination_requested"),
                                     context: { runtime_image_digest: image.digest, requested_processes: terminated })
         end
         provider_for(image.runtime_image_namespace).revoke(

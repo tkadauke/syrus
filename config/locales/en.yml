@@ -1142,6 +1142,9 @@ en:
       owner_not_found: "Owner user not found."
   services:
     runtime_images:
+      revocation:
+        recovery_guidance: "Promote or roll back to a compatible non-revoked image before retrying the turn."
+        termination_requested: "Severe runtime image revocation requested fleet process termination."
       verifications:
         supply_chain_policy:
           blocked: "Supply-chain policy blocked vulnerability findings: %{vulnerability_count}; prohibited packages: %{package_count}."
