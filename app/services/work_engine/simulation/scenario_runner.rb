@@ -31,7 +31,8 @@ module WorkEngine
           global_reconcile: world.runner.fetch("global_reconcile", false),
           max_ticks: tick_limit,
           tick_observer: tick_observer,
-          invariant_assertions: invariant_assertions_for(world, enabled: invariants)
+          invariant_assertions: invariant_assertions_for(world, enabled: invariants),
+          git_world: world.git_world
         }
         if world.reconciler.key?("ignored_issue_kinds")
           runner_args[:ignored_reconciler_issue_kinds] = world.reconciler.fetch("ignored_issue_kinds")
@@ -88,7 +89,7 @@ module WorkEngine
       end
 
       def self.translate_reference(key, value, world)
-        if key.in?(%w[job approve fail close set_pr_checks landing_front lose_storage pause_work unpause_work rewrite_stack_parent])
+        if key.in?(%w[job approve fail close set_pr_checks landing_front lose_storage pause_work unpause_work rewrite_stack_parent pr_becomes_dirty pr_mergeability_unknown])
           return translate_job_reference(value, world)
         end
 
@@ -97,6 +98,10 @@ module WorkEngine
         end
 
         if key == "jobs" && value.is_a?(Hash)
+          return value.transform_keys { |job_key| world.jobs_by_key.fetch(job_key.to_s).id.to_s }
+        end
+
+        if key == "pull_requests" && value.is_a?(Hash)
           return value.transform_keys { |job_key| world.jobs_by_key.fetch(job_key.to_s).id.to_s }
         end
 

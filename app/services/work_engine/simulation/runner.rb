@@ -109,7 +109,8 @@ module WorkEngine
         max_ticks: DEFAULT_MAX_TICKS,
         ignored_reconciler_issue_kinds: DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS,
         tick_observer: nil,
-        invariant_assertions: nil
+        invariant_assertions: nil,
+        git_world: nil
       )
         @job_ids = Array(job_ids).map(&:to_i)
         @work_intent_ids = Array(work_intent_ids).map(&:to_i)
@@ -138,6 +139,9 @@ module WorkEngine
         @events = []
         @run_attempts = Hash.new(0)
         @worker_index = 0
+        # Scenarios with a `git:` block model branch topology and GitHub PR
+        # state (GitWorld); everything else keeps the always-clean answers.
+        @git_effects = git_world && GitEffects.new(world: git_world, job_ids: @job_ids, events: @events)
       end
 
       def call
@@ -145,6 +149,16 @@ module WorkEngine
       end
 
       def run_ticks
+        with_git_world { run_ticks_inside_boundaries }
+      end
+
+      def with_git_world(&block)
+        return yield unless @git_effects
+
+        @git_effects.install(&block)
+      end
+
+      def run_ticks_inside_boundaries
         with_simulated_repository_revisions do
           with_simulated_workspaces do
             with_stubbed_judgment_runner do
@@ -294,6 +308,7 @@ module WorkEngine
           when "work_unit" then work_unit_condition_matches?(value)
           when "queue" then queue_condition_matches?(value)
           when "tick" then tick_condition_matches?(value)
+          when "pull_request" then git_effects!("pull_request").pull_request_condition_matches?(value)
           else raise ArgumentError, "unknown simulation event condition #{key.inspect}"
           end
         end
@@ -416,6 +431,12 @@ module WorkEngine
           when "pause_work" then pause_work!(value)
           when "unpause_work" then unpause_work!(value)
           when "rewrite_stack_parent" then rewrite_stack_parent!(tick, value)
+          when "advance_branch" then git_effects!(key).advance_branch!(value)
+          when "pr_becomes_dirty" then git_effects!(key).pr_becomes_dirty!(value)
+          when "pr_mergeability_unknown" then git_effects!(key).pr_mergeability_unknown!(value)
+          when "rewrite_branch" then git_effects!(key).rewrite_branch!(value)
+          when "force_push_branch" then git_effects!(key).force_push_branch!(value)
+          when "delete_branch" then git_effects!(key).delete_branch!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
@@ -469,6 +490,10 @@ module WorkEngine
         events << "operator unpaused #{job.slug}"
       end
 
+      def git_effects!(name)
+        @git_effects || raise(ArgumentError, "simulation #{name} needs the scenario's git: block")
+      end
+
       # A stacked child's parent branch is rewritten (rebased and
       # force-pushed) while the child works. The parent's recorded head moves,
       # and the child's next publication meets the StackBaseFreshness barrier
@@ -476,6 +501,11 @@ module WorkEngine
       # fails with awaiting_stable_base. Takes the child's fixture key.
       def rewrite_stack_parent!(tick, value)
         child = Job.find(value.is_a?(Hash) ? value.fetch("job") : value)
+        # With a git world the parent really moves, and the child's pr_open
+        # meets the real StackBaseFreshness barrier instead of an injected
+        # failure.
+        return @git_effects.rewrite_stack_parent!(child) if @git_effects
+
         parent = child.parent_job
         unless parent
           events << "rewrite stack parent of #{child.slug} skipped: no parent"
@@ -534,6 +564,7 @@ module WorkEngine
       def set_pr_checks!(value)
         attrs = value.to_h
         job = Job.find(attrs.fetch("job"))
+        @git_effects&.set_pr_checks!(job, attrs.fetch("state"))
         job.update!(
           pr_checks_state: attrs.fetch("state"),
           pr_checks_sha: attrs["sha"] || job.mergeability_head_sha || job.head_sha
@@ -542,6 +573,7 @@ module WorkEngine
 
       def advance_main!(value)
         attrs = value.is_a?(Hash) ? value : { "sha" => value }
+        attrs = attrs.merge("sha" => @git_effects.advance_main!(attrs)) if @git_effects
         Repository.where(id: jobs.map(&:repository_id).uniq).find_each do |repository|
           repository.update!(
             last_health_checked_sha: attrs["sha"].presence || simulated_main_sha(repository, attrs),
@@ -636,6 +668,7 @@ module WorkEngine
         attrs = value.is_a?(Hash) ? value : { "job" => value }
         job = Job.find(attrs.fetch("job"))
         merged = attrs.fetch("merged", true)
+        @git_effects&.merge_externally!(job) if merged
         pr = OpenStruct.new(
           merged: merged,
           base: OpenStruct.new(ref: job.repository.default_branch, sha: nil)
@@ -1180,6 +1213,12 @@ module WorkEngine
         fresh = adapter.enqueued_jobs.drop(@mergeability_poll_cursor)
         @mergeability_poll_cursor = adapter.enqueued_jobs.size
         polled_ids = fresh.filter_map { |entry| Array(entry[:args]).first.to_i if entry[:job] == PollMergeStateJob } & job_ids
+        # With a git world the poll itself runs for real against the modeled
+        # PR (see GitEffects#poll_merge_states!).
+        if @git_effects
+          return @git_effects.poll_merge_states!(tick, requested_ids: polled_ids.uniq, state_fingerprint: state_fingerprint)
+        end
+
         Job.where(id: polled_ids.uniq).find_each do |job|
           job.update_columns(
             mergeability_checked_at: Time.current,
@@ -1253,7 +1292,12 @@ module WorkEngine
         start_run!(run, outcome)
         case outcome_status(outcome)
         when "success"
-          if simulate_side_effects!(run, outcome) == :failed
+          effect = simulate_side_effects!(run, outcome)
+          if effect.is_a?(GitEffects::Failure)
+            finish_simulated_processes!(run, "failed")
+            fail_run!(run, agent_outcome: "error", failure_code: effect.failure_code,
+                           error_message: effect.error_message, problem_code: effect.problem_code)
+          elsif effect == :failed
             finish_simulated_processes!(run, "failed")
             fail_run!(run, agent_outcome: "error",
                            failure_code: simulated_failure_code(outcome),
@@ -1416,6 +1460,12 @@ module WorkEngine
       end
 
       def simulate_side_effects!(run, outcome = nil)
+        if @git_effects&.handles?(run.step&.kind)
+          effect = @git_effects.apply(run, outcome)
+          return effect if effect
+          return unless GitEffects::CHAINED_STEP_KINDS.include?(run.step.kind)
+        end
+
         SIDE_EFFECTS_BY_STEP_KIND[run.step&.kind]&.new(self)&.apply(run, outcome)
       end
 
@@ -1725,7 +1775,14 @@ module WorkEngine
           expected_absent_active_steps_match? &&
           expected_events_match? &&
           expected_absent_events_match? &&
-          expected_ordered_events_match?
+          expected_ordered_events_match? &&
+          expected_git_match?
+      end
+
+      def expected_git_match?
+        return true if expectations["git"].blank?
+
+        git_effects!("expect.git").expectations_match?(expectations["git"])
       end
 
       # Like expected_events_match?, but the required substrings must appear
@@ -2157,6 +2214,7 @@ module WorkEngine
           Step.joins(:workflow).where(workflows: { job_id: job_ids }).order(:id).pluck(:id, :state, :updated_at),
           Run.where(job_id: job_ids).order(:id).pluck(:id, :state, :updated_at),
           AutoRetryAttempt.where(job_id: job_ids).order(:id).pluck(:id, :performed_at, :skipped_reason, :scheduled_at, :updated_at),
+          @git_effects&.fingerprint,
           WorkIntent.where(scope_type: "job", scope_id: job_ids).order(:id).pluck(:id, :state, :wait_reason, :updated_at),
           WorkUnit.where(scope_type: "job", scope_id: job_ids).order(:id).pluck(:id, :state, :blocked_reason, :updated_at)
         ]

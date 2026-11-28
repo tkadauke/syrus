@@ -65,7 +65,7 @@ module WorkEngine
         TRANSIENT_FAILURE_CODES = %w[provider_transient timeout git_transport_transient rate_limited run_job_crashed].freeze
         STEP_KINDS = [ nil, "prepare", "implement", "grader_fanout", "grader_collect", "grader", "pr_open", "push", "auto_merge", "merge_train_land" ].freeze
         JOBLESS_KINDS = %w[advance_main main_break_heal provider_outage spurious_wake lose_worker].freeze
-        Context = Data.define(:job_keys, :stack_children, :workers, :workspace, :ticks)
+        Context = Data.define(:job_keys, :stack_children, :workers, :workspace, :ticks, :git)
 
         def self.context_for(data, ticks:)
           jobs = data.fetch("jobs", {}).to_h
@@ -74,7 +74,8 @@ module WorkEngine
             stack_children: jobs.select { |_key, attrs| attrs.to_h["parent_job"].present? }.keys.map(&:to_s).sort,
             workers: Array(data.dig("runtime", "workers")).map(&:to_s),
             workspace: data.dig("runtime", "workspace").present?,
-            ticks: [ ticks.to_i, 1 ].max
+            ticks: [ ticks.to_i, 1 ].max,
+            git: data.key?("git")
           )
         end
 
@@ -97,6 +98,12 @@ module WorkEngine
             weighted["rewrite_stack_parent"] = 3 if context.stack_children.any?
             weighted["lose_worker"] = 2 if context.workers.any?
             weighted["lose_storage"] = 1 if context.workspace
+            # Seeds that model git topology can also have a PR's base gain
+            # an overlapping change, or a branch rewritten under the engine.
+            if context.git
+              weighted["pr_becomes_dirty"] = 2
+              weighted["rewrite_branch"] = 2
+            end
             # A seed made only of WorkIntents has no Job to aim at.
             weighted.select! { |kind, _| JOBLESS_KINDS.include?(kind) } if context.job_keys.empty?
             weighted.sort.flat_map { |kind, weight| [ kind ] * weight }
@@ -161,6 +168,12 @@ module WorkEngine
           when "rewrite_stack_parent" then [ event(kind, index, at, "rewrite_stack_parent" => context.stack_children.sample(random: rng)) ]
           when "lose_worker" then [ event(kind, index, at, "lose_worker" => { "hostname" => context.workers.sample(random: rng) }) ]
           when "lose_storage" then [ event(kind, index, at, "lose_storage" => { "job" => job }) ]
+          when "pr_becomes_dirty"
+            key = job
+            [ event(kind, index, at, { "pr_becomes_dirty" => key }, key) ]
+          when "rewrite_branch"
+            key = job
+            [ event(kind, index, at, { "rewrite_branch" => { "job" => key, "patch_equivalent" => rng.rand(2).zero? } }, key) ]
           else raise ArgumentError, "unknown fuzz perturbation #{kind}"
           end
         end
