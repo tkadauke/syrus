@@ -27,6 +27,26 @@ RSpec.describe ContainerExecution::SeedImage do
     expect(described_class.new(request).resolve).to eq("syrus-worker:test")
   end
 
+  it "leases and runs the immutable runtime image pinned at turn admission" do
+    image = instance_double(RuntimeImage, pullable?: true, digest: "sha256:#{'8' * 64}")
+    policy = Execution::ChatWorkloadPolicy.new.with_runtime_image(image, digest: image.digest)
+    images = double("runtime images")
+    allow(images).to receive(:acquire).with(image).and_yield("registry.test/coworker@#{image.digest}")
+
+    reference = described_class.new(request(workload_policy: policy), images: images).resolve
+
+    expect(reference).to eq("registry.test/coworker@#{image.digest}")
+    expect(images).to have_received(:acquire).with(image)
+  end
+
+  it "fails closed when the pinned runtime image digest no longer matches" do
+    image = instance_double(RuntimeImage, pullable?: true, digest: "sha256:#{'8' * 64}")
+    policy = Execution::ChatWorkloadPolicy.new.with_runtime_image(image, digest: "sha256:#{'9' * 64}")
+
+    expect { described_class.new(request(workload_policy: policy)).resolve }
+      .to raise_error(ContainerExecution::SeedImage::BuildError, /unavailable or changed/)
+  end
+
   it "pulls a missing image declared by the repository spec" do
     enable_devcontainer
     spec = instance_double(ContainerExecution::DevcontainerSpec::Result, image: "ruby:3.4", build: nil)
@@ -299,13 +319,14 @@ RSpec.describe ContainerExecution::SeedImage do
     ENV["SYRUS_CONTAINER_EXECUTION_DEVCONTAINER"] = "true"
   end
 
-  def request(workflow: nil, repository: instance_double(Repository, id: 1))
+  def request(workflow: nil, repository: instance_double(Repository, id: 1), workload_policy: nil)
     instance_double(
       Execution::Request,
       job: instance_double(Job, repository: repository),
       workflow: workflow,
       chdir: @workspace,
-      mounts: nil
+      mounts: nil,
+      workload_policy: workload_policy
     )
   end
 

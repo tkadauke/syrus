@@ -164,6 +164,7 @@ module ContainerExecution
     end
 
     def seed_image_available_for?(request)
+      return true if request.workload_policy&.respond_to?(:runtime_image) && request.workload_policy.runtime_image.present?
       return true if Configuration.image.present?
       return false unless Configuration.devcontainer_enabled? && request.job&.repository
 
