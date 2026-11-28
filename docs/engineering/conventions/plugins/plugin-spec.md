@@ -360,6 +360,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::InstanceIdentity` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `for_repository`.
 - `Syrus::Host::InstanceVersion` (since 0.1.16) — Reads live worker heartbeats (fresh, worker_live?, worker_queue_live?, queue_names, HEARTBEAT_STALE_THRESHOLD); heartbeat storage is not promised. Only the listed members are supported. Supported members: `HEARTBEAT_STALE_THRESHOLD`, `create!`, `fresh`, `queue_names`, `worker_live?`, `worker_queue_live?`.
 - `Syrus::Host::InstanceWorkers` (since 0.1.16) — Reports the worker processes the instance has recently heard from; version bookkeeping is not promised. Supported members: `fresh`.
+- `Syrus::Host::Invariants` (since 0.1.16) — Builds the system alert summarizing open invariant violations recorded by the invariant monitor, or nil when none are open; detection, persistence, and thresholds are not promised. Supported members: `open_violations_alert`.
 - `Syrus::Host::InvestigationJobCreator` (since 0.1.16) — Creates an investigation job from a plugin trigger; deduplication details are not promised. Only the listed members are supported. Supported members: `call`.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
 - `Syrus::Host::Job` (since 0.1.16) — Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised. Supported members: `accessible_to`, `find`, `id`, `repository`, `state`, `title`, `user`, `visible_to`, `workflows`.
@@ -663,4 +664,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 149699 bytes (UTF-8, including this line).
+Size: 149971 bytes (UTF-8, including this line).

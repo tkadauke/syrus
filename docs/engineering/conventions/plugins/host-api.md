@@ -2286,6 +2286,16 @@ Supported members:
 
 - `fresh`
 
+### `Syrus::Host::Invariants`
+
+Since: `0.1.16`
+
+Builds the system alert summarizing open invariant violations recorded by the invariant monitor, or nil when none are open; detection, persistence, and thresholds are not promised.
+
+Supported members:
+
+- `open_violations_alert`
+
 ### `Syrus::Host::InvestigationJobCreator`
 
 Since: `0.1.16`

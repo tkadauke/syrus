@@ -49,14 +49,16 @@ module SystemAlerts
   private_class_method :alerts_for
 
   def self.admin_alerts
-    [ plugin_recovery_mode, plugin_fleet_divergence, data_root_disk_usage, invariant_violations, *plugin_admin_alerts ].compact
+    [ plugin_recovery_mode, plugin_fleet_divergence, data_root_disk_usage, *plugin_admin_alerts ].compact
   end
   private_class_method :admin_alerts
 
   # Open episodes recorded by InvariantMonitorJob. The dismissal key covers
   # the exact set of open violations, so dismissing hides the banner only
-  # until a violation opens or resolves.
-  def self.invariant_violations
+  # until a violation opens or resolves. It is Syrus-developer diagnostics,
+  # not operator guidance, so core never raises it: the syrus_dev plugin
+  # contributes it through Syrus::Host::Invariants when it is enabled.
+  def self.invariant_violations_alert
     open = InvariantViolation.open.order(:invariant_key, :fingerprint).pluck(:invariant_key, :fingerprint)
     return if open.empty?
 
@@ -73,7 +75,6 @@ module SystemAlerts
   rescue ActiveRecord::StatementInvalid
     nil
   end
-  private_class_method :invariant_violations
 
   def self.plugin_recovery_mode
     safety = Syrus::PluginBootSafety.default
