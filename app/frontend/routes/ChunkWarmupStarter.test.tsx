@@ -17,6 +17,7 @@ vi.mock("../api/bootstrap", async (importOriginal) => ({
 const { ChunkWarmupStarter } = await import("./ChunkWarmupStarter")
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   vi.clearAllMocks()
   delete window.SyrusStartupDiagnostics
 })
@@ -49,6 +50,15 @@ describe("ChunkWarmupStarter", () => {
 
   it("warms nothing for a signed-out visitor", () => {
     readInitialBootstrap.mockReturnValue({ current_user: null })
+
+    render(<ChunkWarmupStarter />)
+
+    expect(startChunkWarmup).not.toHaveBeenCalled()
+  })
+
+  it("skips warm-up against the Vite dev server", () => {
+    vi.stubEnv("MODE", "development")
+    readInitialBootstrap.mockReturnValue({ current_user: { admin: true } })
 
     render(<ChunkWarmupStarter />)
 
