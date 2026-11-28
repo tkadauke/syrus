@@ -187,6 +187,17 @@ The worker env file keeps host-local state outside release directories:
 caches remain in stable paths across releases. Old release directories are
 kept only inside a bounded retention window for rollback.
 
+Typed Xcode graders keep Xcode's native content-addressable compilation cache
+under `$SYRUS_DATA_ROOT/cache/xcode-compilation` by default. The worker account
+must be able to create and write this directory. Syrus uses toolchain-specific
+weekly generations and removes only inactive generations older than the
+grader's bounded retention; it never cleans Workflow workspaces or copies
+DerivedData. Concurrent graders share the CAS using Xcode's own concurrency
+semantics. Cache reuse is host-local and sensitive to Xcode, Swift, SDKs,
+settings, inputs, and potentially absolute checkout paths—not a cross-Mac
+cache. Grader logs report the effective path and native hit/miss remarks, or a
+clear unsupported/fail-open diagnostic.
+
 Syrus records updater state in worker health. Admin views can distinguish
 current, updating, failed, and stale Mac workers from the status each host
 reports after polling or activation attempts.
