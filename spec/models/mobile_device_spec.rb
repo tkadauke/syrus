@@ -27,7 +27,7 @@ RSpec.describe MobileDevice do
 
   it "rejects non-hex tokens" do
     expect { described_class.register!(user: user, session: nil, attributes: attrs.merge(token: "not hex!")) }
-      .to raise_error(ActiveRecord::RecordInvalid)
+      .to raise_error(ActiveRecord::RecordInvalid, /must be a hex-encoded device token/)
   end
 
   it "is destroyed with its session" do

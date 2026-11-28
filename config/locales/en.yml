@@ -46,6 +46,8 @@ en:
       other: "%{count} approval requests need your attention."
       fallback: "An agent is waiting for permission"
   mobile_devices:
+    errors:
+      invalid_token: "must be a hex-encoded device token"
     test_push:
       body: "Test notification: tap to confirm the deep link opens."
       not_configured: "APNs is not configured on this server."

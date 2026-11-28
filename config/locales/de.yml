@@ -17,6 +17,8 @@ de:
       other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
       fallback: "Ein Agent wartet auf eine Berechtigung"
   mobile_devices:
+    errors:
+      invalid_token: "muss ein hexadezimal kodiertes Geräte-Token sein"
     test_push:
       body: "Testbenachrichtigung: Tippe darauf, um zu prüfen, dass der Deep Link sich öffnet."
       not_configured: "APNs ist auf diesem Server nicht konfiguriert."
