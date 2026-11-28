@@ -162,6 +162,9 @@ de:
         headline: "Neustart von der effektiven Basis"
         explanation: "Es gibt kein verlässliches fortsetzbares Wiederherstellungsziel mehr; starte neu von der effektiven Basis."
     runtime_images:
+      revocation:
+        recovery_guidance: "Aktiviere ein kompatibles, nicht widerrufenes Image oder setze darauf zurück, bevor du den Lauf erneut versuchst."
+        termination_requested: "Ein schwerwiegender Widerruf eines Laufzeit-Images hat die Beendigung der betroffenen Prozesse in der Flotte angefordert."
       verifications:
         reevaluator:
           abandoned: "Der Verifizierungsversuch wurde abgebrochen."

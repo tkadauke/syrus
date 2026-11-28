@@ -4264,6 +4264,7 @@ Supported members:
 - `retain`
 - `revocation_details`
 - `revoke`
+- `worker_health`
 
 ### `Syrus::Host::RuntimeSessionProvider`
 

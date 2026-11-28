@@ -68,7 +68,8 @@ RSpec.describe RuntimeImages::Service do
     expect(affected.reload.kill_requested_at).to be_present
     expect(other.reload.kill_requested_at).to be_nil
     expect(RuntimeImageAuditEvent.where(event_type: "revoke.termination").last.details)
-      .to include("requested_processes" => 1, "recovery_guidance" => include("promote or roll back"))
+      .to include("requested_processes" => 1,
+                  "recovery_guidance" => I18n.t("services.runtime_images.revocation.recovery_guidance"))
   end
 
   it "requests termination for a registered agent before its pid is assigned" do
