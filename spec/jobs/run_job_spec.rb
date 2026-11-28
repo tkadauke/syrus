@@ -1444,6 +1444,11 @@ RSpec.describe RunJob, :ci_only do
       # shared compute queue and ran them while Linux workers sat idle.
       it "hands back a Run whose placement this worker does not satisfy" do
         on_host(os: "macos", git_sha: "50d35be290")
+        ensure_solid_queue_test_tables!
+        SolidQueue::Process.create!(
+          hostname: "linux-worker", kind: "Worker", name: "linux-worker-1", pid: 123, last_heartbeat_at: Time.current,
+          metadata: { "queues" => "runs", "capabilities" => { "os" => [ "linux" ] }, "polling_interval" => 0.1, "pool_size" => 1 }
+        )
         expect(RunHostAdmission).not_to receive(:call)
 
         expect { RunJob.perform_now(run.id) }.to have_enqueued_job(RunJob).with(run.id)

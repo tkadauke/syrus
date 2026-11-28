@@ -281,4 +281,60 @@ RSpec.describe RunQueueResolver, :ci_only do
       "capability_diagnostics" => { "docker" => true }
     )
   end
+
+  describe ".locally_satisfied?" do
+    def on_local_host(os)
+      allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "os" => [ os ] }, diagnostics: {})
+    end
+
+    def default_run
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      step = Step.create!(workflow: workflow, kind: "summarize", position: 1)
+      step.runs.create!(job: job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+    end
+
+    def linux_worker_on_runs
+      ensure_solid_queue_test_tables!
+      SolidQueue::Process.create!(
+        hostname: "linux-worker", kind: "Worker", name: "linux-worker-1", pid: 123, last_heartbeat_at: Time.current,
+        metadata: { "queues" => "runs", "capabilities" => { "os" => [ "linux" ] }, "polling_interval" => 0.1, "pool_size" => 1 }
+      )
+    end
+
+    it "is satisfied on a Linux worker for a Run whose placement defaults to Linux" do
+      on_local_host("linux")
+
+      expect(described_class.locally_satisfied?(run: default_run)).to be(true)
+    end
+
+    it "is not satisfied on a Mac for Linux-default work a live Linux worker can take" do
+      on_local_host("macos")
+      linux_worker_on_runs
+
+      expect(described_class.locally_satisfied?(run: default_run)).to be(false)
+    end
+
+    # Regression: with only a Mac serving the shared queue -- a single-Mac
+    # install or local development -- every Run whose placement merely
+    # defaults to Linux was handed back to that same queue, forever.
+    it "keeps Linux-default work on a Mac when no live worker satisfies the default" do
+      on_local_host("macos")
+      ensure_solid_queue_test_tables!
+
+      expect(described_class.locally_satisfied?(run: default_run)).to be(true)
+    end
+
+    it "is not satisfied on a Mac for a Run that explicitly requires Linux" do
+      on_local_host("macos")
+      ensure_solid_queue_test_tables!
+      allow(Feature).to receive(:distributed_workflow_dag_enabled?).and_return(true)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", planned_execution_capabilities: { "os" => [ "linux" ] })
+      step = Step.create!(workflow: workflow, kind: "grader", position: 5,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: { "name" => "rspec", "required_capabilities" => { "os" => [ "linux" ] } })
+      run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+
+      expect(described_class.locally_satisfied?(run: run)).to be(false)
+    end
+  end
 end

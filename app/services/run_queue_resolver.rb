@@ -69,9 +69,18 @@ class RunQueueResolver
   # Also false when this worker's own environment smoke report failed a check
   # the step needs, so RunJob hands the Run back to a worker that can run it
   # instead of starting it here and failing.
+  #
+  # A requirement that merely defaults to Linux is a preference, not a
+  # contract: it sends the work elsewhere only when a live worker can take it
+  # there. Otherwise a worker that serves the shared queue alone -- a single
+  # Mac install, or local development -- handed every such Run back to itself.
   def locally_satisfied?
     snapshot = WorkerCapabilities.current
-    return false unless satisfies?(WorkerCapabilities.normalize(snapshot.fetch(:capabilities)), required_capabilities)
+    requirements = required_capabilities
+    unless satisfies?(WorkerCapabilities.normalize(snapshot.fetch(:capabilities)), requirements)
+      return false unless defaulted_requirements?(requirements)
+      return false if live_capable_worker_for?(capability_queue_name(requirements) || base_queue_name, requirements)
+    end
 
     report = snapshot.fetch(:diagnostics, {})[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY]
     environment_failures_for(SyrusVersion.hostname, report).empty?
