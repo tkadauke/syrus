@@ -1,0 +1,51 @@
+# A stacked Job's PR branch was rewritten (an Epic-wide stack rebase) while its
+# workflow held older output, so pr_open failed with "PR branch changed before
+# Syrus could push". The reconciler planned a retry from the current PR
+# branch, but AutoRetryJob rechecked retryability, found branch_diverged
+# non-retryable, and skipped every attempt; the Job sat failed for a human.
+name: pr_open branch diverged retries from current branch
+repository:
+  owner: simulation
+  name: pr-open-branch-diverged-retries
+jobs:
+  diverged:
+    title: PR branch moved before pr_open could push
+    state: failed
+    agent_provider: codex
+    branch_name: syrus/direct-diverged
+    pr_number: 7150
+    mergeability_head_sha: rewritten-remote-head
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      artifacts:
+        branch_divergence:
+          branch: syrus/direct-diverged
+          remote_sha: rewritten-remote-head
+          local_sha: stale-local-output
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: pr_open
+          state: failed
+          run:
+            state: failed
+            agent_provider: codex
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "PR branch changed before Syrus could push WF-1; choose whether to retry from the current PR branch or replace it with this workflow's output."
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+success_states:
+  diverged:
+    - implemented
