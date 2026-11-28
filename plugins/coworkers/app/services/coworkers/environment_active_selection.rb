@@ -19,6 +19,10 @@ module Coworkers
         activation = environment.active_activation
         return unless activation
 
+        unless activation.runtime_image.pullable?
+          raise InconsistentPointer, I18n.t("api.coworkers.environment_inconsistent_activation")
+        end
+
         unless activation.environment_revision_id == environment.active_revision_id &&
             activation.runtime_image_id == environment.active_runtime_image_id &&
             activation.image_digest == activation.runtime_image.digest

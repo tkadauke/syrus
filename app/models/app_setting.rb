@@ -1,4 +1,8 @@
 class AppSetting < ApplicationRecord
+  validates :coworker_environment_rollback_retention_count,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :coworker_environment_launch_failure_threshold,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   SINGLETON_KEY = 1
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
 

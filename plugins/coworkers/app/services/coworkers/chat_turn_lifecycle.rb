@@ -26,6 +26,22 @@ class Coworkers::ChatTurnLifecycle
     )
   end
 
+  # Only failures before an agent process exists are image launch failures.
+  # Provider errors after a process started must not roll back valid images.
+  def after_execution(result: nil, exception: nil)
+    return unless @environment_selection
+    return if result&.success?
+    return if result&.spawned_process_id.present?
+    return unless exception || result
+
+    Coworkers::EnvironmentRecovery.new(coworker.environment).record_launch_failure!(
+      @environment_selection.activation_id,
+      reason: exception ? exception.class.name : "agent_process_not_started"
+    )
+  rescue StandardError => error
+    Rails.logger.error("[Coworkers::ChatTurnLifecycle] launch recovery failed: #{error.class}: #{error.message}")
+  end
+
   def context = @chat_session
   def isolated_workspace? = true
 

@@ -143,6 +143,8 @@ class ChatTurnJob < ApplicationJob
       end
     end
 
+    @turn_lifecycle.after_execution(result:) if @turn_lifecycle.respond_to?(:after_execution)
+
     return if stop_requested?(force: true)
 
     log_mcp_startup_stall!(result) if result
@@ -169,6 +171,7 @@ class ChatTurnJob < ApplicationJob
       create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     end
   rescue StandardError => e
+    @turn_lifecycle&.after_execution(exception: e) if @turn_lifecycle&.respond_to?(:after_execution)
     stop_requested?(force: true) || create_terminal_failure_message!(exception: e)
     touch_chat! if @chat
     raise
