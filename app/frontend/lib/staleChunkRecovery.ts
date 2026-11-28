@@ -60,13 +60,42 @@ export function installStaleChunkRecovery(
 let navigationTarget: { href: string; at: number } | null = null
 
 export function installChunkNavigationTracking() {
+  const rememberTarget = (href: string) => {
+    navigationTarget = { href, at: Date.now() }
+  }
   const remember = (event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
-    if (!anchor || anchor.origin !== window.location.origin) return
-    navigationTarget = { href: anchor.href, at: Date.now() }
+    if (!anchor || anchor.target || anchor.hasAttribute("download") || anchor.origin !== window.location.origin) return
+    rememberTarget(anchor.href)
   }
   document.addEventListener("click", remember, true)
-  return () => document.removeEventListener("click", remember, true)
+
+  const pushState = history.pushState.bind(history)
+  const replaceState = history.replaceState.bind(history)
+  const trackHistoryTarget = (url: string | URL | null | undefined) => {
+    if (url == null) return
+    const href = new URL(String(url), window.location.href).href
+    if (href !== window.location.href) rememberTarget(href)
+  }
+  history.pushState = (data, unused, url) => {
+    trackHistoryTarget(url)
+    return pushState(data, unused, url)
+  }
+  history.replaceState = (data, unused, url) => {
+    trackHistoryTarget(url)
+    return replaceState(data, unused, url)
+  }
+  const rememberPopstate = () => rememberTarget(window.location.href)
+  window.addEventListener("popstate", rememberPopstate)
+
+  return () => {
+    document.removeEventListener("click", remember, true)
+    window.removeEventListener("popstate", rememberPopstate)
+    history.pushState = pushState
+    history.replaceState = replaceState
+    navigationTarget = null
+  }
 }
 
 function recentNavigationTarget() {

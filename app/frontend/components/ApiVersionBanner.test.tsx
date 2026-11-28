@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ApiVersionBanner } from "./ApiVersionBanner"
 import { announceAppUpdate, resetAppUpdateForTests } from "../lib/appUpdate"
@@ -34,7 +34,19 @@ describe("ApiVersionBanner", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Syrus must reload because the API changed")
     expect(screen.getByRole("button", { name: "Reload now" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Dismiss notification" })).not.toBeInTheDocument()
     expect(readApiVersionMismatch()).toEqual({ actual: 2, expected: 1 })
     expect(getRegistration).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows a dismissed compatible notice again for the next revision", () => {
+    render(<ApiVersionBanner />)
+
+    act(() => announceAppUpdate("compatible", "revision:new"))
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }))
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+
+    act(() => announceAppUpdate("compatible", "revision:newer"))
+    expect(screen.getByRole("status")).toHaveTextContent("A new version of Syrus is available.")
   })
 })

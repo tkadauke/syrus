@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { updateChatRepository, uploadChatAttachment, type ChatPayload, type ChatPendingAction, type ChatPendingActionGroup } from "../../api/chats"
 import { useWalkthroughRecorder } from "../../components/WalkthroughRecorder"
 import { reportHandledError } from "../../lib/handledErrorReporting"
+import { SAVE_DRAFTS_EVENT } from "../../lib/appUpdate"
 import { Compose, PendingActionCarousel } from "./Compose"
 import { setDraftAttachments } from "./attachmentDraftStore"
 
@@ -176,6 +177,30 @@ function renderCompose(payload = makePayload()) {
     )
   }
 }
+
+describe("Compose draft persistence", () => {
+  it("saves the current text when an app update requests draft persistence", () => {
+    vi.mocked(useWalkthroughRecorder).mockReturnValue({
+      state: { phase: "idle" },
+      elapsed: 0,
+      start: vi.fn(),
+      stop: vi.fn(),
+      annotationAvailable: false,
+      annotationHold: false,
+      annotationReason: null,
+      displaySurface: null,
+      drawing: false
+    })
+    renderCompose()
+    const composer = screen.getByRole("textbox")
+    fireEvent.change(composer, { target: { value: "Keep this unsent draft" } })
+    window.localStorage.removeItem("syrus.chat.draft.1")
+
+    window.dispatchEvent(new Event(SAVE_DRAFTS_EVENT))
+
+    expect(window.localStorage.getItem("syrus.chat.draft.1")).toBe("Keep this unsent draft")
+  })
+})
 
 function pendingAction(id: number, label: string, overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
   return {

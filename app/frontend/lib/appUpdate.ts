@@ -73,7 +73,7 @@ export function dismissAppUpdate(id: string) {
   } catch {
     // handled-error-expected: Dismissal is best effort when storage is unavailable.
   }
-  window.dispatchEvent(new CustomEvent(APP_UPDATE_EVENT))
+  window.dispatchEvent(new CustomEvent<AppUpdate | null>(APP_UPDATE_EVENT, { detail: currentUpdate ? { ...currentUpdate } : null }))
 }
 
 export function appUpdateIsDismissed(update: AppUpdate): boolean {
@@ -91,10 +91,13 @@ export function reloadForAppUpdate(target = window.location.href) {
 
 function scheduleBreakingReload(update: AppUpdate) {
   if (update.kind !== "breaking" || update.deadline == null || countdownTimer != null) return
-  countdownTimer = window.setTimeout(() => {
-    countdownTimer = null
-    reloadForAppUpdate()
-  }, Math.max(0, update.deadline - Date.now()))
+  countdownTimer = window.setTimeout(
+    () => {
+      countdownTimer = null
+      reloadForAppUpdate()
+    },
+    Math.max(0, update.deadline - Date.now())
+  )
 }
 
 function targetFromHistoryArgument(url: string | URL | null | undefined): string {

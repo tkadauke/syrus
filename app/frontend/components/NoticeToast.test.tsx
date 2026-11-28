@@ -80,4 +80,11 @@ describe("NoticeToast", () => {
 
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
+
+  it("supports persistent notices that cannot be dismissed", () => {
+    render(<NoticeToast persistent message="Reloading in 30 seconds" tone="error" />)
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Reloading in 30 seconds")
+    expect(screen.queryByRole("button", { name: "Dismiss notification" })).not.toBeInTheDocument()
+  })
 })

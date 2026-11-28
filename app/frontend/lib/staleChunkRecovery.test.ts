@@ -111,4 +111,34 @@ describe("installStaleChunkRecovery", () => {
     expect(reload).toHaveBeenCalledWith(`${window.location.origin}/jobs/42`)
     anchor.remove()
   })
+
+  it("tracks a programmatic navigation target for stale chunk recovery", () => {
+    const reload = vi.fn()
+    const stopTracking = installChunkNavigationTracking()
+    const stopRecovery = installStaleChunkRecovery(reload)
+    uninstall = () => {
+      stopTracking()
+      stopRecovery()
+    }
+
+    history.pushState({}, "", "/jobs/43")
+    dispatchPreloadError()
+
+    expect(reload).toHaveBeenCalledWith(`${window.location.origin}/jobs/43`)
+  })
+
+  it("tracks the destination of back and forward navigation", () => {
+    const reload = vi.fn()
+    const stopTracking = installChunkNavigationTracking()
+    const stopRecovery = installStaleChunkRecovery(reload)
+    uninstall = () => {
+      stopTracking()
+      stopRecovery()
+    }
+
+    window.dispatchEvent(new PopStateEvent("popstate"))
+    dispatchPreloadError()
+
+    expect(reload).toHaveBeenCalledWith(window.location.href)
+  })
 })

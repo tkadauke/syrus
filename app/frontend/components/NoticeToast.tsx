@@ -10,11 +10,23 @@ function noticeToneClass(tone: NoticeToastTone) {
   return ""
 }
 
-export function NoticeToast({ children, message, onDismiss, persistent, tone = "notice" }: { children?: ReactNode; message?: ReactNode | null; onDismiss: () => void; persistent?: boolean; tone?: NoticeToastTone }) {
+export function NoticeToast({
+  children,
+  message,
+  onDismiss,
+  persistent,
+  tone = "notice"
+}: {
+  children?: ReactNode
+  message?: ReactNode | null
+  onDismiss?: () => void
+  persistent?: boolean
+  tone?: NoticeToastTone
+}) {
   const { t } = useT("common")
   const content = children ?? message
   useEffect(() => {
-    if (!content || persistent) return
+    if (!content || persistent || !onDismiss) return
 
     const timeout = window.setTimeout(onDismiss, NOTICE_AUTO_DISMISS_DELAY_MS)
     return () => window.clearTimeout(timeout)
@@ -26,7 +38,7 @@ export function NoticeToast({ children, message, onDismiss, persistent, tone = "
     <div aria-live={tone === "error" ? "assertive" : "polite"} className={NOTICE_TOAST_VIEWPORT_CLASS} role={tone === "error" ? "alert" : "status"}>
       <div className={noticeSurfaceClass(["flex items-start gap-3", noticeToneClass(tone)].filter(Boolean).join(" "))}>
         <div className="min-w-0 flex-1">{content}</div>
-        <DismissButton label={t("notice_toast.dismiss")} onClick={onDismiss} />
+        {onDismiss ? <DismissButton label={t("notice_toast.dismiss")} onClick={onDismiss} /> : null}
       </div>
     </div>
   )
