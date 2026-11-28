@@ -55,6 +55,7 @@ module ContainerExecution
       missing << "host_path_mappings" if Configuration.host_path_mappings.empty?
       missing << "dedicated_network" if Configuration.chat_agent_network.blank?
       missing << "controlled_dns" if Configuration.chat_agent_dns.blank?
+      missing << "mount_profile" unless mount_profile
       PROVIDERS.each do |provider|
         policy = EgressPolicy::Base.for(provider.downcase)
         missing << "#{provider.downcase}_proxy" unless env["SYRUS_CONTAINER_EXECUTION_#{provider}_PROXY"].present? && policy&.configured?
@@ -79,10 +80,12 @@ module ContainerExecution
         "--pids-limit", Configuration.chat_agent_pids_limit.to_s,
         "--memory", Configuration.chat_agent_memory,
         "--cpus", Configuration.chat_agent_cpus,
-        "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=#{Configuration.chat_agent_tmpfs_size}",
+        *mount_profile.tmpfs_args,
         Configuration.image, "bash", "-c", PROBE_SCRIPT, "probe",
         *proxy_endpoints.flatten.map(&:to_s)
       ]
     end
+
+    def self.mount_profile = MountProfile::Base.for(Configuration.chat_agent_mount_profile)
   end
 end

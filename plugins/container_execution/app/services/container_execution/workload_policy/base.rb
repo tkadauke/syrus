@@ -17,6 +17,8 @@ module ContainerExecution
       def injected_env = {}
       def process_env = request.env
       def forwarded_env = request.env
+      def mount_path_for(mount) = mount.mount_path
+      def container_workdir(default) = default
     end
   end
 end
