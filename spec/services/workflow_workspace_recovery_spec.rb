@@ -190,6 +190,23 @@ RSpec.describe WorkflowWorkspaceRecovery do
       expect(SolidQueue::Job.where(id: stale.id)).not_to exist
     end
 
+    # Recovery reads the active Runs up front. One that finished afterwards
+    # was reset to queued and executed a second time.
+    it "does not reset a Run that finished after recovery read it as running" do
+      stranded = immutable_grader_run(90, state: "running")
+      stale = Run.find(stranded.id)
+      stranded.update_columns(state: "succeeded", finished_at: Time.current)
+      stranded.step.update_columns(state: "succeeded", finished_at: Time.current)
+      recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+      allow(stale).to receive(:reenqueue!)
+
+      expect(recovery.requeue!(stale)).to be(false)
+
+      expect(stranded.reload).to be_succeeded
+      expect(stranded.step.reload).to be_succeeded
+      expect(stale).not_to have_received(:reenqueue!)
+    end
+
     it "still requires a fresh retry when a live Run needs the workspace" do
       immutable_grader_run(90, state: "queued")
       pinned = workflow.steps.create!(kind: "implement", position: 95, state: "running")

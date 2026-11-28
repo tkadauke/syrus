@@ -170,7 +170,7 @@ class PollExternalPrJob < ApplicationJob
   def unapprove_stale_approval!
     @job.with_lock do
       @job.stop_landing! if @job.landing?
-      @job.reload
+      @job.reload(lock: true)
       Job::ApprovalUnapprover.call(job: @job, user: @job.user) if @job.may_unapprove?
     end
   end
@@ -184,11 +184,11 @@ class PollExternalPrJob < ApplicationJob
   def dispatch_fix_and_push!(qualifying_records, all_comments)
     workflow = nil
     @job.with_lock do
-      @job.reload
+      @job.reload(lock: true)
       return if pending_external_pr_feedback?
 
       @job.stop_landing! if @job.landing?
-      @job.reload
+      @job.reload(lock: true)
       Job::ApprovalUnapprover.call(job: @job, user: @job.user) if @job.may_unapprove?
 
       iteration = @job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1

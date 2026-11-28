@@ -187,7 +187,7 @@ module RuntimeImages
       now = Time.current
       CoworkerBaseRelease.transaction do
         CoworkerBaseRelease.for_platform(release.platform).lock.to_a
-        release.reload
+        release.reload(lock: true)
         raise Refused, [ from == "candidate" ? not_a_candidate(release) : not_retired(release) ] unless release.status == from
         locked_problems = launch_problems(release)
         raise Refused, locked_problems if locked_problems.any?
@@ -198,7 +198,7 @@ module RuntimeImages
         unless current&.id == previous&.id
           raise Refused, [ Problem.new("concurrent_change", "the active base for #{release.platform} changed while this was being applied; retry") ]
         end
-        previous&.reload
+        previous&.reload(lock: true)
         if previous&.active?
           previous.update!(status: "retired", active_key: nil, retired_at: now, retired_by: actor.to_s)
         end

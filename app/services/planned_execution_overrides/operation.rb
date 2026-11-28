@@ -69,7 +69,7 @@ class Operation
       # Parents before children (NY40): the Epic and Job, then its
       # Workflows, then its Runs.
       Lineage.lock!(job)
-      job.reload
+      job.reload(lock: true)
       if expected_revision.present? && job.entity_revision != expected_revision.to_i
         raise Unsafe, "#{job.slug} changed after the repair was proposed; run a new dry-run and confirm again."
       end

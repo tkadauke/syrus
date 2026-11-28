@@ -93,7 +93,7 @@ class RetryWorkflowEnqueuer
     # refreshes its Epic. Then reloaded as with_lock would.
     Job.transaction do
       Lineage.lock!(job)
-      job.reload
+      job.reload(lock: true)
       eligibility = RetryWorkflowEligibility.call(job: job)
       reconcile_ready_pr! if eligibility.code == "pr_ready"
       if eligibility.eligible?

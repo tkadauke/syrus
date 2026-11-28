@@ -103,8 +103,8 @@ module WorkUnits
       # lock! would.
       Workflow.transaction do
         Lineage.lock!(workflow)
-        workflow.job&.reload
-        workflow.reload
+        workflow.job&.reload(lock: true)
+        workflow.reload(lock: true)
         return false unless ACTIVE_WORKFLOW_STATES.include?(workflow.state)
         return false if self.class.active_replacement_owns?(workflow, stale_unit: unit)
 

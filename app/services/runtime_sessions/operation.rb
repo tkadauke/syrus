@@ -28,7 +28,7 @@ module RuntimeSessions
       lease_id = nil
 
       session.with_lock do
-        session.reload
+        session.reload(lock: true)
         operation = current(session)
         next unless operation&.fetch("state", nil) == "active" && deadline_elapsed?(operation)
 
@@ -154,7 +154,7 @@ module RuntimeSessions
 
     def persist(operation, log_message, state: nil, error: :unchanged, result: nil, require_current: false)
       @session.with_lock do
-        @session.reload
+        @session.reload(lock: true)
         metadata = @session.metadata.deep_dup
         next false if require_current && metadata.dig("runtime_operation", "id") != operation.fetch("id")
 

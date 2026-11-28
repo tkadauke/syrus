@@ -77,7 +77,7 @@ class AutoApprovalRule
     # with_lock would.
     Job.transaction do
       Lineage.lock!(@job)
-      @job.reload
+      @job.reload(lock: true)
       @job.mark_implemented! if @job.may_mark_implemented?
       return Result.new(approved: false, reason: "job_not_approvable", mode: mode, source: source) unless @job.may_approve?
 

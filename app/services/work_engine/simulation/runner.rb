@@ -672,7 +672,7 @@ module WorkEngine
         cutoff = [ job.last_seen_comment_at, job.last_feedback_addressed_at ].compact.max
         workflow = nil
         job.with_lock do
-          job.reload
+          job.reload(lock: true)
           Job::ApprovalUnapprover.call(job: job, user: job.user) if job.may_unapprove?
           workflow = WorkUnits::Launcher.instantiate(
             kind: "pr_comment",

@@ -116,7 +116,8 @@ module Workflows
       # Run's ordinary cancelled callback models an operator stop and cancels
       # the owning Step and Workflow. Barrier invalidation is expected graph
       # maintenance, so persist the terminal Run without that callback.
-      run.update_columns(state: "cancelled", finished_at: Time.current, updated_at: Time.current)
+      now = Time.current
+      run.cancel_columns_if_active!(finished_at: now, updated_at: now)
     end
 
     # A repair belongs to one review loop, but invalidates the evidence from
@@ -133,10 +134,10 @@ module Workflows
       # reloaded as with_lock would.
       Workflow.transaction do
         Lineage.lock_subtree!(workflow)
-        workflow.reload
+        workflow.reload(lock: true)
         Step.transaction do
           invalidate_stale_evidence!(workflow)
-          repair_step.reload
+          repair_step.reload(lock: true)
           continuation = repair_step.next_step
           snapshots = required_snapshots(workflow)
 

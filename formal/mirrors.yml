@@ -62,7 +62,7 @@ models:
   - path: app/services/work_engine/repair_executor.rb
     owner: CancelSupersededCiRepair
     method: perform
-    sha: fde469686eec10db
+    sha: 761af84553510d84
   - path: app/services/work_engine/reconciler.rb
     owner: Reconciler
     method: superseded_ci_repair_start_block?
@@ -112,7 +112,7 @@ models:
   - path: app/services/auto_approval_rule.rb
     owner: AutoApprovalRule
     method: approve_after_grader_success!
-    sha: 6c86dc6a8bc1f791
+    sha: 643fb8f56c211807
 - model: EpicTurn.lean
   mirrors:
   - path: app/services/step_dispatcher.rb
@@ -286,7 +286,7 @@ models:
   - path: app/services/work_engine/repair_executor.rb
     owner: Base
     method: schedule_auto_retry!
-    sha: 824964fe239fcb66
+    sha: beed4af32bca1761
   - path: app/jobs/auto_retry_job.rb
     owner: AutoRetryJob
     method: skip_if_provider_delay_no_longer_matches

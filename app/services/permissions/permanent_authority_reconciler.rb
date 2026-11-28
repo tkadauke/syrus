@@ -35,7 +35,7 @@ module Permissions
 
     def reconcile(candidate)
       ready = candidate.with_lock do
-        candidate.reload
+        candidate.reload(lock: true)
         next false unless candidate.pending? && candidate.actionable?
 
         items = candidate.authorization_items.order(:id).lock.to_a
@@ -55,7 +55,7 @@ module Permissions
           items.each { |item| audit_permission_grant(candidate, item) }
           false
         else
-          candidate.reload.ready_for_authorized_invocation?
+          candidate.reload(lock: true).ready_for_authorized_invocation?
         end
       end
 

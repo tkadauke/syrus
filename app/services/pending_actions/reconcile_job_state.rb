@@ -22,7 +22,7 @@ module PendingActions
       # once the lock is held, so it stays out of the message.
       progress!("Reconciling #{job.slug} with mode #{mode}...")
       job.with_lock do
-        job.reload
+        job.reload(lock: true)
         eligibility = RepairPreflight.reconcile_job_state(job: job, mode: mode)
         eligibility.ensure_eligible!
         JobStateRepair.reconcile!(job: job, mode: mode, reason: reason).job

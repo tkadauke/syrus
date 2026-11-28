@@ -320,7 +320,7 @@ class ReconcileJobStatesJob < ApplicationJob
       # reloaded as with_lock would.
       Job.transaction do
         Lineage.lock!(job)
-        job.reload
+        job.reload(lock: true)
         # Re-check: the world may have moved between detection and
         # the lock. If the Job is no longer in the from_state we
         # observed, the plan is stale.

@@ -10,7 +10,7 @@ module PendingActions
       # transaction is undone if that transaction rolls back.
       progress!("Creating CI repair rerun...")
       job.with_lock do
-        job.reload
+        job.reload(lock: true)
         RepairPreflight.ci_repair(job: job).ensure_eligible!
         result = CiRepair::ManualRerun.call(
           job: job,

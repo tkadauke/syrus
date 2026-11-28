@@ -26,7 +26,7 @@ module WorkflowWarnings
 
       created_job = PROCESS_MUTEX.synchronize do
         warning.with_lock do
-          warning.reload
+          warning.reload(lock: true)
           if warning.created_job.present?
             warning.created_job
           else

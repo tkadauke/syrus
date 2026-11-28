@@ -28,7 +28,7 @@ class Coworkers::EnvironmentBuildRequest
     environment = revision.environment
 
     environment.with_lock do
-      revision.reload
+      revision.reload(lock: true)
       return Result.new(revision:, build_request: revision.build_request) if revision.build_request
 
       manifest = revision.source_manifest.fetch("files")

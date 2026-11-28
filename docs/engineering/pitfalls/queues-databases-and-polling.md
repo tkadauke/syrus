@@ -71,3 +71,32 @@ Dashboard bulk mutations deliberately return the stable
 `bulk_jobs_lock_conflict` response when a lock conflict escapes their
 per-Job operation. The client may retry the request; actions must remain
 idempotent or skip Jobs already moved to the requested state.
+
+## Deciding from a plain read after a row lock
+
+**Symptom:** a Run executes twice, a Step succeeds twice and its chain advances
+twice, a retry is scheduled twice for one failure, or a counter loses an
+increment -- only on MySQL, never in the SQLite suite. **Cause:** the primary
+database runs at REPEATABLE READ (only the queue and cable databases set
+READ-COMMITTED in `config/database.yml`). A transaction's plain reads answer
+from the snapshot its first plain read fixed. `Lineage.lock!` makes plain
+discovery reads before it waits on the row locks, so a `reload`, association
+read, `exists?` or `count` after the lock returns what was committed *before*
+the lock was granted, missing the change the waiting was for. A record loaded
+before the transaction is stale in any isolation level. **Prevention:**
+
+- Re-read locked rows with a locking read: `reload(lock: true)` or
+  `Model.lock.find` (free for a row the transaction already holds; mind the
+  row-lock order for any other row).
+- Guard a create or a budget with a locking read of the rows it counts
+  (`scope.lock.exists?`, `scope.lock.count`), a compare-and-set
+  (`where(id:, state: expected).update_all(...) == 1`, as in
+  `Run#cancel_columns_if_active!` and RunJob's claim), or a unique index.
+- `Lineage.lock_all!` refreshes the records it is given, and the ancestors they
+  carry in memory, from the locked rows (keeping unsaved changes), so an AASM
+  event on a Run, Step or Workflow decides from the committed state.
+- A `with_lock` that opens the outermost transaction is safe for reads after
+  its `lock!`; nested in an outer transaction that already read, it is not.
+- `spec/architecture/locked_plain_reread_spec.rb` flags a plain `reload` after
+  a lock in the same method. Stage the snapshot in a regression spec with
+  `pin_plain_reload` or `with_stale_snapshot` (`spec/support/stale_snapshot.rb`).

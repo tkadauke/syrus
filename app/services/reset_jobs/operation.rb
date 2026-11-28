@@ -88,7 +88,7 @@ module ResetJobs
       # reloaded as with_lock would.
       Job.transaction do
         Lineage.lock!(job)
-        job.reload
+        job.reload(lock: true)
         job.update!(pr_number: nil, branch_name: nil, branch_deleted_at: Time.current,
           closure_reason: nil, landed_sha: nil)
         job.reset_from_scratch!

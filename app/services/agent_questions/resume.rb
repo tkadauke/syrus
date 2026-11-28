@@ -10,9 +10,9 @@ module AgentQuestions
     def call
       Run.transaction do
         Lineage.lock!(@run)
-        @run.reload
-        step = @run.step.reload
-        workflow = step.workflow.reload
+        @run.reload(lock: true)
+        step = @run.step.reload(lock: true)
+        workflow = step.workflow.reload(lock: true)
         awaiting = @run.awaiting_answer? && step.awaiting_answer?
         blocked = @run.blocked? && step.blocked? && workflow.blocked?
         return false unless awaiting || blocked

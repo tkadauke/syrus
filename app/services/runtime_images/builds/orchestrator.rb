@@ -242,7 +242,7 @@ module RuntimeImages
       def locked(attempt)
         request = attempt.request
         request.with_lock do
-          attempt.reload
+          attempt.reload(lock: true)
           yield request, attempt
         end
       end

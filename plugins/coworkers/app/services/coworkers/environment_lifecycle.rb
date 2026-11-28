@@ -11,7 +11,7 @@ class Coworkers::EnvironmentLifecycle
 
   def reconcile_build!(revision)
     @environment.with_lock do
-      revision.reload
+      revision.reload(lock: true)
       request = revision.build_request
       return unless request
 
@@ -29,7 +29,7 @@ class Coworkers::EnvironmentLifecycle
     raise Coworkers::EnvironmentBuildRequest::Disabled, "coworker custom environments are not enabled" unless Feature.coworker_custom_environments_enabled?
 
     published = @environment.with_lock do
-      revision.reload
+      revision.reload(lock: true)
       image = revision.runtime_image
       unless revision.candidate? && image&.pullable?
         raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"

@@ -756,8 +756,8 @@ class LandingQueueProcessor
     ).filter_map do |workflow|
       unit = workflow.work_unit
       unit.with_lock do
-        unit.reload
-        workflow.reload
+        unit.reload(lock: true)
+        workflow.reload(lock: true)
         next unless unit.blocked? && unit.blocked_reason == StepDispatcher::URGENT_BLOCK_REASON
         next unless workflow.queued_landing_before_first_run?
         next unless unrelated_urgent_jobs_for(workflow.job.reload).any? { |job| job.id == urgent_job.id }
@@ -778,8 +778,8 @@ class LandingQueueProcessor
         # locks them in that order, so this release could deadlock with it.
         blocked_job = workflow.job
         Lineage.lock!(workflow)
-        blocked_job.reload
-        workflow.reload
+        blocked_job.reload(lock: true)
+        workflow.reload(lock: true)
         next unless workflow.queued?
         next unless workflow.landing_workflow?
         next unless workflow_blocked_for_start_reason?(workflow, start_blocked_reason)

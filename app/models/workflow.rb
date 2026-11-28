@@ -114,7 +114,7 @@ class Workflow < ApplicationRecord
     event :start do
       # The event-level lock (before_all_events) has taken the ancestry and
       # the WorkUnit's member Jobs; reload the Job as lock! did.
-      before { job.reload }
+      before { job.reload(lock: true) }
       transitions from: :queued, to: :running,
         after: -> { Workflows::LifecyclePropagation.started!(self) }
     end
@@ -568,8 +568,7 @@ class Workflow < ApplicationRecord
     Step.lock.where(workflow_id: id).order(:id).to_a
     request_live_process_kill!
     Run.where(step_id: steps.select(:id)).active.find_each do |run|
-      run.update_columns(state: "cancelled", finished_at: Time.current)
-      RunResourceSummary.refresh_for(run.reload)
+      RunResourceSummary.refresh_for(run.reload(lock: true)) if run.cancel_columns_if_active!
     end
   end
 
@@ -595,8 +594,7 @@ class Workflow < ApplicationRecord
           # Run cancellation normally cascades to its owning Step. Publication
           # retries are the narrow exception: this unused Run is cancelled,
           # while the already-established Step failure remains retryable.
-          run.update_columns(state: "cancelled", finished_at: Time.current)
-          RunResourceSummary.refresh_for(run.reload)
+          RunResourceSummary.refresh_for(run.reload(lock: true)) if run.cancel_columns_if_active!
         elsif run.may_cancel?
           run.finished_at = Time.current
           run.cancel!
@@ -609,7 +607,7 @@ class Workflow < ApplicationRecord
         # already released.
         Step.transaction do
           Lineage.lock!(step)
-          step.reload
+          step.reload(lock: true)
           if publication_failure_step_ids.include?(step.id)
             step.finished_at = Time.current
             step.fail!
@@ -941,7 +939,7 @@ class Workflow < ApplicationRecord
     # Then reloaded as with_lock would.
     self.class.transaction do
       Lineage.lock!(self)
-      reload
+      reload(lock: true)
       self.failure_count += 1
       if state == "running" && failure_count >= AppSetting.max_job_failures && may_fail?
         # Persist the counter and state transition in the same transaction.

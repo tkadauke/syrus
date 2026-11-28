@@ -32,7 +32,7 @@ class WorkflowWarning < ApplicationRecord
   # change state — a warning can be dismissed after a fix Job was already filed.
   def file_fix_job!(created_job)
     with_lock do
-      reload
+      reload(lock: true)
       return self.created_job if self.created_job.present?
 
       update!(created_job: created_job)

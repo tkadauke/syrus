@@ -9,7 +9,11 @@ Two automatic loops retry a failure without an operator:
    `AutoRetryAttempt.budget_scope_for(job, provider, classification).count + 1`
    and refuses past `retry_budget_limit_for(classification)` (3, or 20 for
    `worker_died`). An attempt is charged unless it is skipped with a reason in
-   `BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES`.
+   `BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES`. The model treats admissions as a
+   sequence: each one sees every attempt admitted before it. The Ruby makes
+   that true by counting under the Workflow's ancestry lock with a locking
+   read, since a plain read would answer from the REPEATABLE READ snapshot
+   fixed before the lock was granted and miss a concurrent admission.
 2. **The landing deferral.** A landing that fails with a transient blocker
    (`LandingFailureCode::TRANSIENT_BLOCKER`: a 502, a dead worker, a prepare
    that did not build, or any retryable classification) is deferred: the Job

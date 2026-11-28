@@ -1341,7 +1341,7 @@ class Job < ApplicationRecord
       # their Steps and Workflows, then closing refreshes the Epic. Then
       # reloaded as lock! did.
       Lineage.lock_active_work!(self)
-      reload
+      reload(lock: true)
       cancel_active_execution!
       close_with_reason!(reason)
     end

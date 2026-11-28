@@ -365,8 +365,15 @@ module WorkEngine
           # Ancestry first, top down (NY40): cancelling rolls up to the Job.
           Workflow.transaction do
             Lineage.lock!(workflow)
-            workflow.reload
-            retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
+            workflow.reload(lock: true)
+            # The dedupe and budget reads below are locking reads: Lineage's
+            # plain discovery reads fixed this transaction's REPEATABLE READ
+            # snapshot before it waited on the Workflow lock, so a plain read
+            # would miss an attempt a concurrent scheduler (an in-place Step
+            # retry, another repair) committed while this one waited, and
+            # schedule a second retry for the same failure or overrun the
+            # budget.
+            retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run, lock: true)
             if retry_blocker
               locked_skip = skipped(retry_blocker)
             elsif delayed_retry_already_scheduled?(
@@ -374,7 +381,8 @@ module WorkEngine
               source_run: source_run,
               classification: classification,
               retry_kind: retry_kind,
-              scheduled_at: scheduled_at
+              scheduled_at: scheduled_at,
+              lock: true
             )
               locked_skip = skipped("retry already pending until #{scheduled_at.iso8601}")
             else
@@ -382,7 +390,7 @@ module WorkEngine
                 job: job,
                 agent_provider: agent_provider,
                 failure_classification: classification
-              ).count + 1
+              ).lock.count + 1
               if attempt_number > retry_budget_limit(classification)
                 locked_skip = skipped("retry budget exhausted for #{agent_provider}/#{classification}")
               else
@@ -434,14 +442,14 @@ module WorkEngine
 
         DELAYED_RETRY_DEDUP_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
 
-        def delayed_retry_already_scheduled?(workflow:, source_run:, classification:, retry_kind:, scheduled_at:)
+        def delayed_retry_already_scheduled?(workflow:, source_run:, classification:, retry_kind:, scheduled_at:, lock: false)
           if classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-            return worker_died_retry_already_scheduled?(workflow: workflow, source_run: source_run, retry_kind: retry_kind)
+            return worker_died_retry_already_scheduled?(workflow: workflow, source_run: source_run, retry_kind: retry_kind, lock: lock)
           end
           return false unless classification.in?(DELAYED_RETRY_DEDUP_CLASSIFICATIONS)
           return false unless scheduled_at&.future?
 
-          scope = workflow.auto_retry_attempts
+          scope = auto_retry_attempts_of(workflow, lock: lock)
             .unskipped
             .where(
               run: source_run,
@@ -469,27 +477,33 @@ module WorkEngine
         # propose the same repair, one with an immediate scheduled_at and one
         # backed off. Keep an explicit worker_died delayed-retry guard too so
         # delayed scheduling remains idempotent independent of scheduled_at.
-        def worker_died_retry_already_scheduled?(workflow:, source_run:, retry_kind:)
-          workflow.auto_retry_attempts
+        def worker_died_retry_already_scheduled?(workflow:, source_run:, retry_kind:, lock: false)
+          auto_retry_attempts_of(workflow, lock: lock)
             .unskipped
             .where(run: source_run, retry_kind: retry_kind, failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
             .exists?
         end
 
-        def auto_retry_blocker_for(workflow, retry_kind, source_run)
-          return "retry already pending" if workflow.auto_retry_attempts.pending.exists?
-          if (existing = existing_unskipped_attempt_for_run(workflow, source_run))
+        def auto_retry_blocker_for(workflow, retry_kind, source_run, lock: false)
+          return "retry already pending" if auto_retry_attempts_of(workflow, lock: lock).pending.exists?
+          if (existing = existing_unskipped_attempt_for_run(workflow, source_run, lock: lock))
             return "#{existing.retry_kind} auto-retry ##{existing.id} was already scheduled for this Run"
           end
           return nil unless retry_kind == "retry_workflow"
 
-          "retry_workflow already scheduled for workflow" if AutoRetryAttempt.retry_workflow_scheduled_for?(workflow)
+          "retry_workflow already scheduled for workflow" if AutoRetryAttempt.retry_workflow_scheduled_for?(workflow, lock: lock)
         end
 
-        def existing_unskipped_attempt_for_run(workflow, source_run)
+        def existing_unskipped_attempt_for_run(workflow, source_run, lock: false)
           return nil unless source_run
 
-          workflow.auto_retry_attempts.unskipped.where(run: source_run).order(:id).first
+          auto_retry_attempts_of(workflow, lock: lock).unskipped.where(run: source_run).order(:id).first
+        end
+
+        # lock: true inside a transaction that holds row locks: a locking read
+        # returns the latest committed attempts, not the transaction's snapshot.
+        def auto_retry_attempts_of(workflow, lock: false)
+          lock ? workflow.auto_retry_attempts.lock : workflow.auto_retry_attempts
         end
 
         def mark_worker_died!
@@ -643,10 +657,11 @@ module WorkEngine
           # Ancestry first, top down (NY40): relaunching writes the Workflow.
           Run.transaction do
             Lineage.lock!(run)
-            run.reload
+            run.reload(lock: true)
             return skipped("Run is #{run.state}, not queued") unless run.queued?
             return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
-            return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
+            # A locking read, not the snapshot Lineage's discovery reads fixed.
+            return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.lock.exists?
             return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
             old_queue = nil
@@ -768,7 +783,7 @@ module WorkEngine
         def prepare_for_reclassification!(job)
           original_reason = job.triaging_reason.to_s
           job.with_lock do
-            job.reload
+            job.reload(lock: true)
             return false unless job.triaging?
             return false unless Job::Kind.classifiable?(job.kind)
             return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
@@ -782,7 +797,7 @@ module WorkEngine
               return false unless job.may_retry_classification?
 
               with_transition_reason { job.retry_classification! }
-              job.reload
+              job.reload(lock: true)
             end
 
             # Keep enqueueing in the lock transaction so a blocked enqueue
@@ -1177,7 +1192,7 @@ module WorkEngine
           # Ancestry first, top down (NY40): starting writes the WorkUnit.
           Workflow.transaction do
             Lineage.lock!(workflow)
-            workflow.reload
+            workflow.reload(lock: true)
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             first = workflow.first_step
             return skipped("Workflow has no first Step") unless first
@@ -1458,7 +1473,7 @@ module WorkEngine
           # Ancestry first, top down (NY40): cancelling rolls up to the Job.
           Workflow.transaction do
             Lineage.lock!(workflow)
-            workflow.reload
+            workflow.reload(lock: true)
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
             return skipped("Job is not closed") unless workflow.job&.closed?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
@@ -1509,7 +1524,7 @@ module WorkEngine
           # Ancestry first, top down (NY40): cancelling rolls up to the Job.
           Workflow.transaction do
             Lineage.lock!(workflow)
-            workflow.reload
+            workflow.reload(lock: true)
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
             unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
@@ -1593,7 +1608,7 @@ module WorkEngine
           # The Workflow's ancestry, top down (NY40), which includes the Job.
           Workflow.transaction do
             Lineage.lock!(workflow)
-            workflow.reload
+            workflow.reload(lock: true)
             refusal = if !workflow.terminal?
               "Workflow is #{workflow.state}, not terminal"
             elsif !workflow.terminal_cleanup_active_descendants?
@@ -1666,7 +1681,7 @@ module WorkEngine
             # Ancestry first, top down (NY40): cancelling rolls up to the Job.
             Workflow.transaction do
               Lineage.lock!(workflow)
-              workflow.reload
+              workflow.reload(lock: true)
               if workflow.may_cancel?
                 with_transition_reason do
                   WorkUnits::WorkflowCancellation.cancel!(
@@ -1959,8 +1974,8 @@ module WorkEngine
           # Ancestry first, top down (NY40): cancelling rolls up to the Job.
           Workflow.transaction do
             Lineage.lock_all!([ workflow, keeper ])
-            workflow.reload
-            keeper.reload
+            workflow.reload(lock: true)
+            keeper.reload(lock: true)
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
             return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper.queued? || keeper.running?
@@ -2004,8 +2019,8 @@ module WorkEngine
           # Ancestry first, top down (NY40): cancelling rolls up to the Job.
           Workflow.transaction do
             Lineage.lock_all!([ workflow, keeper ])
-            workflow.reload
-            keeper.reload
+            workflow.reload(lock: true)
+            keeper.reload(lock: true)
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
             return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper.queued? || keeper.running?
@@ -2225,8 +2240,8 @@ module WorkEngine
           released = nil
           blockers = nil
           unit.with_lock do
-            unit.reload
-            workflow = unit.workflow&.reload
+            unit.reload(lock: true)
+            workflow = unit.workflow&.reload(lock: true)
             return skipped("WorkUnit ##{unit.id} is not blocked by urgent_job_active") unless unit.blocked? && unit.blocked_reason == "urgent_job_active"
             return skipped("Blocked Workflow is no longer queued landing work before its first Run") unless workflow&.queued_landing_before_first_run?
 

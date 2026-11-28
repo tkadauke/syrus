@@ -74,7 +74,7 @@ class JobHold
             cancelled_workflows << workflow.id
           end
 
-          job.reload
+          job.reload(lock: true)
           job.retry_after_failure! if job.may_retry_after_failure?
           job.move_to_backlog! if to_backlog && job.may_move_to_backlog?
           job.save!

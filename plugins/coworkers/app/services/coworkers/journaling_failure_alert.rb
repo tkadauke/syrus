@@ -21,7 +21,7 @@ module Coworkers
 
       queued = false
       task.with_lock do
-        task.reload
+        task.reload(lock: true)
         history = Array(task.system_result_history)
         entry = history.find { |item| item["date"] == date.iso8601 }
         next unless entry && entry["alerted_at"].blank?

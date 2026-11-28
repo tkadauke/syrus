@@ -184,8 +184,8 @@ class RetryFailedStepEnqueuer
       # locks the train's other Jobs, so they come first with this one.
       train = merge_train_for_lock_order
       Lineage.lock_all!([ *(train ? LandingRetrier.lock_targets_for(train) : []), workflow ])
-      workflow.job.reload
-      workflow.reload
+      workflow.job.reload(lock: true)
+      workflow.reload(lock: true)
       @failed_step = Step.find(failed_step.id) if failed_step
 
       call_with_locked_job
@@ -497,8 +497,7 @@ class RetryFailedStepEnqueuer
     request_superseded_process_kill!(active_run_ids)
 
     active_runs.each do |run|
-      run.update_columns(state: "cancelled", finished_at: now, updated_at: now)
-      RunResourceSummary.refresh_for(run.reload)
+      RunResourceSummary.refresh_for(run.reload) if run.cancel_columns_if_active!(finished_at: now, updated_at: now)
     end
 
     old_steps.where(state: Step::ACTIVE_STATES).find_each do |step|

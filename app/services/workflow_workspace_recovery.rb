@@ -167,11 +167,19 @@ class WorkflowWorkspaceRecovery
       run.last_heartbeat_at > LIVE_EXECUTION_HEARTBEAT_WINDOW.ago
   end
 
+  # Compare-and-set on the Run's row: the Runs were read before any of this
+  # ran, and one that finished meanwhile must not be reset to queued and
+  # executed again.
   def requeue!(run)
     if run.running?
       now = Time.current
-      run.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: now)
-      run.step.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: now)
+      reset = { state: "queued", started_at: nil, finished_at: nil, updated_at: now }
+      return false unless Run.where(id: run.id, state: "running").update_all(reset) == 1
+
+      reset.each { |name, value| run[name] = value }
+      run.clear_attribute_changes(reset.keys)
+      Step.where(id: run.step_id, state: "running").update_all(reset)
+      run.step&.reload
     end
     retire_pending_queue_jobs!(run)
     run.reenqueue!(ignore_workflow_affinity: true)

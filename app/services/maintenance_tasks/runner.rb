@@ -19,7 +19,7 @@ module MaintenanceTasks
 
       task = MaintenanceTask.find(@task.id)
       task.with_lock do
-        task.reload
+        task.reload(lock: true)
         return unless task.state == "running"
 
         completed = task.completed_units.to_i + result.processed.to_i

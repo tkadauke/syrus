@@ -689,11 +689,15 @@ class StepDispatcher
     # Ancestry first, top down (NY40): a deferred start blocks the WorkUnit.
     Workflow.transaction do
       Lineage.lock!(step)
-      workflow.reload
-      step.reload
+      workflow.reload(lock: true)
+      step.reload(lock: true)
 
       return nil if step.terminal?
-      return nil if step.runs.active.exists?
+      # A locking read: a concurrent creator holding this Step's lock commits
+      # its Run while this one waits, and a plain read would answer from the
+      # snapshot Lineage's discovery reads fixed before the wait (REPEATABLE
+      # READ), creating a second Run for the Step. Runs lock after their Step.
+      return nil if step.runs.active.lock.exists?
       return nil unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(step)
 
       Workflows::ImmutableReviewHeadBarrier.stamp!(step, workflow)
@@ -714,7 +718,7 @@ class StepDispatcher
       if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
         return nil
       end
-      workflow.reload
+      workflow.reload(lock: true)
       run_provider_candidate = run_provider_candidate_for(step, workflow)
       return nil if run_provider_candidate.nil?
 
@@ -1213,7 +1217,7 @@ class StepDispatcher
 
   def self.apply_provider_failover!(workflow, provider_pause)
     workflow.with_lock do
-      workflow.reload
+      workflow.reload(lock: true)
       return if workflow.runs.exists?
       selected = provider_pause.failover.candidate
       return if workflow.agent_provider == selected.provider &&
@@ -1473,7 +1477,7 @@ class StepDispatcher
     # the Workflow. Then reloaded as with_lock would.
     Workflow.transaction do
       Lineage.lock!(@workflow)
-      @workflow.reload
+      @workflow.reload(lock: true)
       Step.transaction do
         cursor = step.next_step
         while cursor &&
@@ -1728,7 +1732,7 @@ class StepDispatcher
     # WorkUnit, intent and Job.
     Workflow.transaction do
       Lineage.lock!(@workflow)
-      @workflow.reload
+      @workflow.reload(lock: true)
       Step.transaction do
         implement_step.skip_with_reason!(cancellation_reason) if implement_step&.may_skip?
 
@@ -2041,8 +2045,8 @@ class StepDispatcher
     # WorkUnit, intent and Job.
     Workflow.transaction do
       Lineage.lock!(@workflow)
-      @workflow.reload
-      @from_step.reload
+      @workflow.reload(lock: true)
+      @from_step.reload(lock: true)
       next if @from_step.details.to_h["try_branch_expanded"]
 
       Step.transaction do
@@ -2142,8 +2146,8 @@ class StepDispatcher
     # WorkUnit, intent and Job.
     Workflow.transaction do
       Lineage.lock!(@workflow)
-      @workflow.reload
-      current_grade = @from_step.reload
+      @workflow.reload(lock: true)
+      current_grade = @from_step.reload(lock: true)
       next if next_loop_iteration_already_materialized?(current_grade)
 
       continuation = current_grade.next_step

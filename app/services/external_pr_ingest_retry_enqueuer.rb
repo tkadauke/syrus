@@ -16,7 +16,7 @@ class ExternalPrIngestRetryEnqueuer
     failure_result = nil
 
     job.with_lock do
-      job.reload
+      job.reload(lock: true)
       if WorkUnits::Ownership.active_for_job?(job)
         failure_result = failure("A workflow is already running for this Job.")
       else

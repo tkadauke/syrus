@@ -7,6 +7,21 @@
 #
 # Uses locking queries, never lock!, so the caller's unsaved changes on the
 # records it passes are kept. Rows already held re-lock for free.
+#
+# Every other attribute of the records given, and of the ancestors they carry
+# in memory, is refreshed from the locked row: every AASM event on a Run, Step
+# or Workflow calls this in before_all_events and then decides the transition
+# from the in-memory record. A caller holding a copy read before a concurrent
+# transaction moved the row would otherwise write a transition over it
+# (cancel a Run that just succeeded, start a Run twice) or a stale counter.
+#
+# Anything else the caller re-reads after this call must be read with a
+# locking read (reload(lock: true), Model.lock.find): the discovery reads
+# below are plain, so under MySQL's REPEATABLE READ they fix the
+# transaction's snapshot *before* it waits on the row locks, and a later
+# plain read returns the rows as they were before the lock was granted.
+# spec/architecture/locked_plain_reread_spec.rb flags a plain reload after a
+# lock in the same method.
 module Lineage
   module_function
 
@@ -42,11 +57,46 @@ module Lineage
       ids_by_model[Job] << job_id
       ids_by_model[Epic] << epic_id if epic_id
     end
+    # The records given and the ancestors they carry in memory (the
+    # associations ancestry loaded): callers decide from both.
+    held = records.compact.flat_map { |record| [ record, *lineage_records(record).values ] }.uniq(&:object_id)
     MODELS.each do |klass|
       ids = ids_by_model[klass].uniq.sort
-      klass.lock.where(id: ids).order(:id).to_a if ids.any?
+      next if ids.empty?
+
+      locked = klass.lock.where(id: ids).order(:id).to_a
+      refresh_from_locked_rows!(held, klass, locked)
     end
     records
+  end
+
+  # Each given +klass+ record as committed, from the rows just locked (a
+  # locking read returns the latest committed version, whatever snapshot the
+  # transaction holds), with the caller's unsaved changes kept on top.
+  def refresh_from_locked_rows!(records, klass, locked)
+    by_id = nil
+    records.each do |record|
+      next unless record.is_a?(klass) && record.persisted?
+
+      by_id ||= locked.index_by(&:id)
+      row = by_id[record.id]
+      next unless row
+
+      unsaved = record.changed
+      stale = row.attributes.reject do |name, value|
+        unsaved.include?(name) || !record.has_attribute?(name) || record.read_attribute(name) == value
+      end
+      next if stale.empty?
+
+      if stale.key?("state")
+        Rails.logger.info(
+          "[Lineage] #{klass.name} ##{record.id} was #{record.state} in memory but #{stale["state"]} " \
+            "under the lock; deciding from #{stale["state"]}"
+        )
+      end
+      stale.each { |name, value| record[name] = value }
+      record.clear_attribute_changes(stale.keys)
+    end
   end
 
   MODELS = [ Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run ].freeze
@@ -111,22 +161,29 @@ module Lineage
 
   # [[model class, id], ...] from the top of the hierarchy down.
   def ancestry(record)
+    chain = lineage_records(record)
+    job = chain[:job]
+
+    [
+      [ Epic, job&.epic_id ],
+      [ Job, job&.id ],
+      [ WorkIntent, chain[:intent]&.id ],
+      [ WorkUnit, chain[:unit]&.id ],
+      [ Workflow, chain[:workflow]&.id ],
+      [ Step, chain[:step]&.id ],
+      [ Run, chain[:run]&.id ]
+    ].select { |_klass, id| id.present? }
+  end
+
+  # The record and its in-memory ancestors, through its associations.
+  def lineage_records(record)
     run = record if record.is_a?(Run)
     step = record.is_a?(Step) ? record : run&.step
     workflow = record.is_a?(Workflow) ? record : step&.workflow
     unit = record.is_a?(WorkUnit) ? record : workflow&.work_unit
     workflow ||= unit&.workflow
     job = record.is_a?(Job) ? record : (workflow&.job || run&.job)
-    intent = unit&.work_intent
 
-    [
-      [ Epic, job&.epic_id ],
-      [ Job, job&.id ],
-      [ WorkIntent, intent&.id ],
-      [ WorkUnit, unit&.id ],
-      [ Workflow, workflow&.id ],
-      [ Step, step&.id ],
-      [ Run, run&.id ]
-    ].select { |_klass, id| id.present? }
+    { run: run, step: step, workflow: workflow, unit: unit, job: job, intent: unit&.work_intent }.compact
   end
 end

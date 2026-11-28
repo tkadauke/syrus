@@ -25,7 +25,7 @@ module ScheduledTasks
     #   replace  — close prior open PRs from this task before firing
     def call
       @task.with_lock do
-        @task.reload
+        @task.reload(lock: true)
         manual = !@require_due
         window_start = @task.fire_window_start(now: @now, manual: manual)
         return Result.new(job: nil, skipped: true, reason: "not_due") if window_start.blank?

@@ -111,8 +111,9 @@ class AutoRetryAttempt < ApplicationRecord
   scope :retry_workflow, -> { where(retry_kind: "retry_workflow") }
   scope :unskipped, -> { where(skipped_reason: nil) }
 
-  def self.retry_workflow_scheduled_for?(workflow)
-    where(workflow: workflow).retry_workflow.unskipped.exists?
+  def self.retry_workflow_scheduled_for?(workflow, lock: false)
+    scope = where(workflow: workflow).retry_workflow.unskipped
+    (lock ? scope.lock : scope).exists?
   end
 
   # A failed Run whose in-place step retry is still to come leaves its Step

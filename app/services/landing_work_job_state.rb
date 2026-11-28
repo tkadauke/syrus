@@ -21,7 +21,7 @@ class LandingWorkJobState
       # second inverted the global order.
       Job.transaction do
         Lineage.lock!(job)
-        job.reload
+        job.reload(lock: true)
         return true if job.landing?
         return false unless repairable?
 
