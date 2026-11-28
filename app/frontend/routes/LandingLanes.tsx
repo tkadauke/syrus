@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { fetchLandingLanes, type LandingLane, type LandingLanesPayload, type LandingLanesRepository } from "../api/landingLanes"
 import { readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { PageHeading } from "../components/Heading"
 import { Notice, Page, PageHeading as UiPageHeading, Section, Surface, Text } from "../components/ui"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
-import { withRoutePrefix } from "../lib/routing"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 export function LandingLanesRoute() {
   if (!useLandingLanesEnabled()) return <LandingLanesUnavailable />
@@ -50,8 +50,14 @@ export function LandingLanesPage({ payload }: { payload: LandingLanesPayload }) 
   )
 }
 
+function useRoutePrefixedPath() {
+  const prefix = routePrefix(useLocation().pathname)
+  return (path: string) => withRoutePrefix(path, prefix)
+}
+
 function RepositoryLanes({ repository }: { repository: LandingLanesRepository }) {
   const { t } = useT("dashboard")
+  const prefixed = useRoutePrefixedPath()
   return (
     <Section.Root>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -77,7 +83,7 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
           <ol className="mt-2 flex flex-wrap gap-2">
             {repository.approved_backlog.map((job) => (
               <li key={job.id}>
-                <Link className="text-sm font-medium text-link hover:underline" to={job.app_path}>
+                <Link className="text-sm font-medium text-link hover:underline" to={prefixed(job.app_path)}>
                   {job.position}. {job.slug}
                 </Link>
               </li>
@@ -91,6 +97,7 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
 
 function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug: string }) {
   const { t } = useT("dashboard")
+  const prefixed = useRoutePrefixedPath()
   if (lane.empty) {
     return (
       <Surface className="border-dashed px-4 py-4">
@@ -111,7 +118,7 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
             <span className="font-semibold text-default">{t("landing_lanes.lane", { number: lane.number })}</span>
             {lane.anchor_job ? <JobLink job={lane.anchor_job} /> : null}
             {lane.workflow ? (
-              <Link className="text-link hover:underline" to={lane.workflow.app_path}>
+              <Link className="text-link hover:underline" to={prefixed(lane.workflow.app_path)}>
                 {lane.workflow.slug}
               </Link>
             ) : null}
@@ -163,8 +170,9 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
 }
 
 function JobLink({ job }: { job: { id: number; slug: string; app_path: string } }) {
+  const prefixed = useRoutePrefixedPath()
   return (
-    <Link className="font-medium text-link hover:underline" to={job.app_path}>
+    <Link className="font-medium text-link hover:underline" to={prefixed(job.app_path)}>
       {job.slug}
     </Link>
   )

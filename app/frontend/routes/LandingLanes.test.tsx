@@ -66,6 +66,22 @@ function wrapper(client = new QueryClient({ defaultOptions: { queries: { retry: 
 }
 
 describe("landing lanes", () => {
+  it("keeps the desktop app-shell route prefix on job and workflow links", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/landing_lanes"]}>
+          <LandingLanesPage payload={payload} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-10" })).toHaveAttribute("href", "/app-shell/jobs/10")
+    expect(screen.getByRole("link", { name: "JOB-11" })).toHaveAttribute("href", "/app-shell/jobs/11")
+    expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/app-shell/jobs/10?tab=workflows#workflow-12")
+    expect(screen.getByRole("link", { name: "1. JOB-13" })).toHaveAttribute("href", "/app-shell/jobs/13")
+  })
+
   it("does not render or fetch the dashboard strip while the feature is disabled", () => {
     const fetchSpy = vi.spyOn(window, "fetch")
 
