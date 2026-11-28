@@ -176,7 +176,7 @@ module RuntimeTerminal
         Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
         return {
           error: "lease_required",
-          message: "the agent must hold an active input lease before sending input events"
+          message: I18n.t("api.runtime_terminal.input_lease_required")
         }
       end
 

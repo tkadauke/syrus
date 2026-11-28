@@ -185,6 +185,9 @@ class ChatTurnJob < ApplicationJob
   # chat agent ran unconfined.
   def execution_workload_options
     policy = Execution::ChatWorkloadPolicy.for_current_setting
+    if @turn_lifecycle&.respond_to?(:execution_workload_policy)
+      policy = @turn_lifecycle.execution_workload_policy(policy)
+    end
     policy ? { workload_policy: policy } : {}
   end
 

@@ -12,8 +12,17 @@ module Execution
   # just as dangerous. Splitting containment by chat kind encoded the label
   # instead of the risk, so there is one policy and one operator switch.
   class ChatWorkloadPolicy
-    def self.for_current_setting
-      new if AppSetting.contained_chat_execution_requested?
+    attr_reader :runtime_image, :runtime_image_digest
+
+    def initialize(runtime_image: nil, runtime_image_digest: nil)
+      @runtime_image = runtime_image
+      @runtime_image_digest = runtime_image_digest
+    end
+
+    def self.for_current_setting(runtime_image: nil, runtime_image_digest: nil)
+      return unless runtime_image || AppSetting.contained_chat_execution_requested?
+
+      new(runtime_image:, runtime_image_digest:)
     end
 
     def name = "chat agent"
@@ -22,6 +31,10 @@ module Execution
     # Only `required` is a boundary. In `preferred` an unavailable backend must
     # fall back to the worker rather than fail the turn -- the opposite choice
     # is how a capability that ships disabled took every chat down with it.
-    def fail_closed? = AppSetting.contained_chat_execution_required?
+    def fail_closed? = runtime_image.present? || AppSetting.contained_chat_execution_required?
+
+    def with_runtime_image(image, digest:)
+      self.class.new(runtime_image: image, runtime_image_digest: digest)
+    end
   end
 end

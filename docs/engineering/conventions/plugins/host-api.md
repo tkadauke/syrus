@@ -4234,7 +4234,7 @@ Supported members:
 
 Since: `0.1.16`
 
-Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.
+Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base and current verification evidence, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.
 
 Supported members:
 
@@ -4242,6 +4242,7 @@ Supported members:
 - `active_base`
 - `audit`
 - `available?`
+- `current_verification_attestation`
 - `delete`
 - `find`
 - `publish_local`

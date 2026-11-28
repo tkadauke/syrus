@@ -5,7 +5,7 @@ module Coworkers
   # replacement, never a mixed pointer set.
   class EnvironmentActiveSelection
     InconsistentPointer = Class.new(StandardError)
-    Selection = Data.define(:activation_id, :revision_id, :runtime_image_id, :image_digest)
+    Selection = Data.define(:activation_id, :revision_id, :runtime_image_id, :image_digest, :runtime_image)
 
     def self.resolve(environment) = new(environment).resolve
 
@@ -22,11 +22,12 @@ module Coworkers
         unless activation.environment_revision_id == environment.active_revision_id &&
             activation.runtime_image_id == environment.active_runtime_image_id &&
             activation.image_digest == activation.runtime_image.digest
-          raise InconsistentPointer, "active environment pointers do not match their immutable activation"
+          raise InconsistentPointer, I18n.t("api.coworkers.environment_inconsistent_activation")
         end
 
         Selection.new(activation_id: activation.id, revision_id: activation.environment_revision_id,
-                      runtime_image_id: activation.runtime_image_id, image_digest: activation.image_digest)
+                      runtime_image_id: activation.runtime_image_id, image_digest: activation.image_digest,
+                      runtime_image: activation.runtime_image)
       end
     end
 
