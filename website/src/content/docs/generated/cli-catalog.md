@@ -47,7 +47,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus job reopen JOB-ID` | Reopen a closed job | `--debug`, `--profile` | no |
 | `syrus job resume JOB-ID --source-run RUN-ID` | Resume a job from a source run | `--debug`, `--profile`, `--source-run` | no |
 | `syrus job retry JOB-ID` | Retry a job | `--debug`, `--profile` | no |
-| `syrus job retry-step JOB-ID --workflow WORKFLOW-ID` | Retry a failed workflow step | `--debug`, `--profile`, `--workflow` | no |
+| `syrus job retry-step JOB-ID --workflow WORKFLOW-ID` | Retry a failed workflow step | `--debug`, `--guidance`, `--profile`, `--workflow` | no |
 | `syrus job search QUERY` | Search jobs by title | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo`, `--state` | yes |
 | `syrus job show JOB-ID` | Show a job | `--debug`, `--json`, `--profile` | yes |
 | `syrus job start JOB-ID` | Start a direct job | `--debug`, `--profile` | no |
