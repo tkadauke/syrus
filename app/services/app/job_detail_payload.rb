@@ -1874,15 +1874,36 @@ module App
       return unless @job.closed?
 
       transition = StateTransition.where(subject: @job, to_state: "closed").order(created_at: :desc, id: :desc).first
+      metadata = transition&.metadata.to_h
       {
         reason: @job.closure_reason,
         category: Job::ClosureReason.by_reason[@job.closure_reason]&.category,
         references: Array(@job.closure_references),
         note: @job.closure_note,
-        actor: transition&.user&.then { |user| user_reference_json(user) },
-        actor_type: transition&.metadata.to_h["actor_type"],
-        via: transition&.source
+        actor: closure_actor_json(transition, metadata),
+        actor_type: metadata["actor_type"],
+        via: metadata["via"].presence || transition&.source
       }.compact
+    end
+
+    def closure_actor_json(transition, metadata)
+      record_type = metadata["actor_record_type"]
+      record_id = metadata["actor_record_id"]
+      if record_type.present? && record_id.present?
+        actor = ApplicationRecord.polymorphic_class_for(record_type).find_by(id: record_id)
+        return if actor.nil?
+
+        return {
+          id: actor.id,
+          display_name: actor.try(:display_name).presence || actor.try(:name).presence,
+          handle: actor.try(:handle).presence
+        }.compact
+      end
+      return user_reference_json(transition.user) if metadata["actor_type"] == "human"
+
+      nil
+    rescue NameError
+      nil
     end
   end
 end

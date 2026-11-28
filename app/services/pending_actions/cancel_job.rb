@@ -70,13 +70,22 @@ module PendingActions
     def audit_metadata(canonical_job)
       actor = action.subject || user
       {
-        "actor_type" => actor.class.polymorphic_name,
-        "actor_id" => actor.id,
+        "actor_type" => closure_actor_type,
+        "actor_id" => action.subject&.id || actor.id,
+        "actor_record_type" => action.subject&.class&.polymorphic_name,
+        "actor_record_id" => action.subject&.id,
         "chat_session_id" => action.chat_session_id,
         "human_reason" => payload["reason"].presence || action.reason.presence || "Operator cancelled Job.",
         "canonical_job_id" => canonical_job&.id,
         "requested_action" => "cancel"
       }.compact
+    end
+
+    def closure_actor_type
+      return action.subject.kind.to_s if action.subject&.respond_to?(:kind)
+      return "agent" if action.requested_by == "agent"
+
+      "human"
     end
   end
 end

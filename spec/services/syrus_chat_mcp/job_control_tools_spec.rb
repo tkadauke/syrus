@@ -248,6 +248,35 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(job.reload).to be_implemented
   end
 
+  it "validates and records the canonical Job for a duplicate close" do
+    duplicate = Factories.job(user: user, repository: repository, state: "implemented")
+    canonical = Factories.job(user: user, repository: repository, state: "implemented", issue_number: 43)
+
+    response = call_tool(
+      "close_job_successfully", job_id: duplicate.id, closure_reason: "duplicate",
+      references: [ { type: "Job", id: canonical.id } ]
+    )
+    action = chat_session.pending_actions.find(payload(response).fetch(:pending_action_id))
+
+    expect(action.confirm!(user: user)).to be(true)
+    expect(duplicate.reload).to have_attributes(closure_reason: "duplicate", canonical_job_id: canonical.id)
+  end
+
+  it "rejects a duplicate reference outside the target repository" do
+    duplicate = Factories.job(user: user, repository: repository, state: "implemented")
+    other_repository = Factories.repository(user: user)
+    canonical = Factories.job(user: user, repository: other_repository, state: "implemented")
+
+    response = call_tool(
+      "close_job_successfully", job_id: duplicate.id, closure_reason: "duplicate",
+      references: [ { type: "Job", id: canonical.id } ]
+    )
+
+    expect(response.dig(:result, :isError)).to eq(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("same repository")
+    expect(chat_session.pending_actions).to be_empty
+  end
+
   it "creates a grouped pending action for declined Job closures" do
     job_one = Factories.job(repository: repository)
     job_two = Factories.job(repository: repository, issue_number: 43)

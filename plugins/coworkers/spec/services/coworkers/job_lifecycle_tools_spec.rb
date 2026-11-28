@@ -66,11 +66,15 @@ RSpec.describe "coworker Job lifecycle tools" do
 
     action.confirm!(user: owner)
 
-    expect(duplicate.reload).to have_attributes(state: "closed", closure_reason: "duplicate")
+    expect(duplicate.reload).to have_attributes(
+      state: "closed", closure_reason: "duplicate", canonical_job_id: canonical.id
+    )
     transition = StateTransition.for_subject(duplicate).recent.first
     expect(transition).to have_attributes(from_state: "implemented", to_state: "closed", source: "tool")
     expect(transition.metadata).to include(
-      "actor_type" => "Coworkers::Coworker", "actor_id" => coworker.id, "chat_session_id" => chat.id,
+      "actor_type" => "coworker", "actor_id" => coworker.id,
+      "actor_record_type" => "Coworkers::Coworker", "actor_record_id" => coworker.id,
+      "chat_session_id" => chat.id,
       "references" => [ { "type" => "Job", "id" => canonical.id } ]
     )
   end
@@ -93,8 +97,12 @@ RSpec.describe "coworker Job lifecycle tools" do
     transition = StateTransition.for_subject(job).recent.first
     expect(transition).to have_attributes(source: "tool", user: owner)
     expect(transition.metadata).to include(
-      "actor_type" => "Coworkers::Coworker", "actor_id" => coworker.id, "chat_session_id" => chat.id
+      "actor_type" => "coworker", "actor_id" => coworker.id,
+      "actor_record_type" => "Coworkers::Coworker", "actor_record_id" => coworker.id,
+      "chat_session_id" => chat.id
     )
+    details = App::JobDetailPayload.build(job: job, user: owner).dig(:job, :closure_details)
+    expect(details).to include(actor_type: "coworker", actor: include(display_name: "Maya", handle: "maya-lifecycle"))
   end
 
   it "keeps declined reasons pending despite autonomous lifecycle permission" do

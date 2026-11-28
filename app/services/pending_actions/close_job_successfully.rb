@@ -34,6 +34,7 @@ module PendingActions
         definition = Job::ClosureReason.fetch(reason)
         errors.add(:payload, "references are required") if definition.requires_reference && Array(payload["references"]).empty?
         errors.add(:payload, "note is required") if definition.requires_note && payload["note"].to_s.strip.blank?
+        errors.add(:payload, "canonical_job_id is required for duplicate") if reason.to_s == "duplicate" && payload["canonical_job_id"].blank?
       end
     end
 
@@ -71,7 +72,7 @@ module PendingActions
       progress!("Cancelling active workflows and runs...")
       ApplicationRecord.transaction do
         cancel_active_execution!(job)
-        job.update!(grace_period_expires_at: nil)
+        job.update!(grace_period_expires_at: nil, canonical_job: canonical_job(job, reason))
         StateTransition.with_source("tool", user:, reason:, metadata: closure_metadata) do
           job.close_with_reason!(reason, references: payload["references"], note: payload["note"])
         end
@@ -87,14 +88,33 @@ module PendingActions
     end
 
     def closure_metadata
-      actor = action.subject || user
       {
-        "actor_type" => actor.class.polymorphic_name,
-        "actor_id" => actor.id,
+        "actor_type" => closure_actor_type,
+        "actor_id" => action.subject&.id,
+        "actor_record_type" => action.subject&.class&.polymorphic_name,
+        "actor_record_id" => action.subject&.id,
         "chat_session_id" => action.chat_session_id,
         "references" => payload["references"],
         "note" => payload["note"]
       }.compact
+    end
+
+    def closure_actor_type
+      actor = action.subject
+      return actor.kind.to_s if actor&.respond_to?(:kind)
+      return "agent" if action.requested_by == "agent"
+
+      "human"
+    end
+
+    def canonical_job(job, reason)
+      return unless reason.to_s == "duplicate"
+
+      canonical = (user.admin? ? Job.all : Job.visible_to(user)).find(payload.fetch("canonical_job_id"))
+      if canonical == job || canonical.repository_id != job.repository_id
+        raise ArgumentError, "duplicate must reference another accessible Job in the same repository"
+      end
+      canonical
     end
 
     def github_closure_result(job)

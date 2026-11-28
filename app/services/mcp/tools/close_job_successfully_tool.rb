@@ -68,6 +68,8 @@ module Mcp::Tools
         return error if error
 
         jobs = ids.map { |id| find_job!(id) }
+        duplicate_job, duplicate_error = duplicate_canonical_job(closure_reason:, references:, jobs:)
+        return duplicate_error if duplicate_error
         jobs.each do |job|
           return Mcp::Tools.invalid("#{job.slug} is already closed. Reopen it before requesting another closure.") if job.closed?
           return Mcp::Tools.invalid("#{job.slug} cannot be closed from #{job.state}.") unless job.may_close?
@@ -77,6 +79,7 @@ module Mcp::Tools
           job = jobs.first
           payload = { "job_id" => job.id, "closure_reason" => closure_reason.to_s }
           payload["references"] = references if Array(references).any?
+          payload["canonical_job_id"] = duplicate_job.id if duplicate_job
           payload["note"] = note.to_s if note.present?
           payload["comment"] = comment.to_s if comment.present?
 
@@ -112,6 +115,7 @@ module Mcp::Tools
         member_attributes = jobs.map do |job|
           member_payload = { "job_id" => job.id, "closure_reason" => closure_reason.to_s }
           member_payload["references"] = references if Array(references).any?
+          member_payload["canonical_job_id"] = duplicate_job.id if duplicate_job
           member_payload["note"] = note.to_s if note.present?
           member_payload["comment"] = comment.to_s if comment.present?
           {
@@ -139,6 +143,26 @@ module Mcp::Tools
         return false unless context.agent_actor && job.proposer == context.agent_actor
 
         server_context.dig(:coworker_permission_authorizations, tool_name) == true
+      end
+
+      def duplicate_canonical_job(closure_reason:, references:, jobs:)
+        return [ nil, nil ] unless closure_reason.to_s == "duplicate"
+
+        job_references = Array(references).filter_map do |reference|
+          value = reference.to_h.stringify_keys
+          value if value["type"] == "Job"
+        end
+        unless job_references.one?
+          return [ nil, Mcp::Tools.invalid("duplicate requires exactly one canonical Job reference") ]
+        end
+
+        canonical = find_job!(job_references.first.fetch("id"))
+        invalid = jobs.any? { |job| job == canonical || job.repository_id != canonical.repository_id }
+        if invalid
+          return [ nil, Mcp::Tools.invalid("duplicate must reference another accessible Job in the same repository") ]
+        end
+
+        [ canonical, nil ]
       end
     end
   end

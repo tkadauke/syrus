@@ -253,6 +253,10 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(run.reload).to be_cancelled
     expect(action.reload.result).to eq(prerequisite)
     expect(action.payload["github_result"]).to include("status" => "not_applicable")
+    transition = StateTransition.where(subject: prerequisite, to_state: "closed").order(:id).last
+    expect(transition.metadata).to include(
+      "actor_type" => "agent", "chat_session_id" => chat_session.id, "via" => "tool"
+    )
   end
 
   it "posts an optional PR comment and closes the tracked PR when confirmed" do

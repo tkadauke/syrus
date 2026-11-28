@@ -20,7 +20,8 @@ module MaintenanceTasks
         task.current_step_key = "jobs"
         task.current_step_title = "Normalize closed Jobs"
         last_id = task.checkpoint.to_h["last_id"].to_i
-        jobs = candidate_scope.where("id > ?", last_id).order(:id).limit(batch_size).to_a
+        jobs = candidate_scope.where("id > ?", last_id).order(:id).limit(batch_size).includes(:pr_links).to_a
+        load_evidence(jobs)
         changed = jobs.count { |job| normalize!(job) }
         task.checkpoint = task.checkpoint.to_h.merge("last_id" => jobs.last&.id || last_id)
 
@@ -39,38 +40,83 @@ module MaintenanceTasks
       end
 
       def normalize!(job)
-        reason, references = normalized_reason(job)
-        return false if reason.nil? || (reason == job.closure_reason && references.blank?)
+        reason, references, note = normalized_reason(job)
+        return false if reason.nil? || (reason == job.closure_reason && references.blank? && note.blank?)
 
-        job.update_columns(closure_reason: reason, closure_references: references.presence, updated_at: Time.current)
+        job.update_columns(
+          closure_reason: reason, closure_references: references.presence,
+          closure_note: note.to_s.presence, updated_at: Time.current
+        )
+        prior = transition_for(job)
+        provenance = if prior
+          prior.metadata.to_h.slice("actor_type", "actor_id", "actor_record_type", "actor_record_id", "chat_session_id")
+            .merge("via" => prior.metadata.to_h["via"].presence || prior.source)
+        else
+          { "actor_type" => "system", "via" => "backfill" }
+        end
         StateTransition.create!(
           subject: job, from_state: "closed", to_state: "closed", event_name: "closure_reason_backfill",
-          source: "backfill", metadata: { "reason_key" => reason, "closure_reason" => reason, "references" => references, "actor_type" => "system" }.compact
+          source: "backfill", user_id: prior&.user_id,
+          metadata: provenance.merge("reason_key" => reason, "closure_reason" => reason, "references" => references).compact
         )
         true
       end
 
       def normalized_reason(job)
-        return [ "main_grader", [] ] if job.closure_reason.blank? && job.kind == "main_grader"
-        return [ "not_needed", [] ] if job.closure_reason == "no_changes"
-        return [ job.landed_sha.present? ? "pr_merged" : "pr_closed", [] ] if job.closure_reason == "pr_approved"
+        return [ "main_grader", [], nil ] if job.closure_reason.blank? && job.kind == "main_grader"
+        return [ "not_needed", [], nil ] if job.closure_reason == "no_changes"
+        return [ pr_merged?(job) ? "pr_merged" : "pr_closed", [], nil ] if job.closure_reason == "pr_approved"
         return cancelled_reason(job) if job.closure_reason == "cancelled"
 
-        [ nil, [] ]
+        [ nil, [], nil ]
       end
 
       def cancelled_reason(job)
-        transition = StateTransition.where(subject: job, to_state: "closed").order(created_at: :desc, id: :desc).first
-        recorded = transition&.metadata.to_h.values_at("closure_reason", "reason_key").compact.find do |reason|
+        transition = transition_for(job)
+        transition_metadata = transition&.metadata.to_h
+        recorded = transition_metadata.to_h.values_at("closure_reason", "reason_key").compact.find do |reason|
           Job::ClosureReason.by_reason.key?(reason.to_s) && reason.to_s != "cancelled"
         end
-        return [ recorded.to_s, [] ] if recorded
-
-        action = ChatPendingAction.where(action: "cancel_job").find do |candidate|
-          candidate.payload.to_h["job_id"].to_i == job.id && candidate.payload.to_h["canonical_job_id"].present?
+        if recorded
+          references = Array(transition_metadata["references"])
+          canonical_id = transition_metadata["canonical_job_id"]
+          references = [ { type: "Job", id: canonical_id } ] if references.empty? && canonical_id.present?
+          note = transition_metadata["note"]
+          definition = Job::ClosureReason.fetch(recorded)
+          complete = (!definition.requires_reference || references.any?) && (!definition.requires_note || note.present?)
+          return [ recorded.to_s, references, note ] if complete
         end
+
+        action = action_for(job)
         canonical_id = action&.payload.to_h["canonical_job_id"]
-        canonical_id ? [ "duplicate", [ { type: "Job", id: canonical_id } ] ] : [ "cancelled", [] ]
+        return [ "duplicate", [ { type: "Job", id: canonical_id } ], action.payload.to_h["reason"] ] if canonical_id
+
+        payload_reason = [ action&.payload.to_h&.[]("closure_reason"), action&.payload.to_h&.[]("reason"), action&.reason ].compact.find do |reason|
+          Job::ClosureReason.by_reason.key?(reason.to_s) && reason.to_s != "cancelled"
+        end
+        if payload_reason
+          definition = Job::ClosureReason.fetch(payload_reason)
+          note = action.payload.to_h["note"]
+          return [ payload_reason.to_s, [], note ] unless definition.requires_note && note.blank?
+        end
+        [ "cancelled", [], nil ]
+      end
+
+      def load_evidence(jobs)
+        ids = jobs.map(&:id)
+        @transitions_by_job_id = StateTransition.where(subject_type: "Job", subject_id: ids, to_state: "closed")
+          .order(created_at: :desc, id: :desc).group_by(&:subject_id).transform_values(&:first)
+        @actions_by_job_id = ChatPendingAction.where(action: "cancel_job")
+          .where("JSON_EXTRACT(payload, '$.job_id') IN (?)", ids)
+          .order(created_at: :desc, id: :desc).group_by { |action| action.payload.to_h["job_id"].to_i }
+          .transform_values(&:first)
+      end
+
+      def transition_for(job) = @transitions_by_job_id.fetch(job.id, nil)
+      def action_for(job) = @actions_by_job_id.fetch(job.id, nil)
+
+      def pr_merged?(job)
+        job.landed_sha.present? || job.pr_links.any? { |link| link.metadata.to_h["pr_state"] == "merged" }
       end
     end
   end
