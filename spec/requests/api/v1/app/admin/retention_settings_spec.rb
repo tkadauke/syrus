@@ -70,6 +70,47 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     )
     expect(parse_body.dig("runtime_environment", "policy", "builder", "max_concurrent_builds")).to eq(2)
     expect(parse_body.dig("runtime_environment", "oci_registry", "configured")).to be(false)
+    expect(parse_body.dig("runtime_environment", "build_network_source_classes")).to include(
+      include("key" => "internal_mirror", "requirable" => true),
+      include("key" => "repository_namespace", "path_scoped" => true)
+    )
+  end
+
+  it "creates, updates, and deletes build-network rules with session admin authentication" do
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/retention_settings/network_rules", params: {
+      rule: { source_class: "internal_mirror", host: "mirror.example.test", port: 8443,
+              ecosystem: "npm", required: true, enabled: true, note: "private mirror" }
+    }
+    expect(response).to have_http_status(:created)
+    rule = RuntimeImageBuildNetworkRule.find_by!(host: "mirror.example.test")
+    expect(rule).to have_attributes(actor: "user:#{admin.id}", required: true, ecosystem: "npm")
+    expect(parse_body.dig("runtime_environment", "build_network_rules", 0)).to include(
+      "id" => rule.id, "enabled" => true, "note" => "private mirror"
+    )
+
+    patch "/api/v1/app/admin/retention_settings/network_rules/#{rule.id}", params: {
+      rule: { source_class: "internal_mirror", host: "mirror.example.test", port: 8443,
+              ecosystem: "npm", required: false, enabled: false, note: "paused" }
+    }
+    expect(response).to have_http_status(:ok)
+    expect(rule.reload).to have_attributes(required: false, enabled: false, note: "paused")
+
+    delete "/api/v1/app/admin/retention_settings/network_rules/#{rule.id}"
+    expect(response).to have_http_status(:ok)
+    expect(RuntimeImageBuildNetworkRule.where(id: rule.id)).to be_empty
+  end
+
+  it "rejects invalid build-network rules" do
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/retention_settings/network_rules", params: {
+      rule: { source_class: "repository_namespace", host: "github.com", path_prefix: "missing-slashes", enabled: true }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
   end
 
   it "updates environment policy and mirrors recovery settings used by coworker lifecycle code" do

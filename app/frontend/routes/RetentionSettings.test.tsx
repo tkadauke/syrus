@@ -61,7 +61,12 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
         scratch: { enabled: false, size_bytes: 1073741824 }
       },
       oci_registry: { configured: false, credentials: {} },
-      build_network_rules: []
+      build_network_rules: [],
+      build_network_source_classes: [
+        { key: "exact_domain", ecosystem_required: false, path_scoped: false, requirable: false },
+        { key: "internal_mirror", ecosystem_required: false, path_scoped: false, requirable: true }
+      ],
+      build_network_ecosystems: ["npm", "pypi"]
     },
     ...overrides
   }
@@ -147,6 +152,49 @@ describe("RetentionSettings", () => {
     ))
     expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"prohibited_packages":["telnet","rsh"]')
     expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"pids":768')
+  })
+
+  it("creates a build-network rule from the environment policy card", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse(retentionPayload({ message: "Retention settings updated." })))
+      return Promise.resolve(jsonResponse(retentionPayload()))
+    })
+    renderRoute()
+    await screen.findByText("Build-network allowlist and mirrors")
+
+    fireEvent.change(screen.getByLabelText("Host"), { target: { value: "packages.example.test" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add rule" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/retention_settings/network_rules",
+      expect.objectContaining({ method: "POST", body: expect.stringContaining('"host":"packages.example.test"') })
+    ))
+  })
+
+  it("shows disabled and scoped network-rule details and can delete a rule", async () => {
+    const base = retentionPayload()
+    const payload = retentionPayload({ runtime_environment: { ...base.runtime_environment, build_network_rules: [{
+      id: 7, source_class: "internal_mirror", host: "mirror.example.test", port: 8443,
+      path_prefix: "", ecosystem: "npm", required: true, enabled: false, note: "private mirror"
+    }, {
+      id: 8, source_class: "repository_namespace", host: "github.com", port: 443,
+      path_prefix: "/acme/", ecosystem: "", required: false, enabled: true, note: "source namespace"
+    }] } })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "DELETE") return Promise.resolve(jsonResponse(retentionPayload()))
+      return Promise.resolve(jsonResponse(payload))
+    })
+    renderRoute()
+
+    expect(await screen.findByText(/mirror\.example\.test:8443/)).toBeInTheDocument()
+    expect(screen.getByText(/github\.com:443\/acme\//)).toBeInTheDocument()
+    expect(screen.getByText("disabled")).toBeInTheDocument()
+    expect(screen.getByText("ecosystem: npm")).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/retention_settings/network_rules/7",
+      expect.objectContaining({ method: "DELETE" })
+    ))
   })
 
   it("sets a table to infinite retention and saves 0", async () => {

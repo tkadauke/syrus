@@ -30,6 +30,22 @@ module Api
             render_error("validation_failed", error.message, status: :unprocessable_content)
           end
 
+          def create_network_rule
+            rule = RuntimeImageBuildNetworkRule.new(network_rule_params.merge(actor: network_rule_actor))
+            save_network_rule(rule, status: :created)
+          end
+
+          def update_network_rule
+            rule = RuntimeImageBuildNetworkRule.find(params[:id])
+            rule.assign_attributes(network_rule_params.merge(actor: network_rule_actor))
+            save_network_rule(rule, status: :ok)
+          end
+
+          def destroy_network_rule
+            RuntimeImageBuildNetworkRule.find(params[:id]).destroy!
+            render json: payload.merge(message: I18n.t("api.admin_retention_settings.updated"))
+          end
+
           private
 
           def payload
@@ -53,19 +69,28 @@ module Api
           end
 
           def runtime_environment_payload
-            configuration = RuntimeImages::OciRegistry::Configuration.from_env
             {
               policy: RuntimeImages::EnvironmentPolicy.current,
-              oci_registry: configuration ? {
-                configured: true, url: configuration.url, repository_prefix: configuration.repository_prefix,
-                secure: configuration.secure?, credentials: RuntimeImages::OciRegistry::Configuration::ROLES.index_with { |role| configuration.credential?(role) }
-              } : { configured: false, credentials: {} },
-              build_network_rules: RuntimeImageBuildNetworkRule.order(:source_class, :host, :port).map do |rule|
-                rule.attributes.slice("id", "source_class", "host", "port", "path_prefix", "ecosystem", "required", "enabled")
-              end
+              oci_registry: oci_registry_payload,
+              build_network_rules: RuntimeImageBuildNetworkRule.order(:source_class, :host, :port).map { |rule| network_rule_payload(rule) },
+              build_network_source_classes: RuntimeImages::BuildNetwork::SourceClass.registry.values.map do |klass|
+                source = klass.new
+                { key: klass.key, ecosystem_required: source.ecosystem_required?, path_scoped: source.path_scoped?, requirable: source.requirable? }
+              end,
+              build_network_ecosystems: RuntimeImages::BuildNetwork::SourceClass::LanguageRegistry::ECOSYSTEMS
+            }
+          end
+
+          def oci_registry_payload
+            configuration = RuntimeImages::OciRegistry::Configuration.from_env
+            return { configured: false, credentials: {} } unless configuration
+
+            {
+              configured: true, url: configuration.url, repository_prefix: configuration.repository_prefix,
+              secure: configuration.secure?, credentials: RuntimeImages::OciRegistry::Configuration::ROLES.index_with { |role| configuration.credential?(role) }
             }
           rescue RuntimeImages::OciRegistry::Configuration::Invalid => error
-            { policy: RuntimeImages::EnvironmentPolicy.current, oci_registry: { configured: false, error: error.message, credentials: {} }, build_network_rules: [] }
+            { configured: false, error: error.message, credentials: {} }
           end
 
           def prepared_layer_cache_workers
@@ -88,6 +113,24 @@ module Api
                   observed_at: observed_at&.iso8601
                 }
               end
+          end
+
+          def network_rule_params
+            params.require(:rule).permit(:source_class, :host, :port, :path_prefix, :ecosystem, :required, :enabled, :note).to_h
+          end
+
+          def network_rule_actor = "user:#{current_user.id}"
+
+          def network_rule_payload(rule)
+            rule.attributes.slice("id", "source_class", "host", "port", "path_prefix", "ecosystem", "required", "enabled", "note")
+          end
+
+          def save_network_rule(rule, status:)
+            if rule.save
+              render json: payload.merge(message: I18n.t("api.admin_retention_settings.updated")), status: status
+            else
+              render_error("validation_failed", rule.errors.full_messages.to_sentence, status: :unprocessable_content)
+            end
           end
 
           def decode_json_scalar(value)

@@ -955,4 +955,6 @@ provenance, SBOM, pull-event, and audit retention.
 
 OCI credentials stay in deployment configuration and are never returned to the
 browser. Build networking remains default-deny; allowlist entries can require
-an internal mirror in place of a public package source.
+an internal mirror in place of a public package source. Administrators create,
+edit, enable, disable, and delete those rules on the same retention-settings
+page.

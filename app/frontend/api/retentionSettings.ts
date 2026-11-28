@@ -1,4 +1,18 @@
-import { getJson, patchJson } from "./client"
+import { deleteJson, getJson, patchJson, postJson } from "./client"
+
+export type BuildNetworkRule = {
+  id: number
+  source_class: string
+  host: string
+  port: number | null
+  path_prefix: string | null
+  ecosystem: string | null
+  required: boolean
+  enabled: boolean
+  note: string | null
+}
+
+export type BuildNetworkRuleInput = Omit<BuildNetworkRule, "id">
 
 export type RetentionTableRow = {
   key: string
@@ -61,16 +75,9 @@ export type RetentionSettingsPayload = {
       error?: string
       credentials: Record<string, boolean>
     }
-    build_network_rules: Array<{
-      id: number
-      source_class: string
-      host: string
-      port: number | null
-      path_prefix: string | null
-      ecosystem: string | null
-      required: boolean
-      enabled: boolean
-    }>
+    build_network_rules: BuildNetworkRule[]
+    build_network_source_classes: Array<{ key: string; ecosystem_required: boolean; path_scoped: boolean; requirable: boolean }>
+    build_network_ecosystems: string[]
   }
   message?: string
 }
@@ -85,4 +92,18 @@ export function updateRetentionSettings(values: RetentionSettingsUpdate) {
   return patchJson<RetentionSettingsPayload>("/api/v1/app/admin/retention_settings", {
     retention_settings: values
   })
+}
+
+const networkRulesPath = "/api/v1/app/admin/retention_settings/network_rules"
+
+export function createBuildNetworkRule(rule: BuildNetworkRuleInput) {
+  return postJson<RetentionSettingsPayload>(networkRulesPath, { rule })
+}
+
+export function updateBuildNetworkRule(id: number, rule: BuildNetworkRuleInput) {
+  return patchJson<RetentionSettingsPayload>(`${networkRulesPath}/${id}`, { rule })
+}
+
+export function deleteBuildNetworkRule(id: number) {
+  return deleteJson<RetentionSettingsPayload>(`${networkRulesPath}/${id}`)
 }

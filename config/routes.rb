@@ -578,6 +578,9 @@ Rails.application.routes.draw do
           post "settings/clear_secret", to: "settings#clear_secret"
           get "retention_settings", to: "retention_settings#show"
           patch "retention_settings", to: "retention_settings#update"
+          post "retention_settings/network_rules", to: "retention_settings#create_network_rule"
+          patch "retention_settings/network_rules/:id", to: "retention_settings#update_network_rule"
+          delete "retention_settings/network_rules/:id", to: "retention_settings#destroy_network_rule"
           resources :retention_archives, only: %i[ index ] do
             member do
               get :download

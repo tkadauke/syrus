@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, ReactNode } from "react"
+import type { ComponentProps, FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { fetchRetentionArchives, type RetentionArchiveRow } from "../api/retentionArchives"
-import { fetchRetentionSettings, updateRetentionSettings, type RetentionSettingsPayload, type RetentionTableRow } from "../api/retentionSettings"
+import { createBuildNetworkRule, deleteBuildNetworkRule, fetchRetentionSettings, updateBuildNetworkRule, updateRetentionSettings, type BuildNetworkRule, type BuildNetworkRuleInput, type RetentionSettingsPayload, type RetentionTableRow } from "../api/retentionSettings"
 import { disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
 import { Input } from "../components/Input"
 import { NoticeToast } from "../components/NoticeToast"
 import { PageHeading, SectionHeading } from "../components/Heading"
+import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { formatNumber } from "../lib/format"
@@ -163,16 +164,124 @@ function RuntimeEnvironmentPolicyCard({ payload, onNotice }: { payload: Retentio
         {numberField("scratch", "size_bytes", 1)}
       </PolicyGroup>
 
-      <div>
-        <h3 className="text-sm font-medium text-text-primary">{t("retention_settings.environment.network_heading")}</h3>
-        <p className="mt-1 text-xs text-text-secondary">{t("retention_settings.environment.network_description")}</p>
-        {environment.build_network_rules.length ? <ul className="mt-2 space-y-1 text-xs text-text-secondary">{environment.build_network_rules.map((rule) => <li key={rule.id}>{rule.source_class}: {rule.host}{rule.port ? `:${rule.port}` : ""}{rule.required ? ` · ${t("retention_settings.environment.mirror_required")}` : ""}</li>)}</ul> : <p className="mt-2 text-xs text-warning">{t("retention_settings.environment.network_empty")}</p>}
-      </div>
+      <BuildNetworkRulesEditor environment={environment} onNotice={onNotice} />
 
       <Button disabled={save.isPending} onClick={() => save.mutate()} type="button">{save.isPending ? t("retention_settings.saving") : t("retention_settings.environment.save_environment_policy")}</Button>
       {save.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
     </section>
   )
+}
+
+type RuntimeEnvironment = RetentionSettingsPayload["runtime_environment"]
+
+const emptyNetworkRule = (sourceClass: string): BuildNetworkRuleInput => ({
+  source_class: sourceClass,
+  host: "",
+  port: 443,
+  path_prefix: "",
+  ecosystem: "",
+  required: false,
+  enabled: true,
+  note: ""
+})
+
+function BuildNetworkRulesEditor({ environment, onNotice }: { environment: RuntimeEnvironment; onNotice: (message: string | null) => void }) {
+  const { t } = useT("admin")
+  const queryClient = useQueryClient()
+  const defaultSourceClass = environment.build_network_source_classes[0]?.key || "exact_domain"
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [draft, setDraft] = useState<BuildNetworkRuleInput>(() => emptyNetworkRule(defaultSourceClass))
+  const sourceMetadata = environment.build_network_source_classes.find((source) => source.key === draft.source_class)
+
+  const acceptUpdate = (updated: RetentionSettingsPayload) => {
+    queryClient.setQueryData(queryKey, updated)
+    onNotice(updated.message || t("retention_settings.settings_updated"))
+    setEditingId(null)
+    setDraft(emptyNetworkRule(defaultSourceClass))
+  }
+  const saveRule = useMutation({
+    mutationFn: () => editingId === null ? createBuildNetworkRule(draft) : updateBuildNetworkRule(editingId, draft),
+    onSuccess: acceptUpdate
+  })
+  const deleteRule = useMutation({
+    mutationFn: deleteBuildNetworkRule,
+    onSuccess: acceptUpdate
+  })
+
+  const edit = (rule: BuildNetworkRule) => {
+    setEditingId(rule.id)
+    setDraft({
+      source_class: rule.source_class,
+      host: rule.host,
+      port: rule.port,
+      path_prefix: rule.path_prefix || "",
+      ecosystem: rule.ecosystem || "",
+      required: rule.required,
+      enabled: rule.enabled,
+      note: rule.note || ""
+    })
+  }
+
+  return (
+    <div>
+      <h3 className="text-sm font-medium text-text-primary">{t("retention_settings.environment.network_heading")}</h3>
+      <p className="mt-1 text-xs text-text-secondary">{t("retention_settings.environment.network_description")}</p>
+      {environment.build_network_rules.length ? (
+        <ul className="mt-3 space-y-2">
+          {environment.build_network_rules.map((rule) => (
+            <li className="rounded border border-border p-3 text-xs text-text-secondary" key={rule.id}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-text-primary">{rule.source_class}: {rule.host}{rule.port ? `:${rule.port}` : ""}{rule.path_prefix || ""}</span>
+                <span>{rule.enabled ? t("retention_settings.environment.network_enabled") : t("retention_settings.environment.network_disabled")}</span>
+                {rule.ecosystem ? <span>{t("retention_settings.environment.network_ecosystem", { ecosystem: rule.ecosystem })}</span> : null}
+                {rule.required ? <span>{t("retention_settings.environment.mirror_required")}</span> : null}
+              </div>
+              {rule.note ? <p className="mt-1">{rule.note}</p> : null}
+              <div className="mt-2 flex gap-2">
+                <Button onClick={() => edit(rule)} size="sm" variant="secondary">{t("retention_settings.environment.network_edit")}</Button>
+                <Button disabled={deleteRule.isPending} onClick={() => deleteRule.mutate(rule.id)} size="sm" variant="danger">{t("retention_settings.environment.network_delete")}</Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="mt-2 text-xs text-warning">{t("retention_settings.environment.network_empty")}</p>}
+
+      <form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={(event: FormEvent) => { event.preventDefault(); saveRule.mutate() }}>
+        <label className="text-xs text-text-secondary">
+          {t("retention_settings.environment.network_source_class")}
+          <Select className="mt-1" onChange={(event) => setDraft((current) => ({ ...current, source_class: event.target.value, path_prefix: "", ecosystem: "", required: false }))} value={draft.source_class}>
+            {environment.build_network_source_classes.map((source) => <option key={source.key} value={source.key}>{source.key}</option>)}
+          </Select>
+        </label>
+        <NetworkInput label={t("retention_settings.environment.network_host")} onChange={(host) => setDraft((current) => ({ ...current, host }))} required value={draft.host} />
+        <NetworkInput label={t("retention_settings.environment.network_port")} onChange={(port) => setDraft((current) => ({ ...current, port: port ? Number(port) : null }))} type="number" value={draft.port?.toString() || ""} />
+        {sourceMetadata?.path_scoped ? <NetworkInput label={t("retention_settings.environment.network_path_prefix")} onChange={(path_prefix) => setDraft((current) => ({ ...current, path_prefix }))} required value={draft.path_prefix || ""} /> : null}
+        {sourceMetadata?.ecosystem_required || draft.source_class === "internal_mirror" ? (
+          <label className="text-xs text-text-secondary">
+            {t("retention_settings.environment.network_ecosystem_label")}
+            <Select className="mt-1" onChange={(event) => setDraft((current) => ({ ...current, ecosystem: event.target.value }))} required={sourceMetadata?.ecosystem_required} value={draft.ecosystem || ""}>
+              <option value="">{t("retention_settings.environment.network_ecosystem_all")}</option>
+              {environment.build_network_ecosystems.map((ecosystem) => <option key={ecosystem} value={ecosystem}>{ecosystem}</option>)}
+            </Select>
+          </label>
+        ) : null}
+        <NetworkInput label={t("retention_settings.environment.network_note")} onChange={(note) => setDraft((current) => ({ ...current, note }))} value={draft.note || ""} />
+        <div className="flex flex-col justify-end gap-2">
+          <Checkbox checked={draft.enabled} label={t("retention_settings.environment.network_enabled_label")} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />
+          {sourceMetadata?.requirable ? <Checkbox checked={draft.required} label={t("retention_settings.environment.network_required_label")} onChange={(event) => setDraft((current) => ({ ...current, required: event.target.checked }))} /> : null}
+        </div>
+        <div className="flex items-end gap-2">
+          <Button disabled={saveRule.isPending} size="sm" type="submit">{editingId === null ? t("retention_settings.environment.network_add") : t("retention_settings.environment.network_save")}</Button>
+          {editingId !== null ? <Button onClick={() => { setEditingId(null); setDraft(emptyNetworkRule(defaultSourceClass)) }} size="sm" variant="secondary">{t("retention_settings.environment.network_cancel")}</Button> : null}
+        </div>
+      </form>
+      {saveRule.isError || deleteRule.isError ? <p className="mt-2 text-xs text-danger" role="alert">{errorMessage(saveRule.error || deleteRule.error, t("retention_settings.environment.network_error"))}</p> : null}
+    </div>
+  )
+}
+
+function NetworkInput({ label, onChange, value, ...props }: { label: string; onChange: (value: string) => void; value: string } & Omit<ComponentProps<typeof Input>, "onChange" | "value">) {
+  return <label className="text-xs text-text-secondary">{label}<Input className="mt-1 w-full" onChange={(event) => onChange(event.target.value)} value={value} {...props} /></label>
 }
 
 function PolicyGroup({ heading, children }: { heading: string; children: ReactNode }) {

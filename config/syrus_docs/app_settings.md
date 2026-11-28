@@ -389,8 +389,9 @@ supported runtime ABI window, automatic rollback and severe-revocation
 behavior, worker-cache ceilings, and the optional executable `/scratch`
 profile. OCI registry credentials remain deployment secrets; the page reports
 the configured registry endpoint and which scoped credential roles are
-present. Build-network allowlist and required internal-mirror rules are shown
-from the same authoritative rules used by isolated builds.
+present. The page also creates, edits, enables, disables, and deletes
+build-network allowlist and required internal-mirror rules from the same
+authoritative policy used by isolated builds.
 
 Retention is configured on **Admin → Retention Settings**. Detailed sweep,
 archive, pruning, and extension-point mechanics live in the
