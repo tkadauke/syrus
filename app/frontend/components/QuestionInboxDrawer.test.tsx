@@ -37,6 +37,43 @@ describe("QuestionInboxDrawer", () => {
     expect(await screen.findByText("No questions are waiting for an answer.")).toBeInTheDocument()
   })
 
+  it("treats questions already waiting at first load as the baseline, and announces only later arrivals", async () => {
+    const question = (id: number) => ({
+      id,
+      job_id: id,
+      job_slug: `JOB-${id}`,
+      job_title: `Question ${id}`,
+      repository_slug: "acme/widgets",
+      asked_at: "2026-01-01T00:00:00Z",
+      times_out_at: null,
+      questions: [{ question: "Which path?", options: ["Fast", "Careful"], multiple: false }],
+      app_answer_path: `/api/v1/app/agent_questions/${id}/answer`,
+      job_path: `/jobs/${id}`
+    })
+    let waiting = [question(1), question(2)]
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ questions: waiting }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <QuestionInboxDrawer />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Open questions: 2" })).toBeInTheDocument()
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+
+    waiting = [question(1), question(2), question(3)]
+    await client.refetchQueries({ queryKey: ["agent-questions", "open"] })
+
+    expect(await screen.findByRole("button", { name: "Open questions: 3" })).toBeInTheDocument()
+    expect(screen.getByRole("status")).toHaveTextContent("1 new question arrived.")
+  })
+
   it("shows the open count and answers with the shared question component", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
