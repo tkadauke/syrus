@@ -131,4 +131,35 @@ RSpec.describe ScheduledTasks::FireDueTaskJob do
   ensure
     teardown&.call
   end
+
+  it "keeps a system schedule's failure accounting when its failure callback raises" do
+    now = Time.utc(2026, 11, 4, 3, 15)
+    definition = Class.new(ScheduledTasks::SystemSchedules::Definition) do
+      def prompt(task:, target_date:) = "System work for #{target_date || task.id}"
+      def failure_date(task:, now:) = now.to_date
+      def failure_recorded(task:, date:, reason:) = raise("alert channel missing")
+    end
+    allow(ScheduledTasks::SystemSchedules).to receive(:fetch).with("test_alert").and_return(definition)
+    system_task = ScheduledTasks::Task.create!(
+      user: user, repository: repository,
+      name: "System alert work", kind: "cron", system_key: "test_alert",
+      cron_expression: "0 * * * *", minute_offset: 1, pr_pileup_policy: "skip"
+    )
+    handler = Class.new(ScheduledTasks::FireHandlers::Base) do
+      define_method(:fire!) { |now:| raise "system failure" }
+    end
+    teardown = ScheduledTasks::FireHandlers.register(target: :test, handler:) do |candidate|
+      candidate.id == system_task.id
+    end
+
+    described_class.perform_now(system_task, now)
+
+    # Rolling the accounting back leaves the task due again on the next
+    # minute's poll, so a broken alert path turned backoff into a retry loop.
+    expect(system_task.reload).to have_attributes(last_fired_at: now, consecutive_failure_count: 1,
+                                                  last_system_result: "failed")
+    expect(system_task.occurrences.sole).to have_attributes(completed_at: nil, failed_at: now)
+  ensure
+    teardown&.call
+  end
 end

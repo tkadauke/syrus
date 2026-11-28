@@ -262,10 +262,22 @@ module ScheduledTasks
 
       reason = fire_failure_reason(error)
       record_system_result!(date: date, result: "failed", reason: reason)
-      system_schedule_definition.failure_recorded(task: self, date:, reason:)
+      notify_failure_recorded(date:, reason:)
     end
 
     private
+
+    # The failure is recorded inside the fire job's task lock. A raising
+    # definition callback (for example an alert whose chat is missing) would
+    # roll the failure count and attempt stamp back with it, leaving the
+    # schedule due again on the next minute's poll with no backoff.
+    def notify_failure_recorded(date:, reason:)
+      system_schedule_definition.failure_recorded(task: self, date:, reason:)
+    rescue StandardError => e
+      Rails.logger.error(
+        "[ScheduledTasks::Task] task ##{id} failure callback failed: #{e.class}: #{e.message}"
+      )
+    end
 
     # Class, message and the first backtrace frame (file:line), so the failing
     # line is visible durably after the operational logs have rotated.
