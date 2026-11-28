@@ -117,6 +117,7 @@ installer only in these cases:
 | `/opt/syrus/rubies/<version>`, `/opt/syrus/nodes/<version>` | root | Ruby and Node pinned by `.ruby-version` and `.node-version`, installed by mise as prebuilt binaries |
 | `/opt/syrus/tools/mise/<version>` | root | Pinned mise binary |
 | `/opt/syrus/tools/mysql-client/<version>` | root | Oracle's MySQL client library, with its own OpenSSL, that `mysql2` links against |
+| `/opt/syrus/tools/playwright/<playwright>-mcp-<mcp>` | root | npm prefix with `playwright-mcp` (browser tools, visual review) and Playwright's headless Chromium shell, linked as `chromium-headless-shell` |
 | `/opt/syrus/agent-clis` | root | npm prefix holding the pinned Claude Code and Codex CLIs |
 | `/opt/syrus/shared/bundles/ruby-<ruby>-mysql-<client>` | worker | Bundler path shared by every release on that Ruby and client |
 | `/opt/syrus/shared/node/<sha>` | worker | Each release's `node_modules`. The release's `node_modules` symlinks here |
@@ -142,12 +143,18 @@ toolchain:
 - Ruby and Node in `.ruby-version` and `.node-version` (the same versions the
   Linux image uses);
 - mise and the MySQL client in `config/macos_worker_toolchain.env`, each with
-  a URL and a SHA-256.
+  a URL and a SHA-256;
+- Playwright and `@playwright/mcp` in the same file, matching the Dockerfile's
+  `PLAYWRIGHT_VERSION` and `PLAYWRIGHT_MCP_VERSION` (a spec enforces it),
+  installed from npm with the pinned Node.
 
 `bin/macos-runtime-env` is sourced by `bin/macos-worker`, by the installer,
 and (as the installed copy) by the updater. It installs anything missing under
 `/opt/syrus`, and builds a `PATH` from only the toolchain, the agent CLIs, and
-the system directories. It also points Bundler at the matching shared bundle.
+the system directories. Workflow steps inherit that `PATH`, so a job's own
+`mysql2` build finds the private `mysql_config`. It also points Bundler at the
+matching shared bundle, and the browser plugin at the pinned headless shell
+(`SYRUS_BROWSER_EXECUTABLE_PATH`, `PLAYWRIGHT_BROWSERS_PATH`).
 If any pinned piece is missing, the worker refuses to start rather than fall
 back to the host's copy.
 

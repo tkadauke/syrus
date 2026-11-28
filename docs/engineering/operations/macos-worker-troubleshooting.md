@@ -162,7 +162,10 @@ Two definitions used throughout:
 ## An agent CLI or `mise` is missing
 
 - **Confirm:** a Run fails with `claude`, `codex`, or `mise` not found, or the
-  check fails `require_command`.
+  check fails `require_command`. For the browser tools: visual review fails
+  with `No such file or directory - playwright-mcp`, or the check fails
+  `Playwright MCP` or `browser Chromium`; those are installed with the rest
+  of the pinned toolchain, by the updater as well as the installer.
 - **Cause:** `/opt/syrus/agent-clis` or `/opt/syrus/tools` is incomplete.
 - **Fix:** rerun [the installer](macos-worker-host.md#install). It reinstalls
   the pinned CLIs whenever their versions differ.

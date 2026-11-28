@@ -11,7 +11,7 @@ it, see [macOS host pitfalls](../pitfalls/macos-hosts.md).
 | `bin/macos-worker` | Worker entrypoint: sources the env file, forces the compute role, sets the revision, activates the toolchain, starts `bin/jobs`. `--check` runs the check on the pinned toolchain | `spec/bin/macos_worker_spec.rb` |
 | `bin/macos-worker-check` | Read-only host and env validation, with `OK`/`FAIL`/`WARN` lines | via the installer and updater specs |
 | `bin/macos-runtime-env` | Pinned-toolchain library: install, `PATH`, Bundler env, `syrus_macos_runtime_activate` | via the specs above |
-| `config/macos_worker_toolchain.env` | mise and MySQL client pins (version, URL, SHA-256) | — |
+| `config/macos_worker_toolchain.env` | mise and MySQL client pins (version, URL, SHA-256); Playwright and `@playwright/mcp` versions | `spec/bin/macos_runtime_env_spec.rb` |
 | `.ruby-version`, `.node-version` | Ruby and Node pins, shared with the Linux image | — |
 | `bin/install-macos-worker` | Idempotent host provisioning, agent CLI pins, launchd load | `spec/bin/install_macos_worker_spec.rb` |
 | `bin/uninstall-macos-worker` | Reverses the installer, keeping config, data, and account by default | `spec/bin/uninstall_macos_worker_spec.rb` |

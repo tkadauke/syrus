@@ -101,8 +101,33 @@ RSpec.describe "native macOS worker updater" do
     write_executable(File.join(mysql, "bin", "mysql_config"), "#!/usr/bin/env bash\necho #{mysql_version}\n")
     FileUtils.mkdir_p(File.join(mysql, "lib"))
     FileUtils.touch(File.join(mysql, "lib", "libmysqlclient.24.dylib"))
+    install_fake_browser_tools(tools)
     tools
   end
+
+  # The browser tools as bin/macos-runtime-env installs them: one prefix per
+  # pinned Playwright + @playwright/mcp pair, with `chromium-headless-shell` linking into
+  # Playwright's browsers directory.
+  def install_fake_browser_tools(tools_root)
+    playwright = toolchain_pin("PLAYWRIGHT_VERSION")
+    mcp = toolchain_pin("PLAYWRIGHT_MCP_VERSION")
+    prefix = File.join(tools_root, "playwright", "#{playwright}-mcp-#{mcp}")
+    { "playwright" => playwright, "@playwright/mcp" => mcp }.each do |package, version|
+      FileUtils.mkdir_p(File.join(prefix, "lib", "node_modules", package))
+      File.write(File.join(prefix, "lib", "node_modules", package, "package.json"), %({\n  "name": "#{package}",\n  "version": "#{version}"\n}\n))
+    end
+    FileUtils.mkdir_p(File.join(prefix, "bin"))
+    File.write(File.join(prefix, "bin", "playwright-mcp"), "#!/usr/bin/env bash\nexit 0\n")
+    File.chmod(0o755, File.join(prefix, "bin", "playwright-mcp"))
+    browser = File.join(prefix, "ms-playwright", "chromium_headless_shell-1", "chrome-headless-shell-mac-arm64", "chrome-headless-shell")
+    FileUtils.mkdir_p(File.dirname(browser))
+    File.write(browser, "#!/usr/bin/env bash\nexit 0\n")
+    File.chmod(0o755, browser)
+    File.symlink("ms-playwright/chromium_headless_shell-1/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+      File.join(prefix, "chromium-headless-shell"))
+    prefix
+  end
+
 
   def write_fake_mise(dir, path = File.join(dir, "fake-mise"), version = "0.0.0")
     write_executable(path, <<~BASH)

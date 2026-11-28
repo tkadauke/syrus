@@ -124,6 +124,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'NODE=%s\n' "$(syrus_macos_node_prefix "$NODE_VERSION_PIN")/bin/node"
   printf 'AGENT_CLIS=%s\n' "$SYRUS_MACOS_AGENT_CLI_PREFIX/bin"
   printf 'MISE=%s\n' "$(syrus_macos_mise_bin "$ROOT")"
+  syrus_macos_browser_env "$ROOT"
   syrus_macos_bundle_env "$ROOT" "$SHARED_DIR"
   printf 'RAILS_ENV=%s\n' "$RAILS_ENV"
   printf 'SYRUS_ROLE=%s\n' "$SYRUS_ROLE"

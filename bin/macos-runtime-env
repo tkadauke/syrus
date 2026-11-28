@@ -16,7 +16,11 @@
 #                                    mise itself and the MySQL client library
 #                                    mysql2 links against, downloaded from
 #                                    their publishers and checked against the
-#                                    SHA-256 pinned there
+#                                    SHA-256 pinned there; and the Playwright
+#                                    and @playwright/mcp versions (the Linux
+#                                    image's) behind the browser tools,
+#                                    installed from npm with the pinned Node
+#                                    together with Playwright's own Chromium
 #
 # Everything lands root-owned and read-only under /opt/syrus, keyed by
 # version, so installs are idempotent and older versions stay for rollback.
@@ -73,6 +77,7 @@ syrus_macos_toolchain_value() {
 syrus_macos_ruby_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_RUBIES_ROOT" "$1"; }
 syrus_macos_node_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_NODES_ROOT" "$1"; }
 syrus_macos_mise_prefix() { printf '%s/mise/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
+syrus_macos_browser_tools_prefix() { printf '%s/playwright/%s-mcp-%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1" "$2"; }
 syrus_macos_mysql_client_prefix() { printf '%s/mysql-client/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
 
 # Gem bundle for one Ruby + MySQL client pair:
@@ -114,6 +119,21 @@ syrus_macos_mysql_client_installed() {
   [[ -x "$prefix/bin/mysql_config" ]] &&
     [[ "$("$prefix/bin/mysql_config" --version 2>/dev/null)" == "$1" ]] &&
     compgen -G "$prefix/lib/libmysqlclient.*.dylib" >/dev/null
+}
+
+# The browser tools for a release's pinned Playwright and @playwright/mcp:
+# both versions, as npm installed them, and the headless Chromium they drive.
+syrus_macos_browser_tools_installed() {
+  local prefix
+  prefix="$(syrus_macos_browser_tools_prefix "$1" "$2")"
+  [[ -x "$prefix/bin/playwright-mcp" && -x "$prefix/chromium-headless-shell" ]] &&
+    [[ "$(_syrus_macos_npm_package_version "$prefix" playwright)" == "$1" ]] &&
+    [[ "$(_syrus_macos_npm_package_version "$prefix" @playwright/mcp)" == "$2" ]]
+}
+
+_syrus_macos_npm_package_version() {
+  sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$1/lib/node_modules/$2/package.json" 2>/dev/null | head -n 1
 }
 
 # --- install --------------------------------------------------------------
@@ -248,13 +268,65 @@ syrus_macos_node_install() {
     { echo "macos-runtime: Node $version does not run from $(syrus_macos_node_prefix "$version")" >&2; return 1; }
 }
 
-# Installs everything a release pins. mise first: it installs Ruby and Node.
+# Playwright, @playwright/mcp (the `playwright-mcp` the browser tools and
+# visual review spawn), and Playwright's headless Chromium shell, installed
+# with the release's pinned Node into one prefix per version pair.
+#
+# The headless shell, not full Chromium: full Chromium is a GUI app whose
+# helper processes need a login session's Mach bootstrap and Dock, so under a
+# launchd daemon every renderer and network service dies at launch and each
+# navigation hangs. The headless shell needs neither. (The Linux image runs
+# full Chromium headless; Linux has no such dependency.)
+#
+# `chromium-headless-shell` in the prefix is a relative link to the binary, so
+# the prefix can be built elsewhere and moved into place like every other tool;
+# syrus_macos_browser_env hands out the binary's own path.
+syrus_macos_browser_tools_install() {
+  local release_root="$1" playwright mcp node node_bin work install executable
+  playwright="$(syrus_macos_toolchain_value "$release_root" PLAYWRIGHT_VERSION)" || return 1
+  mcp="$(syrus_macos_toolchain_value "$release_root" PLAYWRIGHT_MCP_VERSION)" || return 1
+  syrus_macos_browser_tools_installed "$playwright" "$mcp" && return 0
+  node="$(syrus_macos_node_version "$release_root")" || return 1
+  node_bin="$(syrus_macos_node_prefix "$node")/bin"
+
+  work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-playwright.XXXXXX")"
+  install="$work/install"
+  if ! (cd / && env PATH="$node_bin:$SYRUS_MACOS_SYSTEM_PATH" npm_config_cache="$work/npm-cache" \
+      "$node_bin/npm" install -g --prefix "$install" "playwright@$playwright" "@playwright/mcp@$mcp"); then
+    rm -rf "$work"
+    echo "macos-runtime: npm could not install playwright $playwright and @playwright/mcp $mcp" >&2
+    return 1
+  fi
+  if ! (cd / && env PATH="$node_bin:$SYRUS_MACOS_SYSTEM_PATH" PLAYWRIGHT_BROWSERS_PATH="$install/ms-playwright" \
+      "$install/bin/playwright" install --only-shell chromium); then
+    rm -rf "$work"
+    echo "macos-runtime: Playwright $playwright could not install its headless Chromium shell" >&2
+    return 1
+  fi
+  executable="$(find "$install/ms-playwright" -path '*/chromium_headless_shell-*/chrome-headless-shell-mac*/chrome-headless-shell' \
+    -type f -perm +111 2>/dev/null | sort | tail -n 1)"
+  if [[ -z "$executable" ]]; then
+    rm -rf "$work"
+    echo "macos-runtime: Playwright $playwright installed no headless Chromium shell under $install/ms-playwright" >&2
+    return 1
+  fi
+  ln -s "${executable#"$install/"}" "$install/chromium-headless-shell"
+  chmod -R a+rX "$install"
+  _syrus_macos_place "$install" "$(syrus_macos_browser_tools_prefix "$playwright" "$mcp")"
+  rm -rf "$work"
+  syrus_macos_browser_tools_installed "$playwright" "$mcp" ||
+    { echo "macos-runtime: the browser tools for Playwright $playwright are not usable" >&2; return 1; }
+}
+
+# Installs everything a release pins. mise first: it installs Ruby and Node,
+# and Node installs the browser tools.
 syrus_macos_runtimes_install() {
   local release_root="$1"
   syrus_macos_mise_install "$release_root" &&
     syrus_macos_mysql_client_install "$release_root" &&
     syrus_macos_ruby_install "$release_root" &&
-    syrus_macos_node_install "$release_root"
+    syrus_macos_node_install "$release_root" &&
+    syrus_macos_browser_tools_install "$release_root"
 }
 
 # --- activate ---------------------------------------------------------------
@@ -264,15 +336,41 @@ syrus_macos_runtimes_install() {
 # client's mysql_config. Workflow steps inherit this PATH, and mysql2's
 # extconf looks for mysql_config on PATH before its built-in list of Homebrew
 # locations -- so a job's own `bundle install` builds mysql2 against the
-# private client too, not a shared Homebrew one it cannot link.
+# private client too, not a shared Homebrew one it cannot link. Last come the
+# browser tools, for `playwright-mcp`.
 syrus_macos_runtime_path() {
-  local release_root="$1" ruby node mise mysql
+  local release_root="$1" ruby node mise mysql browser
   ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
   node="$(syrus_macos_node_version "$release_root")" || return 1
   mise="$(syrus_macos_toolchain_value "$release_root" MISE_VERSION)" || return 1
   mysql="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_VERSION)" || return 1
-  printf '%s/bin:%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
-    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")" "$(syrus_macos_mysql_client_prefix "$mysql")"
+  browser="$(syrus_macos_browser_tools_prefix_for "$release_root")" || return 1
+  printf '%s/bin:%s/bin:%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
+    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")" "$(syrus_macos_mysql_client_prefix "$mysql")" "$browser"
+}
+
+syrus_macos_browser_tools_prefix_for() {
+  local playwright mcp
+  playwright="$(syrus_macos_toolchain_value "$1" PLAYWRIGHT_VERSION)" || return 1
+  mcp="$(syrus_macos_toolchain_value "$1" PLAYWRIGHT_MCP_VERSION)" || return 1
+  syrus_macos_browser_tools_prefix "$playwright" "$mcp"
+}
+
+# Where the browser tools find their Chromium: the settings the browser
+# plugin reads (SYRUS_BROWSER_EXECUTABLE_PATH, PLAYWRIGHT_BROWSERS_PATH)
+# instead of the Linux image's /opt/syrus-browser and /opt/ms-playwright.
+#
+# The executable is the link's target, not the link: Chromium finds its
+# framework relative to the path it was started from, and started through the
+# link it exits at once.
+syrus_macos_browser_env() {
+  local prefix link executable
+  prefix="$(syrus_macos_browser_tools_prefix_for "$1")" || return 1
+  link="$prefix/chromium-headless-shell"
+  executable="$link"
+  [[ -L "$link" ]] && executable="$prefix/$(readlink "$link")"
+  printf 'SYRUS_BROWSER_EXECUTABLE_PATH=%s\n' "$executable"
+  printf 'PLAYWRIGHT_BROWSERS_PATH=%s\n' "$prefix/ms-playwright"
 }
 
 # The Bundler settings a release builds and runs its gems with.
@@ -320,6 +418,9 @@ syrus_macos_runtime_activate() {
   while IFS= read -r line; do
     export "${line?}"
   done < <(syrus_macos_bundle_env "$release_root" "$shared_dir")
+  while IFS= read -r line; do
+    export "${line?}"
+  done < <(syrus_macos_browser_env "$release_root")
   export SYRUS_MACOS_RUBY_VERSION="$ruby"
   export SYRUS_MACOS_NODE_VERSION="$node"
 }

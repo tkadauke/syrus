@@ -171,6 +171,25 @@ require_command mise Mise
 require_command codex Codex
 require_command claude Claude
 
+# The browser tools and visual review spawn `playwright-mcp` with the
+# release's pinned Chromium (bin/macos-runtime-env). Not run with --version:
+# a playwright-mcp that did not take the flag would start a server and hang.
+if have_command playwright-mcp; then
+  ok "Playwright MCP: $(command -v playwright-mcp)"
+else
+  fail "Playwright MCP: playwright-mcp not found on PATH"
+fi
+if [[ -f "$ROOT/bin/macos-runtime-env" ]]; then
+  # shellcheck source=bin/macos-runtime-env
+  source "$ROOT/bin/macos-runtime-env"
+  browser_executable="$(syrus_macos_browser_env "$ROOT" 2>/dev/null | sed -n 's/^SYRUS_BROWSER_EXECUTABLE_PATH=//p')"
+  if [[ -n "$browser_executable" && -x "$browser_executable" ]]; then
+    ok "browser Chromium: $browser_executable"
+  else
+    fail "browser Chromium: ${browser_executable:-the release pins no Playwright} is not installed; run bin/install-macos-worker"
+  fi
+fi
+
 if xcode_select_path="$(xcode-select -p 2>/dev/null)"; then
   ok "Xcode command line tools: $xcode_select_path"
   if [[ "$xcode_select_path" == *"/Xcode"*".app/Contents/Developer"* ]]; then

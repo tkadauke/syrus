@@ -153,4 +153,27 @@ crash-loops with `Could not find <gems> in locally installed gems`.
 reports `failed` and leaves `current` on the old release.
 `spec/bin/syrus_macos_updater_spec.rb` guards it.
 
+## Full Chromium under a launchd daemon
+
+**Symptom:** `playwright-mcp` starts, but every navigation hangs, and with
+`DEBUG=pw:browser` Chromium logs `bootstrap_look_up ... MachPortRendezvousServer:
+Permission denied`, `dock_plist is not an NSDictionary`, and `Network service
+crashed` in a loop. **Cause:** full Chromium is a GUI app whose helper
+processes need a login session's Mach bootstrap; the worker is a system-domain
+launchd daemon (`SessionCreate` and `launchctl asuser` do not help).
+**Prevention:** Mac workers install only Playwright's headless shell
+(`playwright install --only-shell chromium`) and point
+`SYRUS_BROWSER_EXECUTABLE_PATH` at it. Test browser changes in the daemon
+context, not with `sudo -u` from an SSH session.
+
+## Job builds falling back to Homebrew's `mysql_config`
+
+**Symptom:** a workflow's `prepare` fails in `bundle install` with `Using
+mysql_config at /opt/homebrew/opt/mysql-client/bin/mysql_config` and `library
+'zstd' not found`. **Cause:** workflow steps get only `PATH` (and a few
+other variables) from the worker, not its `BUNDLE_BUILD__MYSQL2`, and
+mysql2's extconf falls back to hard-coded Homebrew locations when `PATH` has
+no `mysql_config`. **Prevention:** `syrus_macos_runtime_path` includes the
+pinned MySQL client's `bin`, which holds only `mysql_config`.
+
 Return to the [pitfalls index](README.md).

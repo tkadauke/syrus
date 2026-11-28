@@ -38,6 +38,9 @@ RSpec.describe "native macOS worker scripts" do
 
   def write_env(path, overrides = {})
     values = {
+      # The fake toolchain with_stubbed_host_bin and install_fake_runtimes
+      # create next to the env file.
+      "SYRUS_MACOS_TOOLS_ROOT" => File.join(File.dirname(path), "tools"),
       "SYRUS_DATA_ROOT" => "/var/lib/syrus",
       "SYRUS_APP_HOST" => "syrus.example.internal",
       "SYRUS_WORKER_POOL_NAME" => "macos-xcode",
@@ -65,6 +68,29 @@ RSpec.describe "native macOS worker scripts" do
     BASH
   end
 
+  # The browser tools as bin/macos-runtime-env installs them: one prefix per
+  # pinned Playwright + @playwright/mcp pair, with `chromium-headless-shell` linking into
+  # Playwright's browsers directory.
+  def install_fake_browser_tools(tools_root)
+    playwright = toolchain_pin("PLAYWRIGHT_VERSION")
+    mcp = toolchain_pin("PLAYWRIGHT_MCP_VERSION")
+    prefix = File.join(tools_root, "playwright", "#{playwright}-mcp-#{mcp}")
+    { "playwright" => playwright, "@playwright/mcp" => mcp }.each do |package, version|
+      FileUtils.mkdir_p(File.join(prefix, "lib", "node_modules", package))
+      File.write(File.join(prefix, "lib", "node_modules", package, "package.json"), %({\n  "name": "#{package}",\n  "version": "#{version}"\n}\n))
+    end
+    FileUtils.mkdir_p(File.join(prefix, "bin"))
+    File.write(File.join(prefix, "bin", "playwright-mcp"), "#!/usr/bin/env bash\nexit 0\n")
+    File.chmod(0o755, File.join(prefix, "bin", "playwright-mcp"))
+    browser = File.join(prefix, "ms-playwright", "chromium_headless_shell-1", "chrome-headless-shell-mac-arm64", "chrome-headless-shell")
+    FileUtils.mkdir_p(File.dirname(browser))
+    File.write(browser, "#!/usr/bin/env bash\nexit 0\n")
+    File.chmod(0o755, browser)
+    File.symlink("ms-playwright/chromium_headless_shell-1/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+      File.join(prefix, "chromium-headless-shell"))
+    prefix
+  end
+
   def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer", ruby_version: pinned_ruby,
                             node_version: pinned_node)
     bin_dir = File.join(dir, "bin")
@@ -79,6 +105,8 @@ RSpec.describe "native macOS worker scripts" do
     write_stub(File.join(bin_dir, "mise"), "#!/usr/bin/env bash\necho 2026.1.0\n")
     write_stub(File.join(bin_dir, "codex"), "#!/usr/bin/env bash\necho codex-cli 0.160.0\n")
     write_stub(File.join(bin_dir, "claude"), "#!/usr/bin/env bash\necho 2.1.289\n")
+    write_stub(File.join(bin_dir, "playwright-mcp"), "#!/usr/bin/env bash\nexit 0\n")
+    install_fake_browser_tools(File.join(dir, "tools"))
     write_stub(File.join(bin_dir, "xcode-select"), "#!/usr/bin/env bash\necho #{xcode_select_path}\n")
     write_stub(File.join(bin_dir, "xcodebuild"), "#!/usr/bin/env bash\necho Xcode 16.4\necho Build version 16F6\n")
     write_stub(File.join(bin_dir, "xcrun"), <<~BASH)
@@ -279,6 +307,10 @@ RSpec.describe "native macOS worker scripts" do
       expect(stdout).to include("BUNDLE_PATH=/opt/syrus/shared/bundles/ruby-#{pinned_ruby}")
       # Keeps libvips out of the worker; see spec/config/libvips_boot_spec.rb.
       expect(stdout).to include("BUNDLE_WITHOUT=images")
+      # The browser plugin's settings, pointing at the pinned browser tools
+      # rather than the Linux image's /opt/syrus-browser and /opt/ms-playwright.
+      expect(stdout).to match(%r{^SYRUS_BROWSER_EXECUTABLE_PATH=.*/tools/playwright/[^/]+/(chromium-headless-shell|ms-playwright/.+/chrome-headless-shell)$})
+      expect(stdout).to match(%r{^PLAYWRIGHT_BROWSERS_PATH=.*/tools/playwright/[^/]+/ms-playwright$})
       expect(stdout).not_to include("SYRUS_LIBVIPS")
     end
   end
@@ -432,6 +464,27 @@ RSpec.describe "native macOS worker scripts" do
     expect(pinned_node).to match(/\A#{node_major}\.\d+\.\d+\z/)
   end
 
+  it "fails validation when the browser tools visual review needs are missing" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir)
+      FileUtils.rm(File.join(bin_dir, "playwright-mcp"))
+      FileUtils.rm_rf(File.join(dir, "tools", "playwright"))
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
+        "bash", check, "--env-file", env_file,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("FAIL Playwright MCP: playwright-mcp not found on PATH")
+      expect(stdout).to match(%r{FAIL browser Chromium: .*/tools/playwright/[^/]+/chromium-headless-shell is not installed})
+      expect(stdout).to include("macos-worker-check: 2 failure(s)")
+    end
+  end
+
   it "fails validation when only Command Line Tools are selected" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")
@@ -458,7 +511,8 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir)
 
       stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME"),
+          "SYRUS_MACOS_TOOLS_ROOT" => File.join(dir, "tools") },
         "bash",
         check,
         unsetenv_others: true
