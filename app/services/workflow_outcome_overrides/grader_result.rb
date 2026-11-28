@@ -20,13 +20,18 @@ module WorkflowOutcomeOverrides
       return false unless failure[:technically_overridable]
 
       invalidate_stale_overrides!
+      # An override this exact grader Step already consumed stays accepted when
+      # the collector reruns against the same evidence (another grader's
+      # override resuming the gate, or a retried collect Run). Every column of
+      # the fingerprint is matched, so a consumed match can only be this Step's
+      # own decision about this exact HEAD, plan, and evidence.
       override = WorkflowOutcomeOverride.where(
         job_id: workflow.job_id, workflow_id: workflow.id, step_id: grader_step.id,
         gate_kind: gate_kind, gate_identity: gate_identity,
         candidate_head_sha: candidate_head_sha, candidate_tree_sha: candidate_tree_sha.presence,
         candidate_base_sha: candidate_base_sha.presence, plan_version: plan_version,
-        evidence_digest: evidence_digest, consumed_at: nil, invalidation_cause: nil
-      ).order(:id).first
+        evidence_digest: evidence_digest, invalidation_cause: nil
+      ).order(Arel.sql("consumed_at IS NULL"), :id).first
       return false unless override
 
       override.consume!(override.fingerprint)
