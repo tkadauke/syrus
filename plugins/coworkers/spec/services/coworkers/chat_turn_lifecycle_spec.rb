@@ -38,4 +38,30 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
     expect(described_class.new(chat_session: chat, user_message: message).admission)
       .to include(outcome: "blocked", message: I18n.t("coworkers.confinement_unavailable", locale: user.locale))
   end
+
+  it "pins one immutable activation at admission even when publication advances concurrently" do
+    Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
+    environment = Coworkers::Environment.create!(coworker:, state: "active")
+    first_image = instance_double(RuntimeImage, id: 31, digest: "sha256:#{'1' * 64}")
+    replacement_image = instance_double(RuntimeImage, id: 32, digest: "sha256:#{'2' * 64}")
+    first = Coworkers::EnvironmentActiveSelection::Selection.new(
+      activation_id: 11, revision_id: 21, runtime_image_id: 31,
+      image_digest: first_image.digest, runtime_image: first_image
+    )
+    replacement = Coworkers::EnvironmentActiveSelection::Selection.new(
+      activation_id: 12, revision_id: 22, runtime_image_id: 32,
+      image_digest: replacement_image.digest, runtime_image: replacement_image
+    )
+    allow(Coworkers::EnvironmentActiveSelection).to receive(:resolve).with(environment).and_return(first, replacement)
+    allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return({})
+    lifecycle = described_class.new(chat_session: chat, user_message: message)
+
+    lifecycle.admission
+    policy = lifecycle.execution_workload_policy(nil)
+
+    expect(policy.runtime_image).to eq(first_image)
+    expect(policy.runtime_image_digest).to eq(first.image_digest)
+    expect(policy).to be_fail_closed
+    expect(Coworkers::EnvironmentActiveSelection).to have_received(:resolve).once
+  end
 end
