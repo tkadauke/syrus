@@ -6,22 +6,24 @@ class RetentionPruner
   DEFAULT_MAX_BATCHES = 50
   FALLBACK_BATCH_LOCK = Mutex.new
 
-  def self.call(scope:, retention_key: nil, cutoff: nil, batch_size: DEFAULT_BATCH_SIZE, max_batches: DEFAULT_MAX_BATCHES)
+  def self.call(scope:, retention_key: nil, cutoff: nil, batch_size: DEFAULT_BATCH_SIZE, max_batches: DEFAULT_MAX_BATCHES, destroy: false)
     new(
       scope: scope,
       retention_key: retention_key,
       cutoff: cutoff,
       batch_size: batch_size,
-      max_batches: max_batches
+      max_batches: max_batches,
+      destroy: destroy
     ).call
   end
 
-  def initialize(scope:, retention_key:, cutoff:, batch_size:, max_batches:)
+  def initialize(scope:, retention_key:, cutoff:, batch_size:, max_batches:, destroy:)
     @scope = scope
     @retention_key = retention_key
     @cutoff = cutoff
     @batch_size = batch_size
     @max_batches = max_batches
+    @destroy = destroy
   end
 
   def call
@@ -47,7 +49,7 @@ class RetentionPruner
 
         batch_scope = model.where(primary_key => ids)
         archive(batch_scope) if @retention_key
-        batch_scope.delete_all
+        @destroy ? batch_scope.map(&:destroy!).length : batch_scope.delete_all
       end
     end
   end

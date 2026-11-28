@@ -30,9 +30,12 @@ module RuntimeImages
     def self.current
       setting = AppSetting.current
       value = setting.has_attribute?(:runtime_environment_policy) ? setting.runtime_environment_policy : nil
-      overrides = value.to_h.deep_stringify_keys
-      normalize_stale_abi_override!(overrides)
+      overrides = normalized_saved_overrides(value)
       new(defaults.deep_merge(overrides), overrides: overrides)
+    end
+
+    def self.normalized_saved_overrides(value)
+      value.to_h.deep_stringify_keys.tap { |overrides| normalize_stale_abi_override!(overrides) }
     end
 
     def self.normalize_stale_abi_override!(overrides)

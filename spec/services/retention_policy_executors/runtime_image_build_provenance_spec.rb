@@ -57,6 +57,19 @@ RSpec.describe RetentionPolicyExecutors::RuntimeImageBuildProvenance do
       number: 1, image_digest: digest, policy_digest: digest, state: "rejected",
       started_at: 200.days.ago, finished_at: 200.days.ago
     )
+    check = old.checks.create!(position: 0, verifier_key: "retention", state: "failed")
+    scan = RuntimeImageScanEvidence.create!(
+      attempt: old, image_digest: digest, scanner_name: "scanner", scanner_version: "1",
+      database_version: "1", sbom_format: "cyclonedx", sbom_digest: digest,
+      report_digest: digest, scanned_at: 200.days.ago
+    )
+    policy = RuntimeImagePolicyEvidence.create!(
+      attempt: old, image_digest: digest, report_digest: digest, scanned_at: 200.days.ago
+    )
+    attestation = RuntimeImageVerificationAttestation.create!(
+      runtime_image: image, attempt: old, image_digest: digest, policy_digest: digest,
+      evidence_digest: digest, outcome: "rejected", issued_at: 200.days.ago, expires_at: 190.days.ago
+    )
     recent = image.runtime_image_verification_attempts.create!(
       number: 2, image_digest: digest, policy_digest: digest, state: "rejected",
       started_at: 10.days.ago, finished_at: 10.days.ago
@@ -70,6 +83,10 @@ RSpec.describe RetentionPolicyExecutors::RuntimeImageBuildProvenance do
 
     expect(result.deleted_count).to eq(1)
     expect(RuntimeImageVerificationAttempt.exists?(old.id)).to be(false)
+    expect(RuntimeImageVerificationCheck.exists?(check.id)).to be(false)
+    expect(RuntimeImageScanEvidence.exists?(scan.id)).to be(false)
+    expect(RuntimeImagePolicyEvidence.exists?(policy.id)).to be(false)
+    expect(RuntimeImageVerificationAttestation.exists?(attestation.id)).to be(false)
     expect(RuntimeImageVerificationAttempt.exists?(recent.id)).to be(true)
     expect(RuntimeImageVerificationAttempt.exists?(latest.id)).to be(true)
   end

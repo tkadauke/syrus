@@ -17,7 +17,8 @@ module RetentionPolicyExecutors
         scope: RuntimeImageVerificationAttempt.prunable.where(finished_at: ..cutoff),
         cutoff: cutoff,
         batch_size: batch_size,
-        max_batches: max_batches
+        max_batches: max_batches,
+        destroy: true
       )
     end
 

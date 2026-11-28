@@ -49,6 +49,25 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(setting.errors[:singleton_key]).to be_present
   end
 
+  it "repairs a saved ABI window made obsolete by an upgrade during an unrelated save" do
+    setting = AppSetting.current
+    setting.update!(runtime_environment_policy: { "base" => { "supported_abi_min" => 1, "supported_abi_max" => 1 } })
+    allow(RuntimeImages::RuntimeAbi).to receive(:compatibility).and_return({ "min" => 2, "max" => 3 })
+
+    setting.update!(polling_paused: !setting.polling_paused)
+
+    expect(setting.reload.runtime_environment_policy.fetch("base")).not_to include("supported_abi_min", "supported_abi_max")
+    expect(RuntimeImages::EnvironmentPolicy.current.fetch("base", "supported_abi_min")).to eq(2)
+  end
+
+  it "rejects a newly submitted ABI window outside the shipped contract" do
+    setting = AppSetting.current
+
+    expect {
+      setting.update!(runtime_environment_policy: { "base" => { "supported_abi_min" => 0, "supported_abi_max" => 2 } })
+    }.to raise_error(ActiveRecord::RecordInvalid, /ABI window/)
+  end
+
   # Regression: a process that loaded the columns before the drop migration
   # kept selecting host_admission_policy, failing every job in production.
   it "keeps recently dropped columns ignored so pre-migration processes never select them" do
