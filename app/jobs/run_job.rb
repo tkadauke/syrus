@@ -834,6 +834,7 @@ class RunJob < ApplicationJob
       @run&.reload
       @step&.reload
       @workflow&.reload
+      @job&.reload
       retry
     end
   end
@@ -1126,7 +1127,7 @@ class RunJob < ApplicationJob
       with_lifecycle_lock_retry("fail_run") { fail_run_tolerating_duplicate_diagnostic! if @run.may_fail? }
     end
 
-    record_landing_failure!(exception)
+    with_lifecycle_lock_retry("record_landing_failure") { record_landing_failure!(exception) }
     if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
       with_lifecycle_lock_retry("record_failure") do
         @workflow.record_run_failure!
