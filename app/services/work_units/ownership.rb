@@ -11,9 +11,10 @@ module WorkUnits
     class JobSnapshot
       attr_reader :job_ids
 
-      def initialize(job_ids:, members:)
+      def initialize(job_ids:, members:, active_landing_lane_work_unit_ids:)
         @job_ids = job_ids
         @members = members
+        @active_landing_lane_work_unit_ids = active_landing_lane_work_unit_ids
       end
 
       def runnable_job_ids(kinds: nil)
@@ -48,9 +49,15 @@ module WorkUnits
         end
       end
 
+      def active_landing_lane_job_ids
+        members.filter_map do |member|
+          member.job_id if active_landing_lane_work_unit_ids.include?(member.work_unit_id)
+        end.to_set
+      end
+
       private
 
-      attr_reader :members
+      attr_reader :members, :active_landing_lane_work_unit_ids
 
       def job_ids_for(states:, kinds:)
         allowed_states = Array(states).map(&:to_s).to_set
@@ -95,13 +102,26 @@ module WorkUnits
 
     def self.snapshot_for_job_ids(job_ids)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      return JobSnapshot.new(job_ids: [], members: []) if ids.empty?
+      return JobSnapshot.new(job_ids: [], members: [], active_landing_lane_work_unit_ids: Set.new) if ids.empty?
 
       members = active_unit_members_for_job_ids(ids)
         .order(active_priority_order)
         .to_a
 
-      JobSnapshot.new(job_ids: ids, members: members)
+      active_landing_lane_work_unit_ids = WorkUnitLock.active
+        .joins(:work_unit)
+        .where(work_unit_id: members.map(&:work_unit_id))
+        .where(work_units: { kind: WorkDefinitions.landing_lock_kinds })
+        .where("lock_key LIKE ?", "landing:repository:%")
+        .distinct
+        .pluck(:work_unit_id)
+        .to_set
+
+      JobSnapshot.new(
+        job_ids: ids,
+        members: members,
+        active_landing_lane_work_unit_ids: active_landing_lane_work_unit_ids
+      )
     end
 
     def self.active_for_job?(job)
