@@ -212,6 +212,45 @@ RSpec.describe RuntimeImages::WorkerCache do
   end
 
   describe "eviction" do
+    it "enforces the administrator byte ceiling after a pull" do
+      bounded = described_class.new(engine: engine, service: service, hostname: "w1", max_bytes: 150)
+      first = publish("a")
+      second = publish("b")
+
+      bounded.acquire(first) { nil }
+      bounded.acquire(second) { nil }
+
+      expect(RuntimeImageCacheEntry.pluck(:digest)).to eq([ second.digest ])
+      expect(engine.removed).to eq([ first.locator ])
+    end
+
+    it "purges entries that exceeded the unused retention window" do
+      now = Time.current
+      retained = described_class.new(engine: engine, service: service, hostname: "w1", unused_retention_hours: 2, clock: -> { now })
+      stale = publish("stale")
+      current = publish("current")
+      retained.acquire(stale) { nil }
+      now += 3.hours
+
+      retained.acquire(current) { nil }
+
+      expect(RuntimeImageCacheEntry.pluck(:digest)).to eq([ current.digest ])
+      expect(engine.removed).to eq([ stale.locator ])
+    end
+
+    it "paces completed pulls to the configured bandwidth ceiling" do
+      sleeps = []
+      limited = described_class.new(
+        engine: engine, service: service, hostname: "w1",
+        bandwidth_bytes_per_second: 50, sleeper: ->(seconds) { sleeps << seconds }
+      )
+
+      limited.acquire(publish("paced")) { nil }
+
+      expect(sleeps.one?).to be(true)
+      expect(sleeps.first).to be_between(1.9, 2.0)
+    end
+
     it "evicts least recently used first and never a leased entry" do
       images = %w[a b c].map { |p| publish(p) }
       images.each { |i| cache.acquire(i) { nil } }

@@ -6,6 +6,7 @@ module RetentionPolicyExecutors
 
       scope = RuntimeImageBuildRequest.terminal.where(finished_at: ..(Time.current - window))
         .joins(:source_archive_attachment)
+        .preload(source_archive_attachment: :blob)
       purged = 0
       max_batches.times do
         rows = scope.limit(batch_size).to_a

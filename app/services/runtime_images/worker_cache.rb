@@ -26,6 +26,7 @@ module RuntimeImages
     attr_reader :hostname
 
     def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: nil,
+                   max_bytes: nil, bandwidth_bytes_per_second: nil, unused_retention_hours: nil,
                    pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
                    lease_seconds: DEFAULT_LEASE_SECONDS, claim_ttl: DEFAULT_CLAIM_TTL, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
       @engine = engine
@@ -43,6 +44,10 @@ module RuntimeImages
       @clock = clock
       @sleeper = sleeper
       max_concurrent_pulls ||= EnvironmentPolicy.value("worker_cache", "max_concurrent_pulls")
+      @max_bytes = Integer(max_bytes.nil? ? EnvironmentPolicy.value("worker_cache", "max_bytes") : max_bytes)
+      @bandwidth_bytes_per_second = Integer(bandwidth_bytes_per_second.nil? ? EnvironmentPolicy.value("worker_cache", "bandwidth_bytes_per_second") : bandwidth_bytes_per_second)
+      retention_hours = unused_retention_hours.nil? ? EnvironmentPolicy.value("worker_cache", "unused_retention_hours") : unused_retention_hours
+      @unused_retention = Float(retention_hours).hours
       @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
       @inflight = {}
       @inflight_mutex = Mutex.new
@@ -59,6 +64,7 @@ module RuntimeImages
     # the turn will run; +confinement_policy+ is what the worker enforces.
     def acquire(image, prefetch: false, provider: nil, confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION,
                 validate_runtime_abi: nil)
+      enforce_retention_policy!
       validate_runtime_abi = image.source_kind == CoworkerBase::SOURCE_KIND if validate_runtime_abi.nil?
       arguments = { prefetch: prefetch, admission: ->(candidate) { candidate.pullable? },
                     provider_pull: ->(candidate) { @service.pull(candidate) }, provider: provider,
@@ -73,6 +79,7 @@ module RuntimeImages
     # leasing, but admits only stored, non-revoked images and deliberately
     # skips the launch-only runtime ABI gate.
     def acquire_for_verification(image)
+      enforce_retention_policy!
       arguments = { prefetch: false,
                     admission: ->(candidate) { candidate.available? && candidate.revoked_at.nil? && candidate.verification_state == "unverified" },
                     provider_pull: ->(candidate) { @service.pull_for_verification(candidate) }, validate_abi: false }
@@ -121,14 +128,16 @@ module RuntimeImages
       nil
     end
 
-    # Warms the cache. Never raises, never evicts, and stands down when disk
-    # pressure is already high so speculation cannot starve real work.
+    # Warms the cache. Never raises, applies policy eviction, and stands down
+    # when disk pressure is already high so speculation cannot starve real work.
     def prefetch(images)
+      enforce_retention_policy!
       Array(images).map do |image|
         next PrefetchResult.new(image: image, outcome: "skipped_pressure", error: nil) if pressure[:level] != "ok"
         next PrefetchResult.new(image: image, outcome: "skipped_not_pullable", error: nil) unless image.reload.pullable?
         begin
-          ensure_local(image, prefetch: true)
+          entry, = ensure_local(image, prefetch: true)
+          enforce_byte_ceiling!(protected_entry: entry)
           PrefetchResult.new(image: image, outcome: "ready", error: nil)
         rescue Error => e
           PrefetchResult.new(image: image, outcome: "failed", error: e)
@@ -184,6 +193,18 @@ module RuntimeImages
     def purge_revoked
       entries = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call).includes(:runtime_image).to_a
       entries.reject { |entry| entry.runtime_image.pullable? }.filter_map { |entry| entry.digest if remove_entry(entry) }
+    end
+
+    # Applies administrator cache limits at normal cache activity boundaries.
+    # Leases remain authoritative, so a busy cache may temporarily exceed its
+    # byte ceiling until active users release their images.
+    def enforce_retention_policy!
+      cutoff = @clock.call - @unused_retention
+      stale = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call)
+        .where("COALESCE(last_used_at, pulled_at, created_at) < ?", cutoff)
+        .includes(:runtime_image).lru.to_a
+      stale.each { |entry| remove_entry(entry) }
+      enforce_byte_ceiling!
     end
 
     private
@@ -274,6 +295,7 @@ module RuntimeImages
         # Provider.pull verifies the manifest hashes to the digest and the
         # locator belongs to the namespace before any bytes move.
         provider_pull.call(image)
+        pull_started = monotonic
         @engine.pull(reference_for(image), timeout: @pull_timeout, auth: auth)
         unless @engine.digests(reference_for(image)).include?(image.digest)
           @engine.remove(reference_for(image)) rescue nil
@@ -281,6 +303,7 @@ module RuntimeImages
           raise CorruptImage, "pulled content for #{image.digest} does not match the requested digest"
         end
         entry = upsert_entry(image, prefetch)
+        pace_pull(entry.size_bytes, monotonic - pull_started)
         record(image, "pulled", started, cache_hit: false, prefetch: prefetch)
         entry
       end
@@ -389,7 +412,10 @@ module RuntimeImages
     def lease_local(image, prefetch, admission, provider_pull)
       LEASE_ATTEMPTS.times do
         entry, hit = ensure_local(image, prefetch: prefetch, admission: admission, provider_pull: provider_pull)
-        return [entry, hit] if lease(entry)
+        if lease(entry)
+          enforce_byte_ceiling!(protected_entry: entry)
+          return [entry, hit]
+        end
       end
       raise Busy, "runtime image #{image.digest} kept being evicted on #{hostname}"
     end
@@ -399,6 +425,28 @@ module RuntimeImages
       claimed = RuntimeImageCacheEntry.where(id: entry.id, state: "present").unleased(@clock.call).update_all(state: "evicting", claim_token: token, updated_at: @clock.call)
       return false unless claimed == 1
       finish_claim(entry, token)
+    end
+
+    def enforce_byte_ceiling!(protected_entry: nil)
+      return [] unless @max_bytes.positive?
+      return [] if cache_bytes <= @max_bytes
+
+      candidates = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call).includes(:runtime_image).lru.to_a
+      candidates.reject! { |entry| entry.id == protected_entry&.id }
+      candidates.sort_by! { |entry| entry.runtime_image.pullable? ? 1 : 0 }
+      candidates.each_with_object([]) do |entry, evicted|
+        break if cache_bytes <= @max_bytes
+        evicted << entry.digest if remove_entry(entry)
+      end
+    end
+
+    # The CLI engine does not expose a streaming throttle. Account for the
+    # completed transfer before releasing its concurrency slot so each pull
+    # observes the configured bytes-per-second ceiling.
+    def pace_pull(size_bytes, elapsed)
+      return unless @bandwidth_bytes_per_second.positive? && size_bytes.to_i.positive?
+      remaining = (size_bytes.to_f / @bandwidth_bytes_per_second) - elapsed
+      @sleeper.call(remaining) if remaining.positive?
     end
 
     def record_failure(image, error, started, prefetch)

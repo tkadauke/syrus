@@ -137,6 +137,7 @@ describe("RetentionSettings", () => {
     await screen.findByText("Environment policy")
 
     fireEvent.change(screen.getByLabelText("Concurrent builds"), { target: { value: "4" } })
+    fireEvent.change(screen.getByLabelText("Process limit per build"), { target: { value: "768" } })
     fireEvent.change(screen.getByLabelText("Prohibited packages (comma separated)"), { target: { value: "telnet, rsh" } })
     fireEvent.click(screen.getByRole("button", { name: "Save environment policy" }))
 
@@ -145,6 +146,7 @@ describe("RetentionSettings", () => {
       expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"max_concurrent_builds":4') })
     ))
     expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"prohibited_packages":["telnet","rsh"]')
+    expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"pids":768')
   })
 
   it("sets a table to infinite retention and saves 0", async () => {

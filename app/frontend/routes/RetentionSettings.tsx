@@ -129,6 +129,7 @@ function RuntimeEnvironmentPolicyCard({ payload, onNotice }: { payload: Retentio
         {numberField("builder", "max_attempts", 1)}
         {numberField("builder", "cpus", 0.1)}
         {numberField("builder", "memory_bytes", 1)}
+        {numberField("builder", "pids", 1)}
         {numberField("builder", "storage_bytes", 1)}
         {numberField("builder", "timeout_seconds", 1)}
         {numberField("builder", "log_bytes", 1)}
