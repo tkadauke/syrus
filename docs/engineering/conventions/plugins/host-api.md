@@ -2216,6 +2216,17 @@ Since: `0.1.16`
 
 Model concern giving a plugin-owned record a configurable retention window; retention execution is not promised. Only the listed members are supported.
 
+### `Syrus::Host::ImmutableReviewHeadBarrier`
+
+Since: `0.1.16`
+
+Checks whether required review evidence approves the current implementation HEAD. Only the listed members are supported.
+
+Supported members:
+
+- `required_reviews_satisfied?`
+- `reviewed_head_sha`
+
 ### `Syrus::Host::InboundMessageRouter`
 
 Since: `0.1.16`

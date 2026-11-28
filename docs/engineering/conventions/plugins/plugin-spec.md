@@ -353,6 +353,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::HandleRegistry` (since 0.1.16) — Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised. Only the listed members are supported. Supported members: `claim!`, `normalize`, `release!`, `rename!`.
 - `Syrus::Host::Handles` (since 0.1.16) — Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised. Supported members: `FORMAT`, `claim!`, `normalize`, `release!`, `rename!`, `taken?`.
 - `Syrus::Host::HasConfigurableRetention` (since 0.1.16) — Model concern giving a plugin-owned record a configurable retention window; retention execution is not promised. Only the listed members are supported.
+- `Syrus::Host::ImmutableReviewHeadBarrier` (since 0.1.16) — Checks whether required review evidence approves the current implementation HEAD. Only the listed members are supported. Supported members: `required_reviews_satisfied?`, `reviewed_head_sha`.
 - `Syrus::Host::InboundMessageRouter` (since 0.1.16) — Routes an inbound platform message to the chat or job it belongs to; routing rules and the returned result members are not promised beyond new. Only the listed members are supported. Supported members: `new`.
 - `Syrus::Host::InputSource` (since 0.1.16) — Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
 - `Syrus::Host::InputSourceBase` (since 0.1.16) — Base class for plugin-contributed input sources (issue intake); only subclassing is promised. Supported members: `new`.
@@ -664,4 +665,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 150184 bytes (UTF-8, including this line).
+Size: 150439 bytes (UTF-8, including this line).
