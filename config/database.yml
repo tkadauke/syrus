@@ -113,6 +113,13 @@ production:
     <% require "etc" %>
     <% run_threads_bound = [ Etc.nprocessors, ENV["SYRUS_WORKER_CPU_LIMIT"].to_f.ceil, ENV["JOB_CONCURRENCY"].to_i ].max %>
     pool: <%= ENV.fetch("DB_POOL") { [ 9, run_threads_bound + 3 ].max } %>
+    # Pools grow lazily but keep what they open: at Rails' default 300s idle
+    # timeout, every burst left its connections parked, and the fleet's idle
+    # connections across primary/queue/cache/cable reached MySQL's
+    # max_connections ("Too many connections" failed graders and enqueues).
+    # Return idle connections after a minute instead.
+    idle_timeout: <%= ENV.fetch("DB_IDLE_TIMEOUT", 60).to_i %>
+    reaping_frequency: <%= ENV.fetch("DB_REAPING_FREQUENCY", 20).to_i %>
     host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
     database: syrus_production
     username: syrus

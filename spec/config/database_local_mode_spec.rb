@@ -81,6 +81,16 @@ RSpec.describe "config/database.yml local SQLite mode" do
     expect(render_database_config("DB_POOL" => "6").dig("production", "primary", "pool")).to eq(6)
   end
 
+  # Regression: idle pooled connections lingered for Rails' default 300s, and
+  # the fleet's parked connections hit MySQL's max_connections.
+  it "returns idle production connections within a minute on every database" do
+    config = render_database_config
+    %w[primary queue cache cable].each do |name|
+      expect(config.dig("production", name, "idle_timeout")).to eq(60)
+      expect(config.dig("production", name, "reaping_frequency")).to be <= 30
+    end
+  end
+
   it "leaves development and test on SQLite regardless" do
     config = render_database_config("SYRUS_SQLITE" => "1", "SYRUS_DATA_ROOT" => "/data")
 
