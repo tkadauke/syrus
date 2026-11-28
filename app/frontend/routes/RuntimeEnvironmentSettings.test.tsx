@@ -10,8 +10,8 @@ const payload = {
   policy: {
     builder: { max_concurrent_builds: 2, max_concurrent_per_namespace: 1, cpus: 2, memory_bytes: 4096, storage_bytes: 8192, timeout_seconds: 1500, log_bytes: 1024 },
     verification: { blocked_severities: ["critical", "high"], prohibited_packages: ["unsafe-package"] },
-    base: { promotion_requires_compatible_abi: true, rollback_retention_days: 90 }, revocation: { terminate_running_on_severe: true },
-    cache: { max_concurrent_pulls: 2, pull_timeout_seconds: 600, high_pressure_percent: 80, critical_pressure_percent: 92, prefetch_active: false },
+    base: { rollback_retention_days: 90 }, revocation: { terminate_running_on_severe: true },
+    cache: { max_concurrent_pulls: 2, pull_timeout_seconds: 600, high_pressure_percent: 80, critical_pressure_percent: 92 },
     runtime: { mount_profile: "standard", scratch_size: "1g" }
   },
   network_rules: [{ id: 1, source_class: "internal_mirror", host: "mirror.example.test", port: null, path_prefix: null, ecosystem: null, required: true, enabled: true, note: null }],

@@ -2,7 +2,7 @@
 
 The Runtime Image Service publishes and distributes runtime images (Syrus bases, repository devcontainers, coworker environments) through one operator-provided OCI registry. The registry is an external dependency, like the database. The `oci_registry` provider is enabled when `SYRUS_RUNTIME_IMAGE_REGISTRY_URL` is set.
 
-Administrators can manage the registry identities, isolated-builder quotas, build-network allowlist and required internal mirrors, verification and prohibited-package policy, base rollback/ABI policy, severe-revocation behavior, worker cache thresholds, and the optional bounded executable `/scratch` profile at **Admin → Environment Policy**. Saved values override the deployment defaults below; registry passwords are encrypted and never returned to the browser.
+Administrators can manage the registry identities, isolated-builder quotas, build-network allowlist and required internal mirrors, verification and prohibited-package policy, base rollback windows, severe-revocation behavior, worker cache thresholds, and the optional bounded executable `/scratch` profile at **Admin → Environment Policy**. Saved values override the deployment defaults below; registry passwords are encrypted and never returned to the browser.
 
 ## Settings
 

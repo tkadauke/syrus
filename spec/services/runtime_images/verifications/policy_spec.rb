@@ -21,6 +21,21 @@ RSpec.describe RuntimeImages::Verifications::Policy do
     expect(policy["prohibited_packages"]).to eq([ "telnet" ])
   end
 
+  it "applies durable administrator policy over the deployment fallback" do
+    ENV[described_class::ENV_KEY] = JSON.generate(
+      "vulnerabilities" => { "blocked_severities" => [ "critical" ] },
+      "prohibited_packages" => [ "telnet" ]
+    )
+    AppSetting.current.update!(runtime_environment_policy: {
+      "verification" => { "blocked_severities" => [ "critical", "high" ], "prohibited_packages" => [ "openssl-legacy" ] }
+    })
+
+    policy = described_class.current
+
+    expect(policy.dig("vulnerabilities", "blocked_severities")).to eq(%w[critical high])
+    expect(policy["prohibited_packages"]).to eq([ "openssl-legacy" ])
+  end
+
   it "fails closed on invalid configuration" do
     ENV[described_class::ENV_KEY] = "not-json"
 

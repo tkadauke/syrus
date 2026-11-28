@@ -8,11 +8,10 @@ module RuntimeImages
                      "cpus" => 2.0, "memory_bytes" => 4.gigabytes, "storage_bytes" => 10.gigabytes,
                      "timeout_seconds" => 1500, "log_bytes" => 5.megabytes },
       "verification" => { "blocked_severities" => %w[critical high], "prohibited_packages" => [] },
-      "base" => { "promotion_requires_compatible_abi" => true, "rollback_retention_days" => 90 },
+      "base" => { "rollback_retention_days" => 90 },
       "revocation" => { "terminate_running_on_severe" => true },
       "cache" => { "max_concurrent_pulls" => 2, "pull_timeout_seconds" => 600,
-                   "high_pressure_percent" => 80, "critical_pressure_percent" => 92,
-                   "prefetch_active" => false },
+                   "high_pressure_percent" => 80, "critical_pressure_percent" => 92 },
       "runtime" => { "mount_profile" => "standard", "scratch_size" => "1g" }
     }.freeze
 

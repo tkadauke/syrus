@@ -52,6 +52,8 @@ module Syrus
 
       def self.worker_health = ::RuntimeImages::WorkerHealth.snapshot
 
+      def self.environment_policy_override(*path) = ::RuntimeImages::EnvironmentPolicy.current.override(*path)
+
       def self.delete(image, **) = ::RuntimeImages::Service.new.delete(image, **)
 
       def self.audit(event_type, **) = ::RuntimeImages::Audit.record(event_type, **)

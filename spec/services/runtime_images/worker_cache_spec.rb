@@ -45,6 +45,17 @@ RSpec.describe RuntimeImages::WorkerCache do
 
   def outcomes = RuntimeImagePullEvent.order(:id).pluck(:outcome)
 
+  it "uses administrator pull concurrency and timeout defaults" do
+    AppSetting.current.update!(runtime_environment_policy: {
+      "cache" => { "max_concurrent_pulls" => 7, "pull_timeout_seconds" => 321 }
+    })
+    expect(Concurrent::Semaphore).to receive(:new).with(7).and_call_original
+
+    configured = described_class.new(engine: engine, service: service, hostname: "w1")
+
+    expect(configured.instance_variable_get(:@pull_timeout)).to eq(321)
+  end
+
   it "pulls by digest on a miss, verifies, and hits afterwards" do
     image = publish("a")
     first = cache.acquire(image)

@@ -47,12 +47,10 @@ function SettingsForm({ initial, onNotice }: { initial: Awaited<ReturnType<typeo
     </Grid></Card>
     <Card title={t("runtime_environment_settings.lifecycle_heading")} description={t("runtime_environment_settings.lifecycle_description")}><Grid>
       <NumberField label={t("runtime_environment_settings.rollback_retention_days")} value={policy.base.rollback_retention_days} onChange={(v) => number("base", "rollback_retention_days", v)} />
-      <Check label={t("runtime_environment_settings.abi_gate")} checked={policy.base.promotion_requires_compatible_abi} onChange={(checked) => setPolicy({ ...policy, base: { ...policy.base, promotion_requires_compatible_abi: checked } })} />
       <Check label={t("runtime_environment_settings.terminate_severe")} checked={policy.revocation.terminate_running_on_severe} onChange={(checked) => setPolicy({ ...policy, revocation: { terminate_running_on_severe: checked } })} />
     </Grid></Card>
     <Card title={t("runtime_environment_settings.cache_heading")} description={t("runtime_environment_settings.cache_description")}><Grid>
       {Object.entries(policy.cache).filter(([, value]) => typeof value === "number").map(([key, value]) => <NumberField key={key} label={t(`runtime_environment_settings.${key}`)} value={value as number} onChange={(v) => number("cache", key, v)} />)}
-      <Check label={t("runtime_environment_settings.prefetch_active")} checked={policy.cache.prefetch_active} onChange={(checked) => setPolicy({ ...policy, cache: { ...policy.cache, prefetch_active: checked } })} />
     </Grid></Card>
     <Card title={t("runtime_environment_settings.scratch_heading")} description={t("runtime_environment_settings.scratch_description")}><Grid>
       <label className="text-sm text-text-primary">{t("runtime_environment_settings.mount_profile")}<Select className="mt-1" value={policy.runtime.mount_profile} onChange={(e) => setPolicy({ ...policy, runtime: { ...policy.runtime, mount_profile: e.target.value as "standard" | "executable_scratch" } })}><option value="standard">{t("runtime_environment_settings.scratch_disabled")}</option><option value="executable_scratch">{t("runtime_environment_settings.scratch_enabled")}</option></Select></label>

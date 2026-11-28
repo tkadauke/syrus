@@ -22,7 +22,7 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
   validate :digest_matches_image
 
   scope :prunable, -> {
-    latest_ids = select("MAX(id)").group(:runtime_image_id)
+    latest_ids = where(state: TERMINAL_STATES).select("MAX(id)").group(:runtime_image_id)
     where(state: TERMINAL_STATES).where.not(id: latest_ids)
   }
 

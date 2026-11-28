@@ -103,9 +103,7 @@ module ContainerExecution
     end
 
     def runtime_policy(key, fallback)
-      return fallback unless defined?(RuntimeImages::EnvironmentPolicy)
-
-      RuntimeImages::EnvironmentPolicy.current.override("runtime", key) || fallback
+      Syrus::Host::RuntimeImages.environment_policy_override("runtime", key) || fallback
     rescue ActiveRecord::StatementInvalid
       fallback
     end

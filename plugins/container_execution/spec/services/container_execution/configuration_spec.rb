@@ -22,4 +22,16 @@ RSpec.describe ContainerExecution::Configuration do
       expect(described_class.docker_image_namespace).to eq("shared-builder")
     end
   end
+
+  describe "runtime mount policy" do
+    it "uses administrator overrides through the host runtime-image API" do
+      allow(Syrus::Host::RuntimeImages).to receive(:environment_policy_override)
+        .with("runtime", "mount_profile").and_return("executable_scratch")
+      allow(Syrus::Host::RuntimeImages).to receive(:environment_policy_override)
+        .with("runtime", "scratch_size").and_return("2g")
+
+      expect(described_class.chat_agent_mount_profile).to eq("executable_scratch")
+      expect(described_class.chat_agent_scratch_size).to eq("2g")
+    end
+  end
 end

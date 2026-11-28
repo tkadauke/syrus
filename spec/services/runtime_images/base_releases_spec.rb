@@ -42,6 +42,7 @@ RSpec.describe RuntimeImages::BaseReleases do
     end
 
     it "retires the previous base, retaining it for the rollback window" do
+      AppSetting.current.update!(runtime_environment_policy: { "base" => { "rollback_retention_days" => 14 } })
       first = active_base
       second = candidate
       base_releases.promote!(second, actor: "test")
@@ -49,7 +50,7 @@ RSpec.describe RuntimeImages::BaseReleases do
       expect(first.reload).to be_retired
       expect(second.reload).to be_active
       expect(first.runtime_image.reload).to have_attributes(retention_state: "retained")
-      expect(first.runtime_image.retain_until).to be_within(1.minute).of(described_class::ROLLBACK_RETENTION.from_now)
+      expect(first.runtime_image.retain_until).to be_within(1.minute).of(14.days.from_now)
       expect(CoworkerBaseRelease.active.count).to eq(1)
     end
 

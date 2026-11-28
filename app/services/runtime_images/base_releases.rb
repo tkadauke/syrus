@@ -10,7 +10,6 @@ module RuntimeImages
   # transition is audited. Nothing here falls back to another image: when no
   # release is launchable, +launch_state+ says why and callers block the turn.
   class BaseReleases
-    ROLLBACK_RETENTION = 90.days
     # How long a retired base stays pullable so rollback remains possible.
     def rollback_retention = EnvironmentPolicy.current.fetch("base", "rollback_retention_days").days
 
