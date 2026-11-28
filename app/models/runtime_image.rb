@@ -19,6 +19,8 @@ class RuntimeImage < ApplicationRecord
 
   belongs_to :runtime_image_namespace
   has_many :runtime_image_verification_attempts, dependent: :destroy
+  has_many :runtime_image_verification_attestations, dependent: :destroy
+  has_many :runtime_image_revocation_candidates, dependent: :destroy
   attr_readonly :runtime_image_namespace_id, :digest, :platform, :source_kind, :source_ref, :source_digest
 
   validates :digest, presence: true, format: { with: DIGEST_FORMAT }
