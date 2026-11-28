@@ -62,6 +62,15 @@ events.
 The plugin contributes internal admin pages through the plugin admin-page
 registry:
 
+- **Admin → SPA Loader** (`/admin/spa_loader`) — a live, tab-local view of the
+  lazy-chunk registry and warm-up queue, startup milestones and assets, service
+  worker control/revision state, progress and recovery events. State and group
+  filtering uses the shared FilterBar. SmartFolder persistence is deliberately
+  omitted because the inspected state disappears with the browser tab. The
+  testing actions warm all chunks or clear incomplete warm-up state only in the
+  current tab. The page reads loader state exclusively through the frontend
+  plugin host SDK; the core loader never references this plugin.
+
 - **Admin → Performance** (`/admin/performance`) — renders
   `SyrusDev::PerformancePayload`: per-revision (or all-retained-revisions,
   via `revision_scope=all`) grouped summaries of slow requests (by

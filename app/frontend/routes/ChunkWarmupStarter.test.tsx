@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { StartupRenderMarker } from "../lib/StartupRenderMarker"
 
 const startChunkWarmup = vi.fn()
+const disableChunkWarmup = vi.fn()
 const readInitialBootstrap = vi.fn()
 
 vi.mock("../lib/chunkWarmup", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/chunkWarmup")>()),
-  startChunkWarmup: (...args: unknown[]) => startChunkWarmup(...args)
+  startChunkWarmup: (...args: unknown[]) => startChunkWarmup(...args),
+  disableChunkWarmup: (...args: unknown[]) => disableChunkWarmup(...args)
 }))
 vi.mock("../api/bootstrap", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/bootstrap")>()),
@@ -54,6 +56,7 @@ describe("ChunkWarmupStarter", () => {
     render(<ChunkWarmupStarter />)
 
     expect(startChunkWarmup).not.toHaveBeenCalled()
+    expect(disableChunkWarmup).toHaveBeenCalledWith("signed_out")
   })
 
   it("skips warm-up against the Vite dev server", () => {
@@ -63,5 +66,6 @@ describe("ChunkWarmupStarter", () => {
     render(<ChunkWarmupStarter />)
 
     expect(startChunkWarmup).not.toHaveBeenCalled()
+    expect(disableChunkWarmup).toHaveBeenCalledWith("dev_server")
   })
 })

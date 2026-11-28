@@ -337,6 +337,7 @@ RSpec.describe "SPA shell", type: :request do
     # Sized by the variant this browser will be served: gzip, as it took no br.
     expect(JSON.parse(meta["content"])).to eq(
       "total" => 435_000,
+      "budget" => { "kind" => "startup_gzip", "bytes" => 480_000 },
       "estimated" => false,
       "assets" => {
         "/assets/spa-entry-SpEc_En-1.digested.js" => { "size" => 1_500_000, "wire" => 380_000 },

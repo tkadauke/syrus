@@ -39,6 +39,7 @@ RSpec.describe Syrus::StartupAssets do
       # No published variants: everything travels as it is.
       expect(result.for_request("gzip, deflate, br")).to eq(
         "total" => 5350,
+        "budget" => { "kind" => "startup_gzip", "bytes" => 480_000 },
         "estimated" => false,
         "assets" => result.sizes.transform_values { |size| { "size" => size, "wire" => size } }
       )

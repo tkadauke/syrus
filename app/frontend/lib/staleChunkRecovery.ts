@@ -1,5 +1,6 @@
 import { chunkWarmup } from "./chunkWarmup"
 import { reloadPage } from "./pageReload"
+import { recordStartupEvent } from "./startupDiagnostics"
 
 // A deploy replaces every content-hashed chunk, so a tab opened before it
 // still points its lazy routes at chunk URLs the new image no longer has.
@@ -41,14 +42,24 @@ export function installStaleChunkRecovery(
   warmup: Pick<typeof chunkWarmup, "backgroundOnlyInFlight"> = chunkWarmup
 ) {
   const handler = (event: Event) => {
-    if (warmup.backgroundOnlyInFlight()) return
+    if (warmup.backgroundOnlyInFlight()) {
+      recordStartupEvent("stale_chunk_failure", { outcome: "warmup_stopped" })
+      return
+    }
     const revision = assetRevision()
-    if (readMarker() === revision) return
+    if (readMarker() === revision) {
+      recordStartupEvent("stale_chunk_failure", { outcome: "error_boundary", revision })
+      return
+    }
     // Without a writable marker a reload could loop, so leave the error to
     // the boundary.
-    if (!writeMarker(revision)) return
+    if (!writeMarker(revision)) {
+      recordStartupEvent("stale_chunk_failure", { outcome: "error_boundary", revision })
+      return
+    }
 
     event.preventDefault()
+    recordStartupEvent("stale_chunk_failure", { outcome: "reload", revision })
     reload("stale_chunk_recovery")
   }
 

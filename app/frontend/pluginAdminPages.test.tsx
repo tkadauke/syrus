@@ -22,12 +22,14 @@ describe("plugin admin page registry", () => {
         "syrus_dev/AdminOperationalLogs",
         "syrus_dev/AdminPerformance",
         "syrus_dev/AdminPermissionModel",
-        "syrus_dev/AdminDesignSystem"
+        "syrus_dev/AdminDesignSystem",
+        "syrus_dev/AdminSpaLoader"
       ])
     )
     expect(pluginAdminComponentFor("syrus_dev/AdminPerformance")).toBeTruthy()
     expect(pluginAdminComponentFor("syrus_dev/AdminPermissionModel")).toBeTruthy()
     expect(pluginAdminComponentFor("syrus_dev/AdminDesignSystem")).toBeTruthy()
+    expect(pluginAdminComponentFor("syrus_dev/AdminSpaLoader")).toBeTruthy()
     expect(pluginAdminComponentFor("missing/Nope")).toBeNull()
   })
 })

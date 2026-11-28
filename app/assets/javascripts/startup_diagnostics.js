@@ -31,6 +31,49 @@
   var currentRevision = meta("syrus-app-revision") || "unknown";
   var previousRevision = storedValue(REVISION_KEY);
   var revisionChanged = !!previousRevision && previousRevision !== currentRevision;
+  var snapshotListeners = null;
+  var startupEvents = null;
+  var serviceWorkerRegistration = null;
+
+  function notifySnapshotListeners() {
+    if (!snapshotListeners) return;
+    snapshotListeners.forEach(function (listener) { listener(); });
+  }
+
+  function subscribeSnapshot(listener) {
+    if (!snapshotListeners) {
+      snapshotListeners = [];
+      startupEvents = [];
+    }
+    snapshotListeners.push(listener);
+    if (snapshotListeners.length === 1 && navigator.serviceWorker && typeof navigator.serviceWorker.getRegistration === "function") {
+      navigator.serviceWorker.getRegistration().then(function (registration) {
+        if (!snapshotListeners) return;
+        serviceWorkerRegistration = registration ? {
+          installing: registration.installing ? registration.installing.state : null,
+          waiting: registration.waiting ? registration.waiting.state : null,
+          active: registration.active ? registration.active.state : null
+        } : null;
+        notifySnapshotListeners();
+      }).catch(function () {});
+    }
+    return function () {
+      if (!snapshotListeners) return;
+      snapshotListeners = snapshotListeners.filter(function (candidate) { return candidate !== listener; });
+      if (!snapshotListeners.length) {
+        snapshotListeners = null;
+        startupEvents = null;
+      }
+    };
+  }
+
+  function recordSnapshotEvent(kind, details) {
+    if (!snapshotListeners) return;
+    var event = { kind: kind, at_ms: Date.now() - startupAt };
+    Object.keys(details || {}).forEach(function (key) { event[key] = details[key]; });
+    startupEvents.push(event);
+    notifySnapshotListeners();
+  }
 
   function meta(name) {
     var el = document.querySelector('meta[name="' + name + '"]');
@@ -283,6 +326,8 @@
     if (window.__syrusReactFirstRender || autoRetrying) return;
     autoRetrying = true;
     storeRetryAttempt(storedRetryAttempt() + 1);
+    if (startupEvents) startupEvents.push({ kind: "auto_retry", at_ms: Date.now() - startupAt, attempt: storedRetryAttempt() });
+    notifySnapshotListeners();
     (window.__syrusStartupReload || function () { window.location.reload(); })();
   }
 
@@ -327,6 +372,8 @@
 
   function showStartupState(state) {
     pendingStartupState = state;
+    if (startupEvents) startupEvents.push({ kind: state.name || "unknown", at_ms: Date.now() - startupAt });
+    notifySnapshotListeners();
     if (!applyStartupState(state)) {
       document.addEventListener("DOMContentLoaded", function () {
         if (pendingStartupState) applyStartupState(pendingStartupState);
@@ -415,6 +462,7 @@
       hideStartupState();
     }
     reportMilestone(milestone);
+    notifySnapshotListeners();
   }
 
   function fail(phase, error, extra) {
@@ -440,7 +488,44 @@
     report("StartupFailure", message, details);
   }
 
-  window.SyrusStartupDiagnostics = { mark: mark, fail: fail, report: report, context: context };
+  function diagnosticsSnapshot() {
+    var assets = [];
+    if (startupAssets) {
+      Object.keys(startupAssets.sizes).forEach(function (path) {
+        var timing = finishedStartupEntries().filter(function (entry) { return sameOriginAssetPath(entry.name) === path; }).pop();
+        assets.push({
+          path: path,
+          bytes: workerBytes[path] || (timing ? startupAssets.sizes[path] : 0),
+          size: startupAssets.sizes[path],
+          wire_size: startupAssets.wire[path],
+          source: workerBytes[path] ? "service_worker" : timing ? ((timing.transferSize === 0 && timing.decodedBodySize > 0) ? "cache" : "network") : "pending",
+          timing: timing ? timingEntry(timing, false) : null
+        });
+      });
+    }
+    return {
+      milestones: milestones.slice(),
+      assets: assets,
+      progress_samples: byteSamples.slice(),
+      progress: progressSnapshot(),
+      budget: startupAssets && startupAssets.budget ? startupAssets.budget : null,
+      events: startupEvents ? startupEvents.slice() : [],
+      revision: { page: currentRevision, previous: previousRevision, changed: revisionChanged },
+      service_worker: {
+        present: serviceWorkerContext().service_worker_present,
+        controlled: serviceWorkerContext().service_worker_controlled,
+        registration: serviceWorkerRegistration,
+        worker_revision: (function () {
+          try { return navigator.serviceWorker.controller ? new URL(navigator.serviceWorker.controller.scriptURL).searchParams.get("v") : null; }
+          catch (e) { return null; }
+        })(),
+        counted_requests: Object.keys(workerBytes)
+      },
+      auto_retry_attempt: storedRetryAttempt()
+    };
+  }
+
+  window.SyrusStartupDiagnostics = { mark: mark, fail: fail, report: report, context: context, snapshot: diagnosticsSnapshot, subscribe: subscribeSnapshot, event: recordSnapshotEvent };
   mark("shell_loaded");
 
   document.addEventListener("visibilitychange", function () {
@@ -571,7 +656,7 @@
         wire[path] = wireSize;
         total += wireSize;
       });
-      return total > 0 ? { total: total, sizes: sizes, wire: wire, estimated: parsed.estimated === true } : null;
+      return total > 0 ? { total: total, sizes: sizes, wire: wire, estimated: parsed.estimated === true, budget: parsed.budget || null } : null;
     } catch (e) {
       return null;
     }
@@ -640,6 +725,7 @@
       recordByteSample(lastByteAt);
     }
     if (watchStartedAt !== null) renderProgress();
+    notifySnapshotListeners();
   }
 
   function listenForWorkerProgress() {

@@ -19,6 +19,7 @@ module Syrus
   # The page shows progress, speed and time left in wire bytes, so the total and
   # the speed are what actually crosses the network.
   class StartupAssets
+    STARTUP_GZIP_BUDGET_BYTES = 480_000
     # Which file each encoding is stored in, in the server's order of
     # preference: Brotli when the browser takes it and the build made one, else
     # gzip, else the plain file.
@@ -39,6 +40,7 @@ module Syrus
         end
         {
           "total" => assets.values.sum { |asset| asset.fetch("wire") },
+          "budget" => { "kind" => "startup_gzip", "bytes" => STARTUP_GZIP_BUDGET_BYTES },
           "estimated" => !known,
           "assets" => assets
         }

@@ -5,6 +5,16 @@ module SyrusDev
     def self.admin_pages
       pages = [
         {
+          id: "syrus_dev.spa_loader",
+          label: "SPA Loader",
+          label_key: "syrus_dev:nav_spa_loader",
+          path: "/admin/spa_loader",
+          paths: [ "/admin/spa_loader" ],
+          component: "syrus_dev/AdminSpaLoader",
+          group_id: "observability",
+          order: 42
+        },
+        {
           id: "syrus_dev.performance",
           label: "Performance",
           label_key: "syrus_dev:nav_performance",

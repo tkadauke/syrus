@@ -98,6 +98,18 @@ describe("ChunkWarmupQueue", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
+  it("does not collect timing diagnostics when nobody subscribes", async () => {
+    const env = fakeEnvironment()
+    const queue = new ChunkWarmupQueue(env.environment)
+    const now = vi.spyOn(performance, "now")
+    const load = queue.register("chat", async () => ({}), { priority: 0 })
+
+    await load()
+
+    expect(now).not.toHaveBeenCalled()
+    now.mockRestore()
+  })
+
   it("loads an on-demand chunk ahead of the queue and pauses warm-up until it settles", async () => {
     const env = fakeEnvironment()
     const queue = new ChunkWarmupQueue(env.environment)
@@ -252,5 +264,42 @@ describe("ChunkWarmupQueue", () => {
     expect(laterLoad).not.toHaveBeenCalled()
     await expect(loadStale()).resolves.toEqual({ fresh: true })
     expect(staleLoad).toHaveBeenCalledTimes(2)
+  })
+
+  it("publishes queue transitions and stops diagnostic work after unsubscribe", async () => {
+    const env = fakeEnvironment()
+    const queue = new ChunkWarmupQueue(env.environment)
+    const pending = deferred()
+    const load = queue.register("chat", () => pending.promise, { priority: 2, group: "routes" })
+    const listener = vi.fn()
+    const unsubscribe = queue.subscribe(listener)
+
+    queue.start()
+    expect(queue.snapshot().entries[0]).toMatchObject({ id: "chat", state: "queued", group: "routes", priority: 2 })
+    await env.flush()
+    expect(queue.snapshot()).toMatchObject({ loading: "chat", stoppedAfterFailure: false })
+
+    pending.resolve()
+    await load()
+    expect(queue.snapshot().entries[0]).toMatchObject({ state: "loaded", source: "warmup" })
+    expect(listener).toHaveBeenCalled()
+
+    unsubscribe()
+    listener.mockClear()
+    queue.clearWarmupState()
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it("reports connection, visibility, and on-demand pause reasons", async () => {
+    const env = fakeEnvironment({ hidden: true, connection: { saveData: true, effectiveType: "2g" } })
+    const queue = new ChunkWarmupQueue(env.environment)
+    const pending = deferred()
+    const demand = queue.register("chat", () => pending.promise, { priority: 0 })
+    queue.subscribe(() => {})
+    void demand()
+
+    expect(queue.snapshot().pauseReasons).toEqual(["data_saver", "slow_connection", "hidden_tab", "on_demand"])
+    pending.resolve()
+    await pending.promise
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { readInitialBootstrap } from "../api/bootstrap"
-import { startChunkWarmup } from "../lib/chunkWarmup"
+import { disableChunkWarmup, startChunkWarmup } from "../lib/chunkWarmup"
 import { ADMIN_CHUNK_GROUP } from "./routeChunks"
 
 /**
@@ -15,9 +15,15 @@ import { ADMIN_CHUNK_GROUP } from "./routeChunks"
  */
 export function ChunkWarmupStarter() {
   useEffect(() => {
-    if (import.meta.env.MODE === "development") return
+    if (import.meta.env.MODE === "development") {
+      disableChunkWarmup("dev_server")
+      return
+    }
     const user = readInitialBootstrap()?.current_user
-    if (!user) return
+    if (!user) {
+      disableChunkWarmup("signed_out")
+      return
+    }
     startChunkWarmup({ skipGroups: user.admin ? [] : [ADMIN_CHUNK_GROUP] })
   }, [])
 

@@ -9,6 +9,15 @@
   "nav_tool_cards": "Chartae Instrumentorum",
   "nav_artifact_renderers": "Redditores Reliquiarum",
   "nav_permission_model": "Forma Permissionum",
+  "nav_spa_loader": "Onerator SPA",
+  "spa_loader": {
+    "started": "Incepta", "progress_sample": "Exemplum progressionis", "speed": "Celeritas mensa",
+    "registration": "Status registrationis",
+    "budget": "Graphium initii / modus gzip",
+    "heading": "Onerator SPA", "description": "Diagnostica viva opum initialium, partium segnium, calefactionis, et restitutionis.", "warm_now": "Omnia nunc calefac", "clear": "Statum calefactionis dele", "queue": "Ordo calefactionis", "registry": "Registrum partium", "loading_now": "Nunc oneratur", "pause_reasons": "Pausatur propter", "queued_order": "Ordo exspectantium", "stopped": "Calefactio post errorem constitit.", "none": "Nihil", "state": "Status", "group": "Grex", "id": "Pars", "priority": "Prioritas", "source": "Onerata per", "duration": "Duratio",
+    "states": { "not_loaded": "Non onerata", "queued": "Exspectat", "loading": "Oneratur", "loaded": "Onerata", "failed": "Defecit" }, "sources": { "warmup": "Calefactionem", "on_demand": "Postulationem" }, "reasons": { "data_saver": "parcimoniam datorum", "slow_connection": "connexionem tardam", "hidden_tab": "paginam absconditam", "on_demand": "onerationem postulatam", "signed_out": "sessionem clausam", "dev_server": "ministrum evolutionis" },
+    "timeline": "Linea temporis initii", "startup_assets": "Opes initiales et modus", "service_worker": "Minister retialis", "recovery": "Morae, conatus, et restitutio", "present": "Adest", "controlled": "Hanc paginam regit", "revision": "Revisio paginae", "counted": "Petitiones numeratae", "no_data": "Nulla data initii relata sunt.", "no_events": "Nulla eventa restitutionis relata sunt."
+  },
   "section_label": "Administratio",
   "permission_model": {
     "heading": "Forma Permissionum",
