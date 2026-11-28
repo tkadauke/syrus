@@ -8,12 +8,23 @@ module RuntimeImages
         counter :runtime_image_operations_total, tags: %i[kind outcome], cluster: true,
                 comment: "Runtime Image Service operations by kind (publish, revoke, retain, delete, gc, " \
                          "reconcile, auth) and outcome (ok, failed, skipped, repaired, detected)"
+        counter :runtime_image_revocation_terminations_total, tags: %i[outcome], cluster: true,
+                comment: "Agent processes matched by severe runtime image revocation termination requests"
       end
     end
     declare_metrics!
 
     def self.operation(kind, outcome)
       Syrus::Metrics.counter(:syrus_runtime_image_operations_total).increment(tags: { kind: kind.to_s, outcome: outcome.to_s })
+    rescue StandardError => e
+      Rails.logger.warn("[RuntimeImages::Telemetry] #{e.class}: #{e.message}")
+    end
+
+    def self.revocation_terminations(count, outcome: "requested")
+      return if count.to_i.zero?
+
+      Syrus::Metrics.counter(:syrus_runtime_image_revocation_terminations_total)
+        .increment(by: count.to_i, tags: { outcome: outcome.to_s })
     rescue StandardError => e
       Rails.logger.warn("[RuntimeImages::Telemetry] #{e.class}: #{e.message}")
     end

@@ -73,6 +73,7 @@ class ChatTurnJob < ApplicationJob
     @turn_lifecycle = lifecycle
     @agent_chat = lifecycle.context
     @turn_started_at = Time.current
+    lifecycle.turn_started! if lifecycle.respond_to?(:turn_started!)
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
     if admission[:outcome].present?

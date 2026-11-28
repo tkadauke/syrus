@@ -55,6 +55,45 @@ RSpec.describe RuntimeImages::Service do
     expect(provider.calls.map(&:first)).to include(:revoke)
   end
 
+  it "requests termination across workers only for live agents pinned to a severely revoked digest" do
+    image = publish(verification_state: "candidate")
+    affected = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a", pid: 101,
+      started_at: Time.current, resource_attribution: { "runtime_image_digest" => image.digest })
+    other = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-b", pid: 102,
+      started_at: Time.current, resource_attribution: { "runtime_image_digest" => "sha256:#{'f' * 64}" })
+    allow(OperationalLogging).to receive(:ingest)
+
+    service.revoke(image, reason: "critical integrity failure", severity: "severe")
+
+    expect(affected.reload.kill_requested_at).to be_present
+    expect(other.reload.kill_requested_at).to be_nil
+    expect(RuntimeImageAuditEvent.where(event_type: "revoke.termination").last.details)
+      .to include("requested_processes" => 1,
+                  "recovery_guidance" => I18n.t("services.runtime_images.revocation.recovery_guidance"))
+  end
+
+  it "requests termination for a registered agent before its pid is assigned" do
+    image = publish(verification_state: "candidate")
+    registering = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a",
+      started_at: Time.current, resource_attribution: { "runtime_image_digest" => image.digest })
+    allow(OperationalLogging).to receive(:ingest)
+
+    service.revoke(image, reason: "critical integrity failure", severity: "severe")
+
+    expect(registering.reload.pid).to be_nil
+    expect(registering.kill_requested_at).to be_present
+  end
+
+  it "does not terminate an existing turn for a standard revocation" do
+    image = publish(verification_state: "candidate")
+    process = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a", pid: 101,
+      started_at: Time.current, resource_attribution: { "runtime_image_digest" => image.digest })
+
+    service.revoke(image, reason: "retired", severity: "standard")
+
+    expect(process.reload.kill_requested_at).to be_nil
+  end
+
   it "re-asserts revocation on the provider when a reactivating provider is republished" do
     image = publish
     service.revoke(image, reason: "vulnerable")

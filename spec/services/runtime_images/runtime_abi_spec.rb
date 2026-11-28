@@ -37,6 +37,7 @@ RSpec.describe RuntimeImages::RuntimeAbi do
   describe "pre-launch validation" do
     it "accepts a signed, in-range, launchable image" do
       expect(check).to be_compatible
+      expect(described_class.current_contract?(image, provider: "claude")).to be(true)
     end
 
     it "refuses an image without ABI labels" do
@@ -78,6 +79,21 @@ RSpec.describe RuntimeImages::RuntimeAbi do
 
     it "refuses labels that disagree with the signed contract" do
       expect(check(labels: labels.merge("io.syrus.runtime-abi.contract-digest" => "sha256:#{"e" * 64}")).codes).to eq([ "contract_mismatch" ])
+    end
+
+    it "refuses a previously signed provider contract after the current contract changes" do
+      old_digest = "sha256:#{'0' * 64}"
+      old_attestation = attestation.deep_dup
+      old_attestation["payload"]["contract_digest"] = old_digest
+      old_attestation["signature"] = described_class.send(:sign, old_attestation.fetch("payload"))
+      allow(image).to receive(:provenance).and_return(
+        { "recipe_digest" => recipe_digest, described_class::ATTESTATION_KEY => old_attestation }
+      )
+
+      stale_labels = labels.merge("io.syrus.runtime-abi.contract-digest" => old_digest)
+      expect(check(labels: stale_labels).codes).to eq([ "contract_outdated" ])
+      expect(described_class.current_contract?(image, provider: "claude")).to be(false)
+      expect(described_class.outdated_contract?(image)).to be(true)
     end
 
     it "refuses widened compatibility or lowered confinement labels the signature does not cover" do

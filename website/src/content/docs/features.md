@@ -2417,9 +2417,12 @@ remote read-only. Every new coworker opens its main chat itself. Custom-coworker
 turns require the Container Execution plugin and
 a configured Docker-compatible launch environment. They fail closed instead
 of falling back to the worker host. Each Codex, Claude, Muse, or Agy turn runs
-in a disposable, non-root container with only its coworker checkout, that
-chat/provider's agent home, an ephemeral temporary filesystem, and the
-authorized MCP socket. The checkout remains durable for the normal coworker
+in a disposable, non-root container with a fixed mount contract: its coworker
+checkout at `/workspace`, that chat/provider's isolated home at
+`/home/coworker`, a bounded `nosuid,nodev,noexec` `/tmp`, and the read-only
+authorized MCP socket. An administrator may select the fixed executable-scratch
+profile, which adds only a bounded, ephemeral `/scratch`; coworkers cannot add
+or alter mounts. The checkout remains durable for the normal coworker
 commit-and-merge lifecycle; the rest of the turn container is discarded.
 Its dedicated network is default-deny: DNS goes through an operator-controlled
 resolver, model traffic goes through a hostname-aware proxy selected by a

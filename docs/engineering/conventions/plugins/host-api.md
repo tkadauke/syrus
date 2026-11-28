@@ -4253,6 +4253,9 @@ Supported members:
 - `active_base`
 - `audit`
 - `available?`
+- `base_for_rebuild`
+- `base_launch`
+- `current_launch_contract?`
 - `current_verification_attestation`
 - `delete`
 - `find`
@@ -4261,6 +4264,7 @@ Supported members:
 - `retain`
 - `revocation_details`
 - `revoke`
+- `worker_health`
 
 ### `Syrus::Host::RuntimeSessionProvider`
 

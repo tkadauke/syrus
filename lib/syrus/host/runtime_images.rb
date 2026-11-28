@@ -9,9 +9,15 @@ module Syrus
 
       def self.publish_local(**) = ::RuntimeImages::BuiltImages.new.publish_local(**)
 
-      def self.acquire(image, &) = ::RuntimeImages::BuiltImages.new.acquire(image, &)
+      def self.acquire(image, **options, &) = ::RuntimeImages::BuiltImages.new.acquire(image, **options, &)
 
       def self.active_base(**) = ::RuntimeImages::BuildRequests.new.active_base(**)
+
+      def self.base_for_rebuild(id) = ::RuntimeImages::BuildRequests.new.base_for_rebuild(id)
+
+      def self.base_launch(**) = ::RuntimeImages::BuildRequests.new.base_launch(**)
+
+      def self.current_launch_contract?(image, **) = ::RuntimeImages::RuntimeAbi.current_contract?(image, **)
 
       def self.request_build(**) = ::RuntimeImages::BuildRequests.new.submit(**)
 
@@ -43,6 +49,8 @@ module Syrus
         ::RuntimeImageAuditEvent.where(runtime_image_id: image.id, event_type: "revoke")
           .recent_first.pick(:details) || {}
       end
+
+      def self.worker_health = ::RuntimeImages::WorkerHealth.snapshot
 
       def self.delete(image, **) = ::RuntimeImages::Service.new.delete(image, **)
 

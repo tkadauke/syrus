@@ -150,6 +150,26 @@ module RuntimeImages
         result
       end
 
+      # Admission can reject a stale provider/ABI contract before a worker
+      # pulls the image. The worker still performs the complete label and
+      # confinement validation against the pulled image immediately before
+      # launch.
+      def current_contract?(image, provider: nil)
+        return false unless provider.nil? || providers.key?(provider.to_s)
+
+        attestation = Hash(image.provenance)[ATTESTATION_KEY]
+        recipe_digest = Hash(image.provenance)["recipe_digest"]
+        attestation_valid?(attestation, source_digest: image.source_digest, recipe_digest:) &&
+          attestation.dig("payload", "contract_digest") == digest
+      end
+
+      def outdated_contract?(image)
+        attestation = Hash(image.provenance)[ATTESTATION_KEY]
+        recipe_digest = Hash(image.provenance)["recipe_digest"]
+        attestation_valid?(attestation, source_digest: image.source_digest, recipe_digest:) &&
+          attestation.dig("payload", "contract_digest") != digest
+      end
+
       private
 
       def verify_provenance(image, labels, add)
@@ -161,6 +181,7 @@ module RuntimeImages
         end
         signed = attestation.fetch("payload")
         add.call("contract_mismatch", "image labels do not match the signed contract") unless labels["#{LABEL_PREFIX}.contract-digest"] == signed["contract_digest"]
+        add.call("contract_outdated", "image runtime contract differs from the current provider and ABI contract") unless signed["contract_digest"] == digest
         # Every label the launch decision trusts must equal what Syrus signed,
         # so a builder cannot widen the range or lower the confinement floor.
         { "version" => "version", "compat-min" => "compat_min", "compat-max" => "compat_max", "min-confinement-policy" => "min_confinement_policy" }.each do |label, key|

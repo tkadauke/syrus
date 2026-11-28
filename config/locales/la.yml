@@ -17,6 +17,7 @@ la:
       other: "%{count} petitiones approbationis attentionem tuam postulant."
       fallback: "Agens potestatem exspectat"
   coworkers:
+    environment_unavailable: "Environmentum collegae non praesto aut incompatibile est. Administratorem roga ut imaginem et congruentiam runtime inspiciat."
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
     detach_job:
@@ -161,6 +162,9 @@ la:
         headline: "Denuo incipe a basi efficaci"
         explanation: "Nullum certum restitutionis propositum resumendum manet; a basi efficaci denuo incipe."
     runtime_images:
+      revocation:
+        recovery_guidance: "Imaginem congruentem neque revocatam promove aut restitue antequam cursum iterum temptes."
+        termination_requested: "Revocatio gravis imaginis runtime terminationem processuum per classem postulavit."
       verifications:
         reevaluator:
           abandoned: "Conatus verificationis desertus est."

@@ -70,7 +70,7 @@ module ContainerExecution
         *mount_args(request),
         *env_args(request),
         "--workdir",
-        container_workdir(request),
+        policy.container_workdir(container_workdir(request)),
         image,
         *request.command
       ].compact
@@ -79,18 +79,18 @@ module ContainerExecution
     def mount_args(request)
       policy = WorkloadPolicy::Base.resolve(request)
       args = []
-      request.mounts.read_write.each { |mount| args.concat(bind_mount_args(mount, readonly: false)) }
-      request.mounts.read_only.each { |mount| args.concat(bind_mount_args(mount, readonly: true)) }
+      request.mounts.read_write.each { |mount| args.concat(bind_mount_args(mount, readonly: false, mount_path: policy.mount_path_for(mount))) }
+      request.mounts.read_only.each { |mount| args.concat(bind_mount_args(mount, readonly: true, mount_path: policy.mount_path_for(mount))) }
       args.concat(bind_mount_args(request.mounts.artifacts, readonly: false)) if request.mounts.artifacts
       args.concat(mcp_socket_mount_args) if policy.mount_mcp_socket?
       args
     end
 
-    def bind_mount_args(mount, readonly:)
+    def bind_mount_args(mount, readonly:, mount_path: mount.mount_path)
       options = [
         "type=bind",
         "src=#{Configuration.host_path_for(mount.host_path)}",
-        "dst=#{mount.mount_path}"
+        "dst=#{mount_path}"
       ]
       options << "readonly" if readonly
       [ "--mount", options.join(",") ]

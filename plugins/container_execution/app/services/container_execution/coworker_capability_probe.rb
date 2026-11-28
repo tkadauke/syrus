@@ -27,6 +27,8 @@ module ContainerExecution
     BASH
 
     def self.capability_probes(env: ENV)
+      runtime_health = Syrus::Host::RuntimeImages.worker_health
+      profile = mount_profile
       [ {
         dimension: "runtime",
         token: RUNTIME_TOKEN,
@@ -36,7 +38,12 @@ module ContainerExecution
         diagnostics: {
           "confined_coworker_configuration" => configured?(env) ? "complete" : "missing",
           "confined_coworker_missing_settings" => missing_settings(env),
-          "confined_coworker_verification" => [ "per_turn_container", "read_only_root", "non_root_user", "proxy_reachability", "default_deny_direct_egress" ]
+          "confined_coworker_verification" => [ "per_turn_container", "read_only_root", "non_root_user", "proxy_reachability", "default_deny_direct_egress" ],
+          "runtime_image" => runtime_health.merge(
+            "confinement" => configured?(env),
+            "scratch_profile" => profile ? Configuration.chat_agent_mount_profile : "unknown",
+            "scratch_executable" => profile.is_a?(MountProfile::ExecutableScratch)
+          )
         }
       } ]
     end
@@ -55,6 +62,7 @@ module ContainerExecution
       missing << "host_path_mappings" if Configuration.host_path_mappings.empty?
       missing << "dedicated_network" if Configuration.chat_agent_network.blank?
       missing << "controlled_dns" if Configuration.chat_agent_dns.blank?
+      missing << "mount_profile" unless mount_profile
       PROVIDERS.each do |provider|
         policy = EgressPolicy::Base.for(provider.downcase)
         missing << "#{provider.downcase}_proxy" unless env["SYRUS_CONTAINER_EXECUTION_#{provider}_PROXY"].present? && policy&.configured?
@@ -79,10 +87,12 @@ module ContainerExecution
         "--pids-limit", Configuration.chat_agent_pids_limit.to_s,
         "--memory", Configuration.chat_agent_memory,
         "--cpus", Configuration.chat_agent_cpus,
-        "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=#{Configuration.chat_agent_tmpfs_size}",
+        *mount_profile.tmpfs_args,
         Configuration.image, "bash", "-c", PROBE_SCRIPT, "probe",
         *proxy_endpoints.flatten.map(&:to_s)
       ]
     end
+
+    def self.mount_profile = MountProfile::Base.for(Configuration.chat_agent_mount_profile)
   end
 end
