@@ -28,7 +28,7 @@ module Coworkers
 
     def rollback!(failed_activation:, actor:)
       environment.with_lock do
-        failed_activation.reload
+        failed_activation.reload(lock: true)
         unless environment.active_activation_id == failed_activation.id
           current = environment.active_activation
           audit("rollback_replayed", current, code: "active_pointer_advanced") if current

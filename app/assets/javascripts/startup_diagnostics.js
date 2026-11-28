@@ -1,5 +1,14 @@
 (function () {
   var WATCHDOG_TIMEOUT_MS = 8000;
+  // A slow connection is still a working one. Retrying throws away whatever
+  // has already downloaded and starts over, so the watchdog only says the app
+  // is still loading, with a progress bar when it can measure one; Retry is
+  // offered once nothing has made progress for this long. "Progress" is bytes
+  // arriving when the service worker reports them, and otherwise a startup
+  // resource finishing or a milestone being reached.
+  var STALL_RETRY_MS = 30000;
+  var PROGRESS_TICK_MS = 1000;
+  var progressTimer = null;
   var startupAt = Date.now();
   var reportedKeys = {};
   var milestones = [];
@@ -307,6 +316,12 @@
       correlation.hidden = state.retry !== true;
       correlation.textContent = state.retry === true ? (el.dataset.referenceLabel || "Reference") + ": " + startupTraceId : "";
     }
+    if (message) message.hidden = false;
+    // The download bar belongs to "still loading" and "stalled"; every other
+    // state (a failure, ready) replaces it.
+    var progress = el.querySelector("[data-syrus-startup-progress]");
+    if (progress && state.name !== "watchdog" && state.name !== "stalled") progress.hidden = true;
+    if (state.name === "watchdog" || state.name === "stalled") renderProgress();
     return true;
   }
 
@@ -396,6 +411,7 @@
         window.clearTimeout(watchdogTimer);
         watchdogTimer = null;
       }
+      stopProgressTracking();
       hideStartupState();
     }
     reportMilestone(milestone);
@@ -489,16 +505,389 @@
     });
   });
 
+  // This script owns the watchdog once it runs; the shell's own fallback
+  // timer is only for when this script never arrives.
+  if (window.__syrusStartupFallbackTimer) {
+    window.clearTimeout(window.__syrusStartupFallbackTimer);
+    window.__syrusStartupFallbackTimer = null;
+  }
+
+  // ---- Startup download progress ------------------------------------------
+  //
+  // The shell embeds what startup has to download (syrus-startup-assets: per
+  // startup asset, its uncompressed size and its size on the wire, i.e. the
+  // precompressed variant this browser is served, plus the wire total).
+  // Everything shown -- "X of Y", the speed, the time left -- is in wire
+  // bytes, so the speed is the connection's real rate. Two sources say how
+  // much has arrived:
+  //
+  // - the service worker, which counts the decoded bytes of each startup
+  //   asset as they stream past and posts them here (app/views/pwa/
+  //   service_worker.js.erb); they are scaled to wire bytes by that file's
+  //   compression ratio;
+  // - resource timing, which lists each asset once it has finished. That is
+  //   coarse -- two chunks are most of the download -- but it is all there is
+  //   on a first visit, before the worker controls the page.
+  //
+  // Neither is shown until the watchdog fires: a fast start never sees a bar.
+  var PROGRESS_MESSAGE_TYPE = "syrus:startup-asset-progress";
+  var SPEED_WINDOW_MS = 10000;
+  var MIN_SPEED_SPAN_MS = 2000;
+  var STABLE_SPEED_SAMPLES = 3;
+  var STABLE_SPEED_RATIO = 1.5;
+  var startupAssets = readStartupAssets();
+  var workerBytes = {};
+  var workerReported = false;
+  var byteSamples = [];
+  var recentSpeeds = [];
+  var lastByteAt = null;
+  var lastSignatureChangeAt = null;
+  var lastSignature = null;
+  var watchStartedAt = null;
+  var serviceWorkerListener = null;
+  var WATCHDOG_STATE = {
+    name: "watchdog",
+    title: "Syrus is still loading",
+    message: "This can take a while on a slow connection. It keeps loading on its own."
+  };
+
+  function readStartupAssets() {
+    var raw = meta("syrus-startup-assets");
+    if (!raw) return null;
+    try {
+      var parsed = JSON.parse(raw);
+      var listed = parsed && parsed.assets;
+      if (!listed || typeof listed !== "object") return null;
+      var sizes = {};
+      var wire = {};
+      var total = 0;
+      Object.keys(listed).forEach(function (path) {
+        var asset = listed[path] || {};
+        var size = Number(asset.size);
+        var wireSize = Number(asset.wire);
+        if (path.indexOf("/assets/") !== 0 || !isFinite(size) || size < 0) return;
+        if (!isFinite(wireSize) || wireSize < 0) wireSize = size;
+        sizes[path] = size;
+        wire[path] = wireSize;
+        total += wireSize;
+      });
+      return total > 0 ? { total: total, sizes: sizes, wire: wire, estimated: parsed.estimated === true } : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function isStartupAsset(path) {
+    return !!startupAssets && Object.prototype.hasOwnProperty.call(startupAssets.sizes, path);
+  }
+
+  // The worker counts decoded bytes; the wire carried the compressed ones.
+  // Compression is close enough to uniform within a file that the share of
+  // the file decoded so far is the share of its wire bytes received.
+  function wireBytes(path, decoded) {
+    var size = startupAssets.sizes[path];
+    if (!size) return 0;
+    return (Math.min(decoded, size) / size) * startupAssets.wire[path];
+  }
+
+  function workerTotal() {
+    var total = 0;
+    Object.keys(workerBytes).forEach(function (path) {
+      total += wireBytes(path, workerBytes[path]);
+    });
+    return total;
+  }
+
+  // Bytes resource timing saw cross the network for a finished asset: the
+  // encoded body when the browser reports it, else the transfer size, else
+  // the wire size the shell expected.
+  function measuredWireBytes(entry, path) {
+    var encoded = finiteNumber(entry.encodedBodySize);
+    if (encoded) return encoded;
+    var transferred = finiteNumber(entry.transferSize);
+    if (transferred) return transferred;
+    return startupAssets.wire[path];
+  }
+
+  function finishedStartupEntries() {
+    if (!startupAssets) return [];
+    try {
+      if (!window.performance || !performance.getEntriesByType) return [];
+      // A resource timing entry exists only once its resource has finished.
+      return performance.getEntriesByType("resource").filter(function (entry) {
+        return isStartupAsset(sameOriginAssetPath(entry.name));
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function recordByteSample(now) {
+    byteSamples.push({ at: now, bytes: workerTotal() });
+    while (byteSamples.length > 2 && now - byteSamples[1].at > SPEED_WINDOW_MS) byteSamples.shift();
+  }
+
+  function onWorkerMessage(event) {
+    var data = event && event.data;
+    if (!data || data.type !== PROGRESS_MESSAGE_TYPE || window.__syrusReactFirstRender) return;
+    var path = typeof data.path === "string" ? data.path : "";
+    var loaded = Number(data.loaded);
+    if (!isStartupAsset(path) || !isFinite(loaded) || loaded < 0) return;
+    workerReported = true;
+    if (loaded > (workerBytes[path] || 0)) {
+      workerBytes[path] = loaded;
+      lastByteAt = Date.now();
+      recordByteSample(lastByteAt);
+    }
+    if (watchStartedAt !== null) renderProgress();
+  }
+
+  function listenForWorkerProgress() {
+    var container = navigator.serviceWorker;
+    if (!startupAssets || !container || typeof container.addEventListener !== "function") return;
+    serviceWorkerListener = onWorkerMessage;
+    container.addEventListener("message", serviceWorkerListener);
+    // Messages from the worker queue until the page opts in; with
+    // addEventListener (rather than onmessage) that has to be explicit.
+    try {
+      if (typeof container.startMessages === "function") container.startMessages();
+    } catch (e) {
+      // Older engines start the queue on their own once the document parses.
+    }
+  }
+
+  function stopProgressTracking() {
+    if (progressTimer !== null) {
+      window.clearInterval(progressTimer);
+      progressTimer = null;
+    }
+    try {
+      if (serviceWorkerListener && navigator.serviceWorker && typeof navigator.serviceWorker.removeEventListener === "function") {
+        navigator.serviceWorker.removeEventListener("message", serviceWorkerListener);
+      }
+    } catch (e) {
+      // Nothing to remove if the container cannot be reached.
+    }
+    serviceWorkerListener = null;
+  }
+
+  // What has arrived, in wire bytes, by the best source available: per
+  // asset, what the worker counted, or (once it finished) its full wire size.
+  function progressSnapshot() {
+    if (!startupAssets) return null;
+    var entries = finishedStartupEntries();
+    if (!workerReported && !entries.length) return null;
+
+    var perPath = {};
+    Object.keys(workerBytes).forEach(function (path) {
+      perPath[path] = wireBytes(path, workerBytes[path]);
+    });
+    entries.forEach(function (entry) {
+      var path = sameOriginAssetPath(entry.name);
+      perPath[path] = startupAssets.wire[path];
+    });
+    var loaded = 0;
+    Object.keys(perPath).forEach(function (path) { loaded += perPath[path]; });
+    loaded = Math.min(loaded, startupAssets.total);
+
+    var speed = workerReported ? workerSpeed() : timingSpeed(entries);
+    return {
+      loaded: loaded,
+      total: startupAssets.total,
+      speed: speed,
+      secondsLeft: workerReported && speedIsStable() && speed > 0 ? (startupAssets.total - loaded) / speed : null
+    };
+  }
+
+  // Bytes per second over the recent window of worker samples.
+  function workerSpeed() {
+    if (byteSamples.length < 2) return null;
+    var first = byteSamples[0];
+    var last = byteSamples[byteSamples.length - 1];
+    var span = last.at - first.at;
+    if (span < MIN_SPEED_SPAN_MS) return null;
+    return Math.max(0, (last.bytes - first.bytes) / (span / 1000));
+  }
+
+  function speedIsStable() {
+    if (recentSpeeds.length < STABLE_SPEED_SAMPLES) return false;
+    var min = Math.min.apply(Math, recentSpeeds);
+    var max = Math.max.apply(Math, recentSpeeds);
+    return min > 0 && max / min <= STABLE_SPEED_RATIO;
+  }
+
+  // Without the worker: the wire bytes of the startup assets that came over
+  // the network, over the time from the first request to the last finish.
+  // Assets served from the HTTP cache arrived instantly and would only
+  // flatter it.
+  function timingSpeed(entries) {
+    var bytes = 0;
+    var start = null;
+    var end = null;
+    entries.forEach(function (entry) {
+      var cached = entry.deliveryType === "cache" || (entry.transferSize === 0 && entry.decodedBodySize > 0);
+      var finishedAt = finiteNumber(entry.responseEnd);
+      var startedAt = finiteNumber(entry.startTime);
+      if (cached || finishedAt === null || startedAt === null) return;
+      bytes += measuredWireBytes(entry, sameOriginAssetPath(entry.name));
+      start = start === null ? startedAt : Math.min(start, startedAt);
+      end = end === null ? finishedAt : Math.max(end, finishedAt);
+    });
+    if (!bytes || start === null || end - start <= 0) return null;
+    return bytes / ((end - start) / 1000);
+  }
+
+  function formatNumber(value, digits) {
+    var status = startupStatus();
+    var locale = status && status.dataset.locale;
+    try {
+      return new Intl.NumberFormat(locale || undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
+    } catch (e) {
+      return value.toFixed(digits);
+    }
+  }
+
+  function formatBytes(bytes) {
+    if (bytes >= 1024 * 1024) return formatNumber(bytes / (1024 * 1024), 1) + " MB";
+    return formatNumber(Math.max(0, Math.round(bytes / 1024)), 0) + " KB";
+  }
+
+  function formatSpeed(bytesPerSecond) {
+    if (bytesPerSecond >= 1024 * 1024) return formatNumber(bytesPerSecond / (1024 * 1024), 1) + " MB/s";
+    return formatNumber(Math.max(1, Math.round(bytesPerSecond / 1024)), 0) + " KB/s";
+  }
+
+  function formatDuration(seconds) {
+    if (seconds < 90) return formatNumber(Math.max(5, Math.ceil(seconds / 5) * 5), 0) + " s";
+    return formatNumber(Math.round(seconds / 60), 0) + " min";
+  }
+
+  function fillTemplate(template, fallback, values) {
+    return String(template || fallback).replace(/%\{(\w+)\}/g, function (match, key) {
+      return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match;
+    });
+  }
+
+  function renderProgress() {
+    var el = startupStatus();
+    if (!el || watchStartedAt === null) return;
+    var state = el.dataset.startupState;
+    if (state !== "watchdog" && state !== "stalled") return;
+    var container = el.querySelector("[data-syrus-startup-progress]");
+    var bar = el.querySelector("[data-syrus-startup-progressbar]");
+    var fill = el.querySelector("[data-syrus-startup-progress-fill]");
+    var detail = el.querySelector("[data-syrus-startup-progress-detail]");
+    var message = el.querySelector("[data-syrus-startup-message]");
+    var spinner = el.querySelector("[data-syrus-startup-spinner]");
+    var snapshot = progressSnapshot();
+    // Nothing measured yet: keep the plain "still loading" text and spinner.
+    if (!container || !bar || !snapshot) return;
+
+    var percent = Math.min(100, Math.floor((snapshot.loaded / snapshot.total) * 100));
+    // An estimated total (the shell could not tell which compression the
+    // browser gets) says so.
+    var amountValues = { loaded: formatBytes(snapshot.loaded), total: formatBytes(snapshot.total) };
+    var amount = startupAssets.estimated
+      ? fillTemplate(el.dataset.progressAmountEstimated, "%{loaded} of about %{total}", amountValues)
+      : fillTemplate(el.dataset.progressAmount, "%{loaded} of %{total}", amountValues);
+    var parts = [ amount ];
+    if (snapshot.speed !== null) {
+      parts.push(fillTemplate(el.dataset.progressSpeed, "about %{speed}", { speed: formatSpeed(snapshot.speed) }));
+    }
+    if (snapshot.secondsLeft !== null && snapshot.loaded < snapshot.total) {
+      parts.push(fillTemplate(el.dataset.progressTimeLeft, "about %{time} left", { time: formatDuration(snapshot.secondsLeft) }));
+    }
+
+    container.hidden = false;
+    bar.setAttribute("aria-valuenow", String(percent));
+    bar.setAttribute("aria-valuetext", amount);
+    if (fill) fill.style.width = percent + "%";
+    if (detail) detail.textContent = parts.join(" · ");
+    if (spinner) spinner.hidden = true;
+    // The bar replaces the "still loading" sentence; a stalled message stays.
+    if (message && state === "watchdog") message.hidden = true;
+  }
+
+  function startupProgressSignature() {
+    var resources = 0;
+    try {
+      if (window.performance && performance.getEntriesByType) resources = performance.getEntriesByType("resource").length;
+    } catch (e) {
+      resources = 0;
+    }
+    return resources + ":" + milestones.length + ":" + (document.readyState || "");
+  }
+
+  // When progress was last made. With the worker reporting, that is the last
+  // byte that arrived -- a bundle still trickling in is not stalled however
+  // long it takes. Once every byte is in (the bundle is evaluating), or with
+  // no worker at all, it falls back to resources finishing and milestones.
+  function lastProgressAt(now) {
+    var signature = startupProgressSignature();
+    if (signature !== lastSignature) {
+      lastSignature = signature;
+      lastSignatureChangeAt = now;
+    }
+    // (Within a byte: scaled wire bytes are fractional.)
+    if (workerReported && workerTotal() < startupAssets.total - 1) return Math.max(lastByteAt || 0, watchStartedAt);
+    return Math.max(lastSignatureChangeAt, lastByteAt || 0);
+  }
+
+  function progressTick() {
+    if (window.__syrusReactFirstRender) {
+      stopProgressTracking();
+      return;
+    }
+    var now = Date.now();
+    if (workerReported) {
+      // A sample per tick, so a pause shows up as falling speed.
+      recordByteSample(now);
+      var speed = workerSpeed();
+      if (speed !== null) {
+        recentSpeeds.push(speed);
+        if (recentSpeeds.length > STABLE_SPEED_SAMPLES) recentSpeeds.shift();
+      }
+    }
+
+    var el = startupStatus();
+    var state = el ? el.dataset.startupState : null;
+    var stalled = now - lastProgressAt(now) >= STALL_RETRY_MS;
+    if (stalled && state === "watchdog") {
+      showStartupState({
+        name: "stalled",
+        title: "Loading has stalled",
+        message: "Nothing has arrived for a while. Retry, or keep waiting.",
+        retry: true
+      });
+    } else if (!stalled && state === "stalled") {
+      // Bytes started arriving again: back to waiting, without the nudge.
+      showStartupState(WATCHDOG_STATE);
+    } else {
+      renderProgress();
+    }
+  }
+
+  function watchProgress() {
+    var now = Date.now();
+    watchStartedAt = now;
+    lastSignature = startupProgressSignature();
+    lastSignatureChangeAt = now;
+    progressTimer = window.setInterval(progressTick, PROGRESS_TICK_MS);
+  }
+
+  try {
+    listenForWorkerProgress();
+  } catch (e) {
+    // A browser that refuses service workers here leaves resource timing.
+    serviceWorkerListener = null;
+  }
+
   watchdogTimer = window.setTimeout(function () {
     if (window.__syrusReactFirstRender) return;
     var root = document.getElementById("syrus-spa-root");
     var rootBlank = !root || !root.textContent.trim();
-    showStartupState({
-      name: "watchdog",
-      title: "Syrus is still loading",
-      message: "This can happen on a slow connection. Retry if it does not finish soon.",
-      retry: true
-    });
+    watchProgress();
+    showStartupState(WATCHDOG_STATE);
     report("StartupWatchdog", rootBlank ? "SPA startup watchdog: root still blank" : "SPA startup watchdog: first render not marked", {
       phase: milestones.some(function (entry) { return entry.name === "react_module_evaluated"; }) ? "root_mount" : "bundle_evaluation",
       root_present: !!root,

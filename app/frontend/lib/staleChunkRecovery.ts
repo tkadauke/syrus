@@ -1,3 +1,4 @@
+import { chunkWarmup } from "./chunkWarmup"
 import { reloadPage } from "./pageReload"
 
 // A deploy replaces every content-hashed chunk, so a tab opened before it
@@ -30,8 +31,17 @@ function writeMarker(value: string) {
   }
 }
 
-export function installStaleChunkRecovery(reload: (reason?: string) => void = reloadPage) {
+//
+// Background warm-up (chunkWarmup.ts) fetches chunks nobody is waiting for. A
+// failure while only warm-up loads are in flight must not reload the page under
+// the operator: the queue stops instead, and the next on-demand load of that
+// chunk fails here with a real reason to reload.
+export function installStaleChunkRecovery(
+  reload: (reason?: string) => void = reloadPage,
+  warmup: Pick<typeof chunkWarmup, "backgroundOnlyInFlight"> = chunkWarmup
+) {
   const handler = (event: Event) => {
+    if (warmup.backgroundOnlyInFlight()) return
     const revision = assetRevision()
     if (readMarker() === revision) return
     // Without a writable marker a reload could loop, so leave the error to

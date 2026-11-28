@@ -9,7 +9,17 @@ class BaseRebuildDiscoveryJob < ApplicationJob
 
   def perform
     RuntimeImages::BaseReleases.new.sync_with_images!
-    summary = RuntimeImages::BaseCompatibility.new.summary
+    compatibility = RuntimeImages::BaseCompatibility.new
+    findings = compatibility.environments_needing_rebuild
+    summary = compatibility.summary(findings: findings)
+    findings.each do |finding|
+      next unless finding.replacement
+
+      Syrus::Events.publish("runtime_image.rebuild_requested",
+                            runtime_image_id: finding.image.id,
+                            replacement_base_release_id: finding.replacement.id,
+                            reasons: finding.reasons)
+    end
     if summary[:total].positive?
       RuntimeImages::Audit.record("base_release.rebuild_needed", outcome: :detected, actor: "system",
                                   details: { total: summary[:total], blocked: summary[:blocked], by_reason: summary[:by_reason].to_json })

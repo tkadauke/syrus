@@ -3,7 +3,7 @@ import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from
 import type { MarkdownLinkHandler } from "./lib/Markdown"
 import { getEagerPluginContributions, subscribeToPluginContributions } from "./pluginContributionRegistry"
 import { PluginRenderBoundary } from "./components/PluginErrorBoundary"
-import "./builtInPluginContributions"
+import "./builtInPluginToolCards"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).

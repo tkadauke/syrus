@@ -91,6 +91,39 @@ RSpec.describe WorkEngine::Simulation::Fuzz do
       expect(events.map { |event| event["fuzz"] }.uniq).to all(satisfy { |kind| !kind.match?(/pause|approve|transient|worker_died/) })
       expect(events.to_json).not_to include('"job":null')
     end
+
+    it "never closes a Job other Jobs depend on, which only rediscovers abandoned_blockers" do
+      context = described_class.context_for(
+        { "jobs" => { "parent" => {}, "child" => { "depends_on" => [ "parent" ] }, "stacked" => { "parent_job" => "child" } } },
+        ticks: 8
+      )
+      catalog = described_class.new(Random.new(3), context)
+
+      closed = 40.times.flat_map { catalog.send(:build, "close_externally", 0) }.map { |event| event.dig("do", "merge_pr", "job") }
+
+      expect(context.blocker_keys).to eq(%w[child parent])
+      expect(closed.uniq).to eq([ "stacked" ])
+    end
+
+    it "draws every catalog perturbation as events the runner knows" do
+      context = described_class.context_for({ "jobs" => { "a" => {}, "b" => {} }, "runtime" => { "workers" => [ "w1" ] } }, ticks: 8)
+      catalog = described_class.new(Random.new(7), context)
+      known = %w[
+        advance_main approve inject_outcome break_main_branch heal_main_branch exhaust_provider_usage refresh_provider_usage
+        wake_provider_admission set_pr_checks report_ci_failure merge_pr set_job_provider resume_deferred_phase wake pause_work
+        unpause_work lose_worker deploy_restart github_outage join_worker leave_worker
+      ]
+
+      events = catalog.kinds.uniq.flat_map { |kind| catalog.send(:build, kind, 0) }
+
+      expect(events.flat_map { |event| event["do"].keys }.uniq - known).to be_empty
+      expect(events.map { |event| event["fuzz"] }).to include("deploy_restart", "github_outage", "main_churn", "operator_race", "join_worker")
+      churn = events.select { |event| event["fuzz"] == "main_churn" }
+      expect(churn.size).to be >= 3
+      expect(churn.map { |event| event.dig("when", "tick", "at_least") }).to eq(churn.map { |event| event.dig("when", "tick", "at_least") }.sort)
+      race = events.select { |event| event["fuzz"] == "operator_race" }
+      expect(race.map { |event| event.dig("when", "tick", "at_least") }.uniq.size).to eq(1)
+    end
   end
 
   describe "failures" do
@@ -142,6 +175,12 @@ RSpec.describe WorkEngine::Simulation::Fuzz do
 
     it "passes a quiet world whose remaining Job an operator is holding" do
       held = result(status: "stuck", final_states: { "JOB-1" => "running:manual_paused" }, stuck_reasons: [ "no state changed" ])
+
+      expect(signature(held)).to be_nil
+    end
+
+    it "passes a quiet world whose remaining Job waits for a capable worker" do
+      held = result(status: "stuck", final_states: { "JOB-1" => "running:no_capable_worker" }, stuck_reasons: [ "no state changed" ])
 
       expect(signature(held)).to be_nil
     end

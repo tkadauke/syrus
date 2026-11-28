@@ -580,7 +580,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin stuck items" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin stuck items" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("lg:items-end", "lg:justify-between")
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveClass("shrink-0")
     expect(await screen.findByText("Run #4 silent for 10m")).toBeInTheDocument()
@@ -645,7 +645,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin console" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin console" })).toBeInTheDocument()
     expect(screen.getByText("Operator Console")).toBeInTheDocument()
     expect(await screen.findByText("pause_runs")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Pause polling" })).toBeInTheDocument()
@@ -720,7 +720,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin installations" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin installations" })).toBeInTheDocument()
     expect(screen.getByText("GitHub App Installations")).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -772,7 +772,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    const registration = screen.getByRole("main", { name: "GitHub App registration" })
+    const registration = await screen.findByRole("main", { name: "GitHub App registration" })
     expect(registration).toBeInTheDocument()
     expect(
       within(registration).getByText(
@@ -821,7 +821,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    const confirmation = screen.getByRole("main", { name: "GitHub App registered" })
+    const confirmation = await screen.findByRole("main", { name: "GitHub App registered" })
     expect(confirmation).toBeInTheDocument()
     expect(await within(confirmation).findByText("operator-syrus")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -914,7 +914,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin invitations" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin invitations" })).toBeInTheDocument()
     expect(await screen.findByText("guest@example.com")).toBeInTheDocument()
     expect(screen.getByText("http://example.test/users/new?token=abc123")).toBeInTheDocument()
 
@@ -1023,7 +1023,7 @@ describe("App admin pages", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin settings" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin settings" })).toBeInTheDocument()
     await screen.findByRole("checkbox", { name: /Open signups/ })
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Open signups/ }))

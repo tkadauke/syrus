@@ -100,3 +100,58 @@
     transform: rotate(360deg);
   }
 }
+
+/* Startup download progress. Colours come from the theme's semantic tokens
+   when the theme stylesheet has loaded; the literal fallbacks match the rest
+   of this file for the moment before it has. */
+.syrus-startup-status__progress {
+  margin: 1rem auto 0;
+  max-width: 20rem;
+}
+
+.syrus-startup-status__progress[hidden] {
+  display: none;
+}
+
+.syrus-startup-status__bar {
+  background: var(--color-surface-inset, #e5e7eb);
+  border-radius: 9999px;
+  height: 0.5rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.syrus-startup-status__bar-fill {
+  background: var(--color-brand, #b6492e);
+  border-radius: inherit;
+  height: 100%;
+  transition: width 0.4s ease-out;
+  width: 0;
+}
+
+.syrus-startup-status__progress-detail {
+  color: var(--color-text-secondary, #4b5563);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  margin: 0.5rem 0 0;
+  min-height: 1.5em;
+}
+
+.dark .syrus-startup-status__bar {
+  background: var(--color-surface-inset, #374151);
+}
+
+.dark .syrus-startup-status__bar-fill {
+  background: var(--color-brand, #f0a078);
+}
+
+.dark .syrus-startup-status__progress-detail {
+  color: var(--color-text-secondary, #d1d5db);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .syrus-startup-status__bar-fill {
+    transition: none;
+  }
+}

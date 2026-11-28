@@ -31,12 +31,14 @@ RSpec.describe ContainerExecution::SeedImage do
     image = instance_double(RuntimeImage, pullable?: true, digest: "sha256:#{'8' * 64}")
     policy = Execution::ChatWorkloadPolicy.new.with_runtime_image(image, digest: image.digest)
     images = double("runtime images")
-    allow(images).to receive(:acquire).with(image).and_yield("registry.test/coworker@#{image.digest}")
+    chat_session = instance_double(ChatSession, effective_chat_provider: "codex")
+    allow(images).to receive(:acquire).with(image, provider: "codex", validate_runtime_abi: true)
+      .and_yield("registry.test/coworker@#{image.digest}")
 
-    reference = described_class.new(request(workload_policy: policy), images: images).resolve
+    reference = described_class.new(request(workload_policy: policy, chat_session:), images: images).resolve
 
     expect(reference).to eq("registry.test/coworker@#{image.digest}")
-    expect(images).to have_received(:acquire).with(image)
+    expect(images).to have_received(:acquire).with(image, provider: "codex", validate_runtime_abi: true)
   end
 
   it "fails closed when the pinned runtime image digest no longer matches" do
@@ -319,14 +321,15 @@ RSpec.describe ContainerExecution::SeedImage do
     ENV["SYRUS_CONTAINER_EXECUTION_DEVCONTAINER"] = "true"
   end
 
-  def request(workflow: nil, repository: instance_double(Repository, id: 1), workload_policy: nil)
+  def request(workflow: nil, repository: instance_double(Repository, id: 1), workload_policy: nil, chat_session: nil)
     instance_double(
       Execution::Request,
       job: instance_double(Job, repository: repository),
       workflow: workflow,
       chdir: @workspace,
       mounts: nil,
-      workload_policy: workload_policy
+      workload_policy: workload_policy,
+      chat_session: chat_session
     )
   end
 

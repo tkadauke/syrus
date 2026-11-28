@@ -50,6 +50,7 @@ RSpec.describe Coworkers::EnvironmentBuildRequest do
     expect(request.recipe.dig("input_policy", "network_classes")).to eq([ "rubygems" ])
     expect(request.recipe.dig("input_policy", "smoke_test")).to eq("./smoke-test")
     expect(request.recipe.dig("input_policy", "build_network_policy_digest")).to match(/\Asha256:/)
+    expect(request.recipe.dig("input_policy", "runtime_contract_digest")).to eq(RuntimeImages::RuntimeAbi.digest)
     expect(@result.status).to include(build_state: "queued", revision_state: "building", image_digest: nil)
   end
 
@@ -60,6 +61,25 @@ RSpec.describe Coworkers::EnvironmentBuildRequest do
     expect(Syrus::Host::RuntimeImages).not_to receive(:request_build)
     expect { @second = described_class.new(coworker.reload, workspace).call }.not_to change(RuntimeImageBuildRequest, :count)
     expect(@second.build_request).to eq(first.build_request)
+  end
+
+  it "requests a new candidate for unchanged source after a provider contract upgrade" do
+    Coworkers::EnvironmentSource.new(coworker, workspace).seed!
+    first = service.call
+    environment = first.revision.environment
+    replacement = environment.revisions.create!(
+      number: environment.next_revision_number, state: "draft",
+      source_digest: first.revision.source_digest, source_manifest: first.revision.source_manifest,
+      created_by_user: owner
+    )
+    upgraded_digest = "sha256:#{'f' * 64}"
+    allow(RuntimeImages::RuntimeAbi).to receive(:digest).and_return(upgraded_digest)
+
+    rebuilt = described_class.new(coworker, nil).call_revision(replacement, base:)
+
+    expect(rebuilt.build_request).not_to eq(first.build_request)
+    expect(rebuilt.build_request.recipe.dig("input_policy", "runtime_contract_digest")).to eq(upgraded_digest)
+    expect(RuntimeImageBuildRequest.where(id: [ first.build_request.id, rebuilt.build_request.id ]).count).to eq(2)
   end
 
   it "serializes concurrent admission onto one durable build request" do

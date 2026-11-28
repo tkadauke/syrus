@@ -9,6 +9,29 @@ module Syrus
       { name: "gzip", extension: ".gz" }
     ].freeze
 
+    # Whether a request's Accept-Encoding takes this encoding. Public so the
+    # SPA shell can tell which variant the browser will be served
+    # (Syrus::StartupAssets) by the same rule this server applies.
+    def self.accepts_encoding?(accept_encoding, encoding)
+      q = encoding_quality(accept_encoding.to_s, encoding)
+      !q.nil? && q.positive?
+    end
+
+    def self.encoding_quality(accept_encoding, encoding)
+      entries = accept_encoding.split(",").filter_map do |entry|
+        name, *parameters = entry.strip.split(";").map(&:strip)
+        next if name.nil? || name.empty?
+
+        q = parameters.find { |parameter| parameter.start_with?("q=") }&.delete_prefix("q=")&.to_f
+        { name: name, q: q || 1.0 }
+      end
+      explicit = entries.reverse.find { |entry| entry.fetch(:name) == encoding }
+      wildcard = entries.reverse.find { |entry| entry.fetch(:name) == "*" }
+
+      (explicit || wildcard)&.fetch(:q)
+    end
+    private_class_method :encoding_quality
+
     def initialize(app, root:, prefix:, headers: {})
       @app = app
       @root = Pathname.new(root)
@@ -46,32 +69,13 @@ module Syrus
 
       def response_asset_for(plain_path, accept_encoding)
         ENCODINGS.each do |encoding|
-          next unless accepts_encoding?(accept_encoding, encoding.fetch(:name))
+          next unless self.class.accepts_encoding?(accept_encoding, encoding.fetch(:name))
 
           path = Pathname.new("#{plain_path}#{encoding.fetch(:extension)}")
           return { encoding: encoding.fetch(:name), path: path } if path.file?
         end
 
         { encoding: nil, path: plain_path } if plain_path.file?
-      end
-
-      def accepts_encoding?(accept_encoding, encoding)
-        q = encoding_quality(accept_encoding, encoding)
-        !q.nil? && q.positive?
-      end
-
-      def encoding_quality(accept_encoding, encoding)
-        entries = accept_encoding.split(",").filter_map do |entry|
-          name, *parameters = entry.strip.split(";").map(&:strip)
-          next if name.empty?
-
-          q = parameters.find { |parameter| parameter.start_with?("q=") }&.delete_prefix("q=")&.to_f
-          { name: name, q: q || 1.0 }
-        end
-        explicit = entries.reverse.find { |entry| entry.fetch(:name) == encoding }
-        wildcard = entries.reverse.find { |entry| entry.fetch(:name) == "*" }
-
-        (explicit || wildcard)&.fetch(:q)
       end
 
       def cached_asset(path)

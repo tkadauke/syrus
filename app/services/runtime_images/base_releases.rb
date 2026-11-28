@@ -132,7 +132,7 @@ module RuntimeImages
       was_active = release.active?
       # Withdraw the image first: if the registry call fails nothing is half
       # revoked, and the operator can retry.
-      @service.revoke(image, reason: reason, actor: actor) if image.available?
+      @service.revoke(image, reason: reason, actor: actor, severity: severity) if image.available?
       mark_revoked!(release, reason: reason, actor: actor, severity: severity.to_s)
       image.release_retention! if image.retention_state == "retained"
       Audit.record("base_release.revoke", outcome: :ok, image: image, actor: actor,

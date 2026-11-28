@@ -272,6 +272,14 @@ function EnabledLandingLanesStrip({ prefix = "" }: { prefix?: string }) {
   const { t } = useT("dashboard")
   const query = useQuery({ queryKey: ["landing_lanes"], queryFn: ({ signal }) => fetchLandingLanes({ signal }) })
   if (!query.data) return null
+  const activeRepositories = query.data.repositories.flatMap((repository) => {
+    const sections = landingLaneSections(repository).flatMap((section) => {
+      const lanes = section.lanes.filter((lane) => !lane.empty)
+      return lanes.length > 0 ? [{ ...section, lanes }] : []
+    })
+    return sections.length > 0 ? [{ repository, sections }] : []
+  })
+  if (activeRepositories.length === 0) return null
 
   return (
     <Surface className="px-3 py-3">
@@ -282,21 +290,24 @@ function EnabledLandingLanesStrip({ prefix = "" }: { prefix?: string }) {
         </Link>
       </div>
       <div className="space-y-3">
-        {query.data.repositories.map((repository) => (
+        {activeRepositories.map(({ repository, sections }) => (
           <div key={repository.id}>
             <div className="mb-1 text-xs font-semibold text-muted">{repository.slug}</div>
             <div className="space-y-2">
-              {landingLaneSections(repository).map((section) => (
+              {sections.map((section) => (
                 <div className="space-y-1" key={section.branch ?? ""}>
                   {section.branch ? <div className="text-xs text-muted">{t("landing_lanes.branch", { branch: section.branch })}</div> : null}
                   {section.lanes.map((lane) => (
-                    <div className="grid grid-cols-[4rem_minmax(6rem,1fr)_minmax(5rem,auto)_minmax(5rem,1fr)_auto] items-center gap-2 text-xs" key={lane.number}>
+                    <div
+                      className="grid grid-cols-[4rem_minmax(6rem,1fr)_minmax(5rem,auto)_minmax(5rem,1fr)_auto] items-center gap-2 text-xs"
+                      key={lane.number}
+                    >
                       <span>{t("landing_lanes.lane", { number: lane.number })}</span>
-                      <span className="truncate font-medium">{lane.empty ? t("landing_lanes.empty") : lane.anchor_job?.slug}</span>
-                      <span className="truncate text-muted">{lane.empty ? "" : phaseLabel(lane, t)}</span>
+                      <span className="truncate font-medium">{lane.anchor_job ? <JobLink job={lane.anchor_job} /> : null}</span>
+                      <span className="truncate text-muted">{phaseLabel(lane, t)}</span>
                       <LaneProgress lane={lane} repositorySlug={section.branch ? `${repository.slug} ${section.branch}` : repository.slug} />
                       <span className="whitespace-nowrap text-muted">
-                        {lane.empty ? "" : t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}
+                        {t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}
                       </span>
                     </div>
                   ))}

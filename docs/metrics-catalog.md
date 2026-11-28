@@ -71,6 +71,7 @@ are computed at read time with `rate()`.
 | `syrus_runtime_image_cache_bytes` | gauge | `state` | no | Bytes of runtime images held in worker caches by entry state (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_runtime_image_operations_total` | counter | `kind`, `outcome` | no | Runtime Image Service operations by kind (publish, revoke, retain, delete, gc, reconcile, auth) and outcome (ok, failed, skipped, repaired, detected) |
 | `syrus_runtime_image_pulls_24h` | gauge | `outcome` | no | Worker image cache lookups and pulls in the last 24 hours by outcome (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_runtime_image_revocation_terminations_total` | counter | `outcome` | no | Agent processes matched by severe runtime image revocation termination requests |
 | `syrus_runtime_images` | gauge | `state` | no | Runtime images by state: pending, available, revoked, deleted, retained, cleanup_failed (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |
 | `syrus_spawned_processes` | gauge | `kind`, `state` | no | Spawned subprocesses running or recently finished, by kind and state (GLOBAL -- aggregate with max by, never sum) |

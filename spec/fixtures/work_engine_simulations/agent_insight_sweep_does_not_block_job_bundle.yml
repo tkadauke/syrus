@@ -30,8 +30,13 @@ jobs:
             state: succeeded
             started_at: "2026-09-24 10:00:00"
             finished_at: "2026-09-24 10:10:00"
+        # Queued past the reconciler's grace period, as a production step
+        # left without a Run would be: simulated time never passes it, so a
+        # fresh timestamp left the sweep running forever once the bundle
+        # landed.
         - kind: auto_close
           state: queued
+          created_at: "2026-09-24 10:10:00"
   alpha:
     title: First approved bundle member
     state: approved
@@ -50,6 +55,8 @@ outcomes:
   default: success
 expect:
   jobs:
+    insight:
+      - closed
     alpha:
       - closed
     beta:

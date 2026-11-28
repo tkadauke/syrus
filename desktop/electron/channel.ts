@@ -17,9 +17,9 @@ export type Channel = "stable" | "test"
 //      build, and it is the same string that drives userData, the single-
 //      instance lock, and the self-install target, so keying off it is self-
 //      consistent.
-//   3. version shape — a "-test.N" build, or the "0.0.0" dev sentinel. This
+//   3. version shape — a "-test.N" build, or a "0.0.x" local dev version. This
 //      backstops (2): even if app.getName() ever returned the lowercase npm
-//      name, a packaged test build (version -test.N) and a dev build (0.0.0)
+//      name, a packaged test build (version -test.N) and a dev build (0.0.x)
 //      still resolve to test, while a clean release stays stable.
 export const resolveChannel = (signals: {
   env?: string | null
@@ -36,7 +36,7 @@ export const resolveChannel = (signals: {
   }
 
   const version = (signals.version ?? "").trim()
-  if (/-test\.\d+$/.test(version) || version === "0.0.0") {
+  if (/-test\.\d+$/.test(version) || /^0\.0\.\d+$/.test(version)) {
     return "test"
   }
 

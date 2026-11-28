@@ -43,7 +43,7 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyVerifier do
     allow(scanner).to receive(:call).and_return(report({
       "Size" => policy.dig("image", "max_bytes") + 1,
       "RootFS" => { "Layers" => Array.new(policy.dig("image", "max_layers") + 1, "sha256:layer") },
-      "Config" => { "User" => "root", "Entrypoint" => [ "/bin/sh" ],
+      "Config" => { "User" => "root", "Entrypoint" => [ "/bin/sh" ], "Volumes" => { "/coworker-mount" => {} },
                     "Labels" => { "io.syrus.requested-capabilities" => "ALL" } }
     }, secrets: { "Results" => [ { "Target" => "source", "Secrets" => [ secret ] } ] }))
 
@@ -53,7 +53,8 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyVerifier do
     expect(result.message).not_to include("super-secret-value", "private-key")
     expect(attempt.reload.policy_evidence.safe_summary.fetch("codes")).to include(
       "secret_detected" => 1, "image_too_large" => 1, "too_many_layers" => 1,
-      "invalid_user" => 1, "invalid_entrypoint" => 1, "forbidden_capability" => 1
+      "invalid_user" => 1, "invalid_entrypoint" => 1, "forbidden_capability" => 1,
+      "declared_volume" => 1
     )
     expect(attempt.policy_evidence.report.download).to include("super-secret-value")
   end

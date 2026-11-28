@@ -17,6 +17,7 @@ de:
       other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
       fallback: "Ein Agent wartet auf eine Berechtigung"
   coworkers:
+    environment_unavailable: "Die Coworker-Umgebung ist nicht verfügbar oder inkompatibel. Bitte einen Administrator, das Image und seine Runtime-Kompatibilität zu prüfen."
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
     detach_job:
@@ -161,6 +162,9 @@ de:
         headline: "Neustart von der effektiven Basis"
         explanation: "Es gibt kein verlässliches fortsetzbares Wiederherstellungsziel mehr; starte neu von der effektiven Basis."
     runtime_images:
+      revocation:
+        recovery_guidance: "Aktiviere ein kompatibles, nicht widerrufenes Image oder setze darauf zurück, bevor du den Lauf erneut versuchst."
+        termination_requested: "Ein schwerwiegender Widerruf eines Laufzeit-Images hat die Beendigung der betroffenen Prozesse in der Flotte angefordert."
       verifications:
         reevaluator:
           abandoned: "Der Verifizierungsversuch wurde abgebrochen."
@@ -338,6 +342,11 @@ de:
       failure_title: "Die App konnte nicht gestartet werden"
       failure_message: "Lade die Seite erneut. Wenn das Problem weiter besteht, teile die Referenz unten."
       reference: "Referenz"
+      progress_label: "Download-Fortschritt"
+      progress_amount: "%{loaded} von %{total}"
+      progress_amount_estimated: "%{loaded} von etwa %{total}"
+      progress_speed: "etwa %{speed}"
+      progress_time_left: "noch etwa %{time}"
       unavailable_title: "Syrus wird vorbereitet"
       unavailable_message: "Syrus startet nach einem Update neu. Diese Seite macht von selbst weiter, sobald Syrus wieder da ist."
       unavailable_retry: "Jetzt versuchen"

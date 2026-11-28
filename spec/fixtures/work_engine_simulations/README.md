@@ -11,6 +11,9 @@ Run one scenario:
 bin/simulator spec/fixtures/work_engine_simulations/single_initial_success.yml
 ```
 
+A result prints its last 20 events; set `SIMULATOR_FULL_LOG=1` to print all
+of them.
+
 Run the regression set:
 
 ```sh
@@ -118,6 +121,9 @@ run classifiers decide retryability from it before reading any text. Pin the
 declared answer with `expect.run_evidence` (`{ job:, step:, classification: }`):
 the simulator fails every Run with `agent_outcome: error`, which is itself
 retryable, so retry *behavior* alone does not prove which input decided it.
+A `run_evidence` entry may also take `state:` and bound how many Runs match
+with `count:`, `min_count:`, or `max_count:` -- how a scenario pins that a
+retry policy stopped where it should, not merely that it ran.
 Workflow event
 conditions accept `start_blocked:` alongside `state:` to match on the
 current start-block reason.
@@ -434,6 +440,13 @@ given) -- `worker_died` for a worker dying mid-step, or
 `rewrite_stack_parent: child` moves the stack parent's head and fails the
 child's next `pr_open` with `awaiting_stable_base`, the way the
 StackBaseFreshness barrier does when the parent was force-pushed mid-run.
+`deploy_restart: { revision: }` kills every Run in flight with `worker_died`
+and brings the fleet back on a new revision. `github_outage: { ticks: N }`
+fails every GitHub-touching step (`pr_open`, `push`, `auto_merge`,
+`merge_train_land`, ...) for N ticks with a declared `github_api_transient`
+502. `join_worker: { hostname: }` adds a live worker to the fleet's rotation;
+`leave_worker: { hostname: }` loses its heartbeats and takes it out of
+rotation (a workflow pinned to its storage still routes back to it).
 An event carrying `fuzz:` that cannot apply at its tick (storage loss for a
 workflow without a simulated workspace, say) is logged as inapplicable
 instead of aborting the scenario.
@@ -451,8 +464,11 @@ perturbations from a catalog -- worker death, transient failures, a grader
 killed by a deploy, operator pause and unpause, main moving, breaking and
 healing, provider outages, CI flakes, external merges and closes, a provider
 switch, spurious wakes and deferred-phase resumes, stack parent rewrites,
-worker and storage loss, and (for seeds with a `git:` block) a PR going
-dirty and a branch rewritten with or without patch equivalence -- scheduled at ticks inside the seed's own
+worker and storage loss, a deploy restarting the fleet, a GitHub outage
+window, main moving again and again, two operators approving or pausing
+one Job in the same tick, a worker joining and leaving the fleet, and (for
+seeds with a `git:` block) a PR going dirty and a branch rewritten with or
+without patch equivalence -- scheduled at ticks inside the seed's own
 timeline. Everything is derived from `--seed` and the iteration index, so
 an iteration replays exactly.
 

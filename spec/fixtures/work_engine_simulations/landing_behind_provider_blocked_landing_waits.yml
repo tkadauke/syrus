@@ -1,0 +1,64 @@
+# Found by the simulator fuzzer: the provider's usage runs out while the first
+# of two approved Jobs is landing. Its landing WorkUnit blocks on
+# provider_availability and keeps the repository's landing lane, so the second
+# Job waits for the lane -- which the landing queue does not record as a
+# blocker. landing_progress read the waiting Job as stranded once the outage
+# outlasted its threshold. Both land, in order, once usage is back.
+name: landing behind provider blocked landing waits
+repository:
+  owner: simulation
+  name: landing-behind-provider-blocked-landing
+  auto_merge_enabled: true
+jobs:
+  first:
+    title: First job, landing when usage runs out
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job, waiting for the landing lane
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve first once implemented
+    once: true
+    when: { job: { id: first, state: implemented } }
+    do: { approve: first }
+  - name: approve second once implemented
+    once: true
+    when: { job: { id: second, state: implemented } }
+    do: { approve: second }
+  - name: provider usage runs out mid-landing
+    once: true
+    when:
+      all:
+        - job: { id: first, state: landing }
+        - job: { id: second, state: approved }
+    do:
+      exhaust_provider_usage: codex
+  - name: provider usage is back much later
+    once: true
+    when: { tick: { at_least: 40 } }
+    do:
+      refresh_provider_usage: codex
+      wake_provider_admission: codex
+max_ticks: 90
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - closed
+    second:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events_ordered:
+    - "provider usage runs out mid-landing"
+    - "provider usage is back much later"
+    - "auto_merge for Second job"

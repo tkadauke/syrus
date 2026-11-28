@@ -78,7 +78,8 @@ module ContainerExecution
         raise BuildError, "requested immutable runtime image is unavailable or changed"
       end
 
-      @images.acquire(image) { |reference| yield reference }
+      @images.acquire(image, provider: request.chat_session&.effective_chat_provider,
+        validate_runtime_abi: true) { |reference| yield reference }
     end
 
     def devcontainer_spec

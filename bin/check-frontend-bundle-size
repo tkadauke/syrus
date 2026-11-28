@@ -1,33 +1,80 @@
 #!/usr/bin/env node
 
+// Guards the SPA startup download.
+//
+// Startup loads the `main` entry and every chunk it statically imports, so
+// the budget is on that whole graph, gzipped as it goes over the wire, not
+// only on the entry file. Routes and plugin contributions are split into lazy
+// chunks that load on demand or in background warm-up; a static import that
+// pulls one of those back into startup also trips the dynamic-entry check
+// below, naming the module, before it shows up as bytes.
+
 import fs from "node:fs"
 import path from "node:path"
+import zlib from "node:zlib"
 
 const buildDir = path.resolve(process.env.VITE_BUILD_DIR || "app/assets/builds")
 const manifestPath = path.join(buildDir, ".vite", "manifest.json")
-const maximumBytes = Number(process.env.VITE_ENTRY_MAX_BYTES || 3_200_000)
+const entryKey = "app/frontend/main.tsx"
+// Raw size of the entry file alone.
+const maximumEntryBytes = Number(process.env.VITE_ENTRY_MAX_BYTES || 1_000_000)
+// Gzipped size of the entry plus every chunk it statically imports. The split
+// startup graph measured about 370 KiB gzipped (down from about 1.0 MB); this
+// leaves room for ordinary growth while failing if a route or the tool-card
+// tree becomes eager again.
+const maximumStartupGzipBytes = Number(process.env.VITE_STARTUP_MAX_GZIP_BYTES || 480_000)
 
-if (!fs.existsSync(manifestPath)) {
-  console.error(`Vite manifest not found at ${manifestPath}; run npm run build first`)
+function fail(message) {
+  console.error(message)
   process.exit(1)
 }
+
+if (!fs.existsSync(manifestPath)) fail(`Vite manifest not found at ${manifestPath}; run npm run build first`)
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
-const entry = Object.values(manifest).find((asset) => asset.isEntry)
+const entry = manifest[entryKey] ?? Object.values(manifest).find((asset) => asset.isEntry)
+if (!entry?.file) fail(`No entry asset found in ${manifestPath}`)
 
-if (!entry?.file) {
-  console.error(`No entry asset found in ${manifestPath}`)
-  process.exit(1)
+const startupKeys = []
+const seen = new Set()
+function collect(key) {
+  if (seen.has(key) || !manifest[key]) return
+  seen.add(key)
+  startupKeys.push(key)
+  for (const imported of manifest[key].imports ?? []) collect(imported)
+}
+collect(manifest[entryKey] ? entryKey : Object.keys(manifest).find((key) => manifest[key] === entry))
+
+const mib = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MiB`
+const kib = (bytes) => `${Math.round(bytes / 1024)} KiB`
+const problems = []
+
+const entrySize = fs.statSync(path.join(buildDir, entry.file)).size
+if (entrySize > maximumEntryBytes) problems.push(`Frontend entry ${entry.file} is ${mib(entrySize)}; budget is ${mib(maximumEntryBytes)}`)
+
+const eagerLazyModules = startupKeys.filter((key) => manifest[key].isDynamicEntry)
+if (eagerLazyModules.length > 0) {
+  problems.push(
+    `Lazily loaded modules are statically reachable from the startup entry, so startup downloads them: ${eagerLazyModules.join(", ")}. ` +
+      "Import them through their lazy loader (routes/routeChunks.ts, the plugin contribution registry) instead."
+  )
 }
 
-const entryPath = path.join(buildDir, entry.file)
-const size = fs.statSync(entryPath).size
-const formattedSize = (size / 1024 / 1024).toFixed(2)
-const formattedMaximum = (maximumBytes / 1024 / 1024).toFixed(2)
-
-if (size > maximumBytes) {
-  console.error(`Frontend entry ${entry.file} is ${formattedSize} MiB; budget is ${formattedMaximum} MiB`)
-  process.exit(1)
+const chunks = startupKeys.map((key) => {
+  const file = manifest[key].file
+  return { file, gzip: zlib.gzipSync(fs.readFileSync(path.join(buildDir, file))).length }
+})
+const startupGzip = chunks.reduce((sum, chunk) => sum + chunk.gzip, 0)
+if (startupGzip > maximumStartupGzipBytes) {
+  const largest = [...chunks]
+    .sort((a, b) => b.gzip - a.gzip)
+    .slice(0, 5)
+    .map((chunk) => `${chunk.file} ${kib(chunk.gzip)}`)
+    .join(", ")
+  problems.push(`Startup JavaScript is ${kib(startupGzip)} gzipped across ${chunks.length} chunks; budget is ${kib(maximumStartupGzipBytes)}. Largest: ${largest}`)
 }
 
-console.log(`Frontend entry ${entry.file}: ${formattedSize} MiB (budget ${formattedMaximum} MiB)`)
+if (problems.length > 0) fail(problems.join("\n"))
+
+console.log(`Frontend entry ${entry.file}: ${mib(entrySize)} (budget ${mib(maximumEntryBytes)})`)
+console.log(`Startup JavaScript: ${kib(startupGzip)} gzipped across ${chunks.length} chunks (budget ${kib(maximumStartupGzipBytes)})`)

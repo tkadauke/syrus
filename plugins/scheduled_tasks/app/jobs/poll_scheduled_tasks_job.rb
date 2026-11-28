@@ -29,6 +29,10 @@ class PollScheduledTasksJob < PluginJob
   def perform
     return if AppSetting.polling_paused?
     now = Time.current
+    # System-schedule definitions (coworker journaling, ...) are registered
+    # by plugin installs. Sync before evaluating any `due?` so this process
+    # knows every definition its enabled plugins provide.
+    Syrus::Host::Installer.sync!
 
     cursor = 0
     loop do
@@ -64,6 +68,31 @@ class PollScheduledTasksJob < PluginJob
     return unless task.due?(now: now)
 
     ScheduledTasks::FireDueTaskJob.perform_later(task, now)
+  rescue ScheduledTasks::SystemSchedules::UnknownSystemSchedule => e
+    report_unknown_system_schedule(task, e, now)
+  end
+
+  # A system schedule whose definition is not registered cannot be judged
+  # due or not due. It must not read as "not due": log it every poll, and
+  # record a failed occurrence plus a consecutive failure (once per hour) so
+  # the operator sees the schedule is broken. One task's failure never stops
+  # the rest of the scan.
+  def report_unknown_system_schedule(task, error, now)
+    Rails.logger.error(
+      "[PollScheduledTasksJob] task ##{task.id} system_key=#{task.system_key.inspect} " \
+      "cannot be evaluated: #{error.class}: #{error.message}"
+    )
+    return unless task.record_unknown_system_schedule!(at: now)
+
+    BackendExceptionLogging.ingest_job(
+      { job: self, exception_object: error, exception: [ error.class.name, error.message ] },
+      0
+    )
+  rescue StandardError => recording_error
+    Rails.logger.error(
+      "[PollScheduledTasksJob] task ##{task.id} unknown system schedule failure record failed: " \
+      "#{recording_error.class}: #{recording_error.message}"
+    )
   end
 
   # Retries a read-only poll phase on transient MySQL capacity/lock errors.

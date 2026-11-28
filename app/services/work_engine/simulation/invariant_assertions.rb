@@ -22,7 +22,8 @@ module WorkEngine
     #
     # The retry-storm window is a count over a window rather than an age, and
     # the default hour of real time already spans a whole scenario; it keeps
-    # its production value.
+    # its production value. So does its outage horizon: zeroed, every outage
+    # failure would read as one outlasting it.
     #
     # Scenario YAML can tune this under `invariants:`:
     #
@@ -49,7 +50,7 @@ module WorkEngine
         "paused_rebase_holds" => 3
       }.freeze
       # Options that keep their production value in simulation (see above).
-      KEEP_DURATION_OPTIONS = { "retry_storms" => %i[window] }.freeze
+      KEEP_DURATION_OPTIONS = { "retry_storms" => %i[window outage_horizon] }.freeze
       FALLBACK_SUSTAIN_TICKS = 5
 
       Expected = Data.define(:invariant, :job_id, :discriminator, :required, :reason) do

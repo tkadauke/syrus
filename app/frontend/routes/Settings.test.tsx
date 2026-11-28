@@ -55,7 +55,7 @@ describe("App settings routes", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Tags" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Tags" })).toBeInTheDocument()
     expect(await screen.findByText("triage")).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")

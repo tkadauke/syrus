@@ -15,7 +15,7 @@ module Coworkers
 
     def resolve
       environment.with_lock do
-        environment.reload
+        environment.reload(lock: true)
         activation = environment.active_activation
         return unless activation
 

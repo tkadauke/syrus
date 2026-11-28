@@ -8,6 +8,9 @@ module RuntimeImages
   # vocabulary; this service freezes the archive and the live build policy.
   class BuildRequests
     Base = Data.define(:id, :digest, :runtime_abi, :compat_min, :compat_max)
+    BaseLaunch = Data.define(:state, :code, :message, :base, :runtime_image) do
+      def ready? = state == :ready
+    end
 
     # TarWriter normally uses RubyGems' process-level source date epoch. Keep
     # the build-request identity independent of that ambient configuration so
@@ -30,13 +33,26 @@ module RuntimeImages
     private_constant :ArchiveWriter
 
     def active_base(platform: BuiltImages::DEFAULT_PLATFORM)
-      state = BaseReleases.new.launch_state(platform: platform)
-      return unless state.ready?
+      base_launch(platform:).base
+    end
 
-      release = state.release
+    def base_for_rebuild(id)
+      release = CoworkerBaseRelease.find_by(id: id)
+      return unless release&.supported?
 
       Base.new(id: release.id, digest: release.digest, runtime_abi: release.runtime_abi,
                compat_min: release.compat_min, compat_max: release.compat_max)
+    end
+
+    def base_launch(platform: BuiltImages::DEFAULT_PLATFORM)
+      launch = BaseReleases.new.launch_state(platform: platform)
+      return BaseLaunch.new(state: launch.state, code: launch.code, message: launch.message,
+                            base: nil, runtime_image: nil) unless launch.ready?
+
+      release = launch.release
+      base = Base.new(id: release.id, digest: release.digest, runtime_abi: release.runtime_abi,
+                      compat_min: release.compat_min, compat_max: release.compat_max)
+      BaseLaunch.new(state: :ready, code: nil, message: nil, base:, runtime_image: release.runtime_image)
     end
 
     def submit(owner_kind:, owner_ref:, source_kind:, source_ref:, files:, recipe:, requester_kind:, requester_ref:,
@@ -47,7 +63,8 @@ module RuntimeImages
         "input_policy" => Hash(policy_context).deep_stringify_keys.merge(
           "build_network_policy_digest" => policy.digest,
           "build_network_policy_snapshot" => policy.snapshot,
-          "confinement_policy_version" => RuntimeAbi::CONFINEMENT_POLICY_VERSION
+          "confinement_policy_version" => RuntimeAbi::CONFINEMENT_POLICY_VERSION,
+          "runtime_contract_digest" => RuntimeAbi.digest
         )
       )
       source = Builds::SourceCapture.capture(

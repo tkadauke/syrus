@@ -2138,6 +2138,29 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(wf.reload.state).to eq("failed")
     end
 
+    # Regression: a deterministic timeout was rerun in place up to the full
+    # infrastructure budget on every workflow attempt. A rerun that fails
+    # exactly like the run before it now fails the workflow, so the next
+    # remediation is a fresh workflow on the shared Runs::RepeatedFailure
+    # budget rather than another identical rerun.
+    it "stops rerunning in place once a rerun repeated the same failure" do
+      wf, fanout = failed_fanout_with(classification: "timeout", retryable: true)
+      first = fanout.runs.sole
+      RunDiagnostic.create!(run: first, error_class: "Timeout::Error", error_message: "execution expired")
+
+      expect { described_class.fail_from(fanout) }.to change { fanout.reload.runs.count }.by(1)
+
+      rerun = fanout.runs.reorder(:id).last
+      rerun.update_column(:state, "failed")
+      RunDiagnostic.create!(run: rerun, error_class: "Timeout::Error", error_message: "execution expired")
+      RunFailureClassification.find_or_initialize_by(run_id: rerun.id)
+        .update!(classification: "timeout", retryable: true, classified_at: Time.current)
+      fanout.update_column(:state, "failed")
+
+      expect { described_class.fail_from(fanout.reload) }.not_to change { fanout.reload.runs.count }
+      expect(wf.reload.state).to eq("failed")
+    end
+
     it "materializes the next loop iteration when grade fails with budget remaining" do
       loop_wf = workflow_with_loop(max_iterations: 3)
       implement = loop_wf.steps.find_by!(kind: "implement", iteration: 1)

@@ -39,13 +39,15 @@ class Coworkers::EnvironmentReconciler
   # deliberately remains available while the product gate is disabled.
   def repair_activation_projection(environment)
     environment.with_lock do
-      environment.reload
+      environment.reload(lock: true)
       activation = environment.active_activation
       return unless activation
 
-      activation.reload
-      image = activation.runtime_image.reload
-      revision = activation.revision.reload
+      # Locking reads: these decide whether the pointers are repaired, and a
+      # plain read here can return rows as they were before the lock above.
+      activation.reload(lock: true)
+      image = activation.runtime_image.reload(lock: true)
+      revision = activation.revision.reload(lock: true)
       return unless image.pullable? && activation.verification_attestation.valid_at?(@now)
       return unless activation.image_digest == image.digest && activation.source_digest == revision.source_digest
 

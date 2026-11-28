@@ -508,6 +508,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
     |[{};=?`&]
     |\b(?:Array|ComponentType|DataTableColumnDef|InboxEntry|Map|Pick|PluginContribution|Promise|ReadonlyArray|Record|ReturnType|Set)\b
     |\b(?:Partial|Number|selection)\b
+    # A generic TypeScript signature, `f<T>(a: X, b: Y): Result<T>`, reads
+    # as `>…<` text; its return type annotation gives it away.
+    |\)\s*:\s*[A-Z]\w*\s*\z
     /x
   end
 
@@ -679,6 +682,15 @@ RSpec.describe "Untranslated source strings", type: :unit do
           expect(translated_value).not_to eq(english_value), "#{language}.#{namespace}.#{path.join('.')} must be translated"
         end
       end
+    end
+  end
+
+  it "does not mistake a generic TypeScript signature for JSX text" do
+    Tempfile.create([ "i18n-audit", ".ts" ], Rails.root.join("tmp")) do |file|
+      file.write("export function load<T>(id: string, options: Options): Loader<T> {}\n")
+      file.flush
+
+      expect(findings_for(file.path)).to be_empty
     end
   end
 

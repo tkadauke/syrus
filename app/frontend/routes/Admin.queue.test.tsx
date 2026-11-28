@@ -87,7 +87,7 @@ describe("App admin queue", () => {
         </QueryClientProvider>
       )
 
-      expect(screen.getByRole("main", { name: "Admin queue" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Admin queue" })).toBeInTheDocument()
       expect(screen.getByRole("heading", { name: "Queue" }).closest("header")).toHaveClass("items-end", "justify-between")
       expect(screen.getByRole("button", { name: "Run stale-run reaper" })).toHaveClass("shrink-0")
       expect(await screen.findByText("RunJob")).toBeInTheDocument()

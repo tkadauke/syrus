@@ -35,6 +35,13 @@ class RunJob < ApplicationJob
     ActiveRecord::LockWaitTimeout
   ].freeze
   LIFECYCLE_LOCK_RETRY_ATTEMPTS = 3
+  # Recording a success comes after the Run did all its work: losing it to
+  # row-lock contention threw away a passing grader, and a grader fan-out
+  # finishing together contends on the same Workflow and Job rows. The
+  # commit is guarded by the states it expects, so retrying it longer, with
+  # growing jittered backoff (about half a minute in all), is safe.
+  RECORD_SUCCESS_LOCK_RETRY_ATTEMPTS = 8
+  LIFECYCLE_LOCK_MAX_BACKOFF_SECONDS = 8.0
 
   Syrus::Metrics.declare do
     counter :run_lifecycle_lock_retries_total, tags: %i[kind queue outcome], cluster: true,
@@ -101,6 +108,13 @@ class RunJob < ApplicationJob
   # A workspace in these states existed; its absence means it was lost.
   WORKSPACE_EXPECTED_LIFECYCLE_STATES = %w[created reconstructed storage_lost].freeze
   WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
+  # Row-lock contention on the ancestry while claiming a Run. A grader
+  # fan-out starts a few dozen Runs of one Workflow at once, and each claim
+  # locks the same Workflow and Job rows; the losers used to exhaust their
+  # in-process retries and fail the grader before it ran a command. The
+  # claim rolls back, so the Run is still queued: deliver it again a little
+  # later, jittered so the herd does not re-collide.
+  ACQUIRE_CONTENTION_RETRY_DELAY = 10.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
   MACOS_VERSION_SKEW_RETRY_DELAY = 1.minute
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
@@ -321,21 +335,25 @@ class RunJob < ApplicationJob
     return false if RunQueueResolver.locally_satisfied?(run: @run)
 
     Rails.logger.info("[RunJob] this worker does not satisfy Run ##{@run.id}'s placement requirements - handing it back")
-    # No live worker satisfies it either (the last capable one failed a smoke
-    # check after the Run was enqueued): block it with the resolver's reason
-    # and a recheck, as the first enqueue does. Re-enqueueing it onto the same
-    # queue let this worker claim and hand it back every few seconds with no
-    # reason recorded (F150).
-    decision = RunQueueResolver.resolve(run: @run)
-    if decision.blocked?
-      @run.send(:block_for_missing_capable_worker!, decision)
-    else
-      defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
-    end
+    self.class.hand_back_incapable!(@run) { defer_run(@run.id, CAPABILITY_HANDBACK_DELAY) }
     true
   rescue StandardError => e
     Rails.logger.warn("[RunJob] capability check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
     false
+  end
+
+  # Hand a Run this worker cannot run back to the queue -- unless no live
+  # worker can. The Run was enqueued while a capable worker was live; once the
+  # last one leaves, handing it back only bounces it between incapable workers
+  # every few seconds with nothing named anywhere: the Workflow and WorkUnit
+  # read as running while nothing runs. Record the same no_capable_worker hold
+  # Run#enqueue_run_job records when the gap exists at enqueue time; the
+  # phase-admission recheck starts the Run once a capable worker is back.
+  def self.hand_back_incapable!(run)
+    decision = RunQueueResolver.resolve(run: run)
+    return run.hold_for_missing_capable_worker!(decision) if decision.blocked?
+
+    yield
   end
 
   def hand_back_unknown_step_kind?
@@ -791,7 +809,7 @@ class RunJob < ApplicationJob
   end
 
   def record_successful_step!
-    with_lifecycle_lock_retry("record_success") do
+    with_lifecycle_lock_retry("record_success", max_attempts: RECORD_SUCCESS_LOCK_RETRY_ATTEMPTS) do
       @run.reload
       @step.reload
       @workflow.reload
@@ -844,7 +862,7 @@ class RunJob < ApplicationJob
     end
   end
 
-  def with_lifecycle_lock_retry(operation)
+  def with_lifecycle_lock_retry(operation, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS)
     attempts = 0
 
     begin
@@ -853,14 +871,14 @@ class RunJob < ApplicationJob
       result
     rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
       attempts += 1
-      exhausted = attempts >= LIFECYCLE_LOCK_RETRY_ATTEMPTS
-      log_lifecycle_lock_conflict(operation, e, attempts:, exhausted:)
+      exhausted = attempts >= max_attempts
+      log_lifecycle_lock_conflict(operation, e, attempts:, exhausted:, max_attempts:)
       if exhausted
         record_lifecycle_lock_outcome(operation, "exhausted")
         raise
       end
 
-      sleep(0.05 * attempts) unless Rails.env.test?
+      sleep(lifecycle_lock_backoff(attempts)) unless Rails.env.test?
       @run&.reload
       @step&.reload
       @workflow&.reload
@@ -869,7 +887,12 @@ class RunJob < ApplicationJob
     end
   end
 
-  def log_lifecycle_lock_conflict(operation, error, attempts:, exhausted:)
+  def lifecycle_lock_backoff(attempts)
+    base = [ 0.05 * (2**(attempts - 1)), LIFECYCLE_LOCK_MAX_BACKOFF_SECONDS ].min
+    base + rand(0.0..base)
+  end
+
+  def log_lifecycle_lock_conflict(operation, error, attempts:, exhausted:, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS)
     Rails.logger.warn({
       event: "run_lifecycle_persistence_contention",
       operation: operation,
@@ -879,7 +902,7 @@ class RunJob < ApplicationJob
       step_id: @step&.id,
       run_id: @run&.id,
       attempt: attempts,
-      max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS,
+      max_attempts: max_attempts,
       exhausted: exhausted,
       error_class: error.class.name,
       error_message: error.message,
@@ -945,6 +968,14 @@ class RunJob < ApplicationJob
       "deferring Run ##{@run.id} by #{WORK_UNIT_LOCK_RETRY_DELAY.inspect}"
     )
     defer_run(@run.id, WORK_UNIT_LOCK_RETRY_DELAY)
+    false
+  rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
+    raise unless ::Run.where(id: @run.id).pick(:state) == "queued"
+
+    Rails.logger.info(
+      "[RunJob] claiming Run ##{@run.id} stayed contended (#{e.class}); deferring it"
+    )
+    defer_run(@run.id, ACQUIRE_CONTENTION_RETRY_DELAY + rand(0.0..ACQUIRE_CONTENTION_RETRY_DELAY.to_f).seconds)
     false
   end
 

@@ -100,7 +100,7 @@ class Coworkers::EnvironmentLifecycle
       raise Coworkers::EnvironmentRevision::InvalidTransition, "severe revocation requires an affected image digest"
     end
     result, changed = @environment.with_lock do
-      revision.reload
+      revision.reload(lock: true)
       already_revoked = revision.revoked? && @environment.active_revision_id != revision.id &&
         @environment.candidate_revision_id != revision.id
       if already_revoked
