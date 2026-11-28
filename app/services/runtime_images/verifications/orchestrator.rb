@@ -89,7 +89,8 @@ module RuntimeImages
           # the rows that exist accepted it (F154).
           if failure.nil? && (missing = missing_required_check(attempt))
             attempt.update!(state: "blocked", decision: "blocked", failure_class: "infrastructure",
-                            failure_code: "check_missing", message: "required check #{missing} has no recorded result", finished_at: now)
+                            failure_code: "check_missing", message: I18n.t("services.runtime_images.verifications.orchestrator.check_missing", check: missing),
+                            finished_at: now)
             image.update!(verification_state: "blocked") if image.runtime_image_verification_attempts.maximum(:number) == attempt.number
             next
           end

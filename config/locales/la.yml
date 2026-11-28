@@ -164,6 +164,8 @@ la:
       verifications:
         reevaluator:
           abandoned: "Conatus verificationis desertus est."
+        orchestrator:
+          check_missing: "Probationis necessariae %{check} nullus exitus servatus est."
         supply_chain_policy:
           blocked: "Regula catenae commeatus inventa vetuit: vulnerabilitates: %{vulnerability_count}; fasciculi vetiti: %{package_count}."
     workflow_outcome_overrides:

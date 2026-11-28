@@ -194,6 +194,8 @@ en:
       verifications:
         reevaluator:
           abandoned: "Verification attempt was abandoned."
+        orchestrator:
+          check_missing: "Required check %{check} has no recorded result."
         supply_chain_policy:
           blocked: "Supply-chain policy blocked vulnerability findings: %{vulnerability_count}; prohibited packages: %{package_count}."
     workflow_outcome_overrides:

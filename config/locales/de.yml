@@ -164,6 +164,8 @@ de:
       verifications:
         reevaluator:
           abandoned: "Der Verifizierungsversuch wurde abgebrochen."
+        orchestrator:
+          check_missing: "Für die erforderliche Prüfung %{check} ist kein Ergebnis gespeichert."
         supply_chain_policy:
           blocked: "Die Lieferkettenrichtlinie hat Funde blockiert: Schwachstellen: %{vulnerability_count}; verbotene Pakete: %{package_count}."
     workflow_outcome_overrides:

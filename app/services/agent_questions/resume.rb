@@ -27,10 +27,6 @@ module AgentQuestions
         return false unless awaiting || blocked
         return false if workflow.terminal? && !blocked
         return false if workflow.job&.closed?
-        # A blocked attempt a retry replaced has a terminal WorkUnit; resuming
-        # it would reactivate that unit beside, or after, its replacement
-        # (F143).
-        return false if WorkUnit.lock.find_by(workflow_id: workflow.id)&.terminal?
 
         if resumable_session?
           @run.prompt = answer_prompt

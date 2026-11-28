@@ -5402,6 +5402,11 @@ cannot resume it" (the replaced Workflow came back running) and "does not
 resume a Run whose Workflow was cancelled while it awaited the answer" (the
 Run was queued again) both failed before the change.
 
+Main later made resume reactivate a released unit when it can (and raise,
+keeping the question answerable, on a lock conflict). The resume guard against
+a terminal WorkUnit was therefore dropped; the replaced attempt stays closed
+because the retry withdraws its open questions, so a later answer is refused.
+
 Lead L17 (not fixed). A Run or Step parked in `awaiting_answer` under a
 Workflow that is cancelled stays parked, and its question stays open in the
 inbox; answering it is now refused. Whether cancellation should withdraw the
