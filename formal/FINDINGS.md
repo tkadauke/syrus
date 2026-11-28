@@ -5055,6 +5055,27 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F145. A runtime session's provider could be started twice — fixed
+
+**Invariant.** A runtime session has at most one provider operation in flight
+and one provider process per started session.
+
+**Counterexample.** `runtime_start` reused any session that was not stopped, a
+running one included, and started its provider again. Two concurrent starts
+both read "no active operation" (unlocked, through `reconcile_expired!`), and
+`Operation#begin_operation!` overwrote whatever operation was recorded: the
+second start replaced the first's operation id, so the first's result was
+dropped by `require_current` while its provider process kept running
+unrecorded. `runtime_build_or_reload` had the same unlocked check.
+
+**Fix.** Beginning an operation is checked under the session lock and refused
+while another is within its deadline (`Operation::AlreadyActive`, answered
+with the session's current payload by both tools), and `runtime_start`
+reports a running session instead of starting it again. Spec first: "reports a
+running session instead of starting its provider again" and "does not begin a
+second startup while one is active" failed with the provider started again.
+
+
 ## F144. A review override could rewrite a blocked Workflow's loop — fixed
 
 **Invariant.** Only a live Workflow's Steps change state, and only through

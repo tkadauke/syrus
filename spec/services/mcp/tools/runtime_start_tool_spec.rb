@@ -263,6 +263,45 @@ RSpec.describe Mcp::Tools::RuntimeStartTool, full_chat_access: :all do
     end
   end
 
+  # Starting reused any session that was not stopped, a running one included,
+  # and started its provider again (F145).
+  it "reports a running session instead of starting its provider again" do
+    with_workspace do |workspace|
+      session = RuntimeSession.create!(
+        repository: repository, chat_session: chat_session, workspace_ref: workspace,
+        provider_key: "stub", display_name: "Stub Provider", state: "running",
+        metadata: { "runtime_operation" => { "id" => "op-done", "kind" => "startup", "state" => "completed", "outcome" => "succeeded" } }
+      )
+      expect_any_instance_of(stub_runtime_provider_class).not_to receive(:start_session)
+
+      body = payload(call(provider: "stub"))
+
+      expect(body).to include(id: session.id, state: "running")
+      expect(session.reload.current_runtime_operation).to include("id" => "op-done")
+    end
+  end
+
+  # Two starts both saw no active operation before either began one; the
+  # second overwrote the first's operation and started the provider twice
+  # (F145). Beginning an operation is checked under the session lock.
+  it "does not begin a second startup while one is active" do
+    with_workspace do |workspace|
+      session = RuntimeSession.create!(
+        repository: repository, chat_session: chat_session, workspace_ref: workspace,
+        provider_key: "stub", display_name: "Stub Provider", state: "starting",
+        metadata: { "runtime_operation" => { "id" => "op-1", "kind" => "startup", "state" => "active", "deadline_at" => 1.minute.from_now.iso8601 } }
+      )
+      # The unlocked check ran before the other start began its operation.
+      allow(RuntimeSessions::Operation).to receive(:reconcile_expired!).and_return(nil)
+      expect_any_instance_of(stub_runtime_provider_class).not_to receive(:start_session)
+
+      response = call(provider: "stub")
+
+      expect(response).not_to be_error
+      expect(session.reload.current_runtime_operation).to include("id" => "op-1", "state" => "active")
+    end
+  end
+
   it "reconciles an expired persisted startup and retries the existing session" do
     with_workspace do |workspace|
       session = RuntimeSession.create!(

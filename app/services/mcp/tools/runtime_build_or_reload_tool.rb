@@ -39,6 +39,9 @@ module Mcp::Tools
         return Mcp::Tools.invalid(result.error) if result.timed_out?
 
         Mcp::Tools.success(result.value)
+      rescue RuntimeSessions::Operation::AlreadyActive
+        # Another caller began an operation after the check above (F145).
+        Mcp::Tools.success(runtime_session_payload(session.reload))
       rescue RuntimeSessionProviders::ConfigurationError => e
         Mcp::Tools.invalid(e.message)
       rescue StandardError => e
