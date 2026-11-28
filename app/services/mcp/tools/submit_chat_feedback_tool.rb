@@ -75,10 +75,12 @@ module Mcp::Tools
           requested_by: "agent"
         )
 
+        autonomous = AuthorizationSupport.complete_autonomous_pending_action!(pending_action, server_context, job:)
+
         Mcp::Tools.success(
           pending_action_id: pending_action.id,
-          state: pending_action.state,
-          message: "Chat feedback requires operator confirmation."
+          state: pending_action.reload.state,
+          message: autonomous ? "Chat feedback submitted." : "Chat feedback requires operator confirmation."
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

@@ -76,10 +76,12 @@ module Mcp::Tools
             subject: McpToolContext.from_server_context(server_context).agent_actor
           )
 
+          autonomous = AuthorizationSupport.complete_autonomous_pending_action!(pending_action, server_context, job:)
+
           return Mcp::Tools.success(
             pending_action_id: pending_action.id,
-            state: pending_action.state,
-            message: "Cancel #{job.slug}? Cancellation requires operator confirmation."
+            state: pending_action.reload.state,
+            message: autonomous ? "Cancelled #{job.slug}." : "Cancel #{job.slug}? Cancellation requires operator confirmation."
           )
         end
 

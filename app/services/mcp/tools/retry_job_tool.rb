@@ -138,10 +138,12 @@ module Mcp::Tools
             requested_by: "agent"
           )
 
+          autonomous = AuthorizationSupport.complete_autonomous_pending_action!(pending_action, server_context, job:)
+
           return Mcp::Tools.success(
             pending_action_id: pending_action.id,
-            state: pending_action.state,
-            message: mode.to_s == "auto" ? "Job retry requires operator confirmation." : "#{mode.to_s.humanize} Job retry requires operator confirmation.",
+            state: pending_action.reload.state,
+            message: autonomous ? "Job retry started." : (mode.to_s == "auto" ? "Job retry requires operator confirmation." : "#{mode.to_s.humanize} Job retry requires operator confirmation."),
             recovery: recovery_decision_payload(recoveries.fetch(job.id)),
             preflight: preflights.fetch(job.id).details
           )

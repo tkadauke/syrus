@@ -73,6 +73,14 @@ class Coworkers::Coworker < Syrus::Host::Record
   def listed_chats = coworker_chats.reject(&:mention?)
 
   def permission_rules = Coworkers::PermissionRules.new(self)
+  def job_autonomy = Coworkers::JobAutonomy.new(self)
+  def record_job_autonomy!(authorization:, job:)
+    Permissions::CoworkerAudit.record!(
+      "coworker_job_autonomy_action", owner: owner_user, coworker: self,
+      permission_rule_id: authorization.fetch("rule_id"), job_id: job.id,
+      repository_id: job.repository_id, autonomous_action: authorization.fetch("tool_name")
+    )
+  end
   def prepare_review_context!(run:, evidence:, criteria:) = Coworkers::ReviewMemoryLifecycle.prepare!(coworker: self, run:, evidence:, criteria:)
   def review_context_prompt(context) = Coworkers::ReviewMemoryLifecycle.prompt_section(context)
   def review_context_for(run) = Coworkers::ReviewContext.find_by(run:, coworker: self)
