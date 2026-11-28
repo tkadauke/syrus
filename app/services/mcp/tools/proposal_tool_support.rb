@@ -164,6 +164,9 @@ module Mcp::Tools
 
       pending_action = chat_session.pending_actions.find_by(id: pending_action_id)
       return unless pending_action
+      # Only an unresolved request is the ambiguous outcome being reconciled;
+      # a denied, cancelled or completed one must not swallow a new request.
+      return if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(pending_action.state)
       return unless pending_action.action == attributes[:action].to_s
       return unless pending_action.requested_by == attributes[:requested_by].to_s
       return unless pending_action.payload == attributes[:payload].deep_stringify_keys
