@@ -15,7 +15,10 @@ module Coworkers
       WorkspaceFileTools::Move,
       WorkspaceFileTools::Delete
     ].freeze
-    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool, SpawnSyrusChatTool ] + WORKSPACE_TOOLS).freeze
+    ENVIRONMENT_TOOLS = [ EnvironmentTools::Inspect, EnvironmentTools::RequestBuild,
+                          EnvironmentTools::RequestPublication, EnvironmentTools::RequestRollback ].freeze
+    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool, SpawnSyrusChatTool ] +
+      WORKSPACE_TOOLS + ENVIRONMENT_TOOLS).freeze
 
     def self.coworker_grants
       [
@@ -77,6 +80,13 @@ module Coworkers
       elsif klass == ManageScheduleTool
         Permissions::CoworkerActions.descriptor(tool_name: name, family: "schedule.manage_self",
           effects: %i[internal_write persistent_autonomy], risk: :medium, default: :ask)
+      elsif ENVIRONMENT_TOOLS.include?(klass)
+        operation = { EnvironmentTools::RequestBuild => :request_build,
+                      EnvironmentTools::RequestPublication => :publish,
+                      EnvironmentTools::RequestRollback => :rollback }[klass]
+        return Permissions::CoworkerActions.descriptor(tool_name: name, family: "coworker.environment.inspect",
+          effects: %i[local_read], risk: :low, default: :allow, essential: true) unless operation
+        klass.permission_descriptor(operation)
       elsif klass.respond_to?(:coworker_descriptor)
         klass.coworker_descriptor
       else
@@ -124,6 +134,8 @@ module Coworkers
               "chat.reply_owner_thread"
                         elsif klass == ManageScheduleTool
               "schedule.manage_self"
+                        elsif ENVIRONMENT_TOOLS.include?(klass)
+              klass.coworker_capability
                         elsif klass.respond_to?(:coworker_capability)
               klass.coworker_capability
                         else
@@ -133,7 +145,7 @@ module Coworkers
             # bypassing the generic gate prevents a second approval card.
             ungated: klass == ReplyInChatThreadTool,
             approval_effect: klass.respond_to?(:coworker_approval_effect?) && klass.coworker_approval_effect?,
-            mutation: true,
+            mutation: klass != EnvironmentTools::Inspect,
             capability_descriptor: coworker_descriptor(klass)
           }
         end

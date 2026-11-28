@@ -106,9 +106,9 @@ class Coworkers::EnvironmentLifecycle
     result
   end
 
-  def rollback!(failed_activation: @environment.active_activation, actor: "system")
+  def rollback!(failed_activation: @environment.active_activation, actor: "system", target_revision: nil)
     Coworkers::EnvironmentRecovery.new(@environment, now: @now)
-      .rollback!(failed_activation:, actor:)
+      .rollback!(failed_activation:, actor:, target_revision:)
   end
 
   # Pausing a coworker blocks its work at the coworker state boundary. Keep
@@ -209,7 +209,7 @@ class Coworkers::EnvironmentLifecycle
     transition_revision!(revision, revision.active? ? :retired : :rejected)
     clear_candidate!(revision, state: :failed, code: INCOMPATIBLE,
                      event: audit("incompatible", revision, code: INCOMPATIBLE), clear_active: was_active)
-    publish_event("rejected", revision)
+    publish_event("incompatible", revision)
   end
 
   def compatible_now?(revision)

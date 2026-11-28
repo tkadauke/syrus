@@ -104,7 +104,12 @@
     "about_saved": "Über-Text gespeichert",
     "open_coworker": "Coworker öffnen",
     "open_chat": "Hauptchat öffnen",
-    "no_schedules": "Keine Zeitpläne."
+    "no_schedules": "Keine Zeitpläne.",
+    "environment_state": "Status",
+    "environment_build": "Build",
+    "environment_compatibility": "Kompatibilität",
+    "environment_active_image": "Aktives Image",
+    "environment_failure": "Fehler"
   },
   "fields": {
     "name": "Name",

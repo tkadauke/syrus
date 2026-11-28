@@ -28,7 +28,15 @@ RSpec.describe Coworkers::ChatToolSet do
       include(name: "write_coworker_file", coworker_safe: true, capability: "workspace.files", ungated: false, mutation: true),
       include(name: "edit_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true),
       include(name: "move_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true),
-      include(name: "delete_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true)
+      include(name: "delete_coworker_file", coworker_safe: true, capability: "workspace.files", mutation: true),
+      include(name: "inspect_coworker_environment", coworker_safe: true,
+                capability: Coworkers::EnvironmentPermissionProvider::CAPABILITY, mutation: false),
+      include(name: "request_coworker_environment_build", coworker_safe: true,
+              capability: Coworkers::EnvironmentPermissionProvider::CAPABILITY, mutation: true),
+      include(name: "request_coworker_environment_publication", coworker_safe: true,
+              capability: Coworkers::EnvironmentPermissionProvider::CAPABILITY, mutation: true),
+      include(name: "request_coworker_environment_rollback", coworker_safe: true,
+              capability: Coworkers::EnvironmentPermissionProvider::CAPABILITY, mutation: true)
     )
     expect(described_class.tool_definitions(tier: :deferred).pluck(:name)).not_to include("message_coworker")
   end
