@@ -44,7 +44,16 @@ anything, and only once no running version reads it.
 | --- | --- | --- |
 | **expand** | add the new column; additive only | read it defensively, tolerating absence; keep writing the old one |
 | **migrate** | backfill | read the new column normally; stop writing the old one |
-| **contract** | drop the old column | nothing references it |
+| **contract** | drop the old column | nothing references it; the model lists it in `ignored_columns` |
+
+The `ignored_columns` entry in the contract release is not optional. A
+process caches its column list at boot, so one that booted before the drop
+keeps naming the column in every INSERT, and in every SELECT of a model that
+already ignores something (Rails then enumerates columns instead of selecting
+`*`). A control-plane worker that booted mid-rollout failed every poll and
+landing pass for hours that way. `bin/check-migrations` rejects a
+`remove_column` whose model does not ignore the column; drop the entry a
+release later.
 
 A two-release version is fine when there is no old column to retire: expand
 (add + defensive read), then migrate (plain read).

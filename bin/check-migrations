@@ -31,6 +31,10 @@
 #                                      still on the previous release (draining
 #                                      pods, macOS workers) keep using the old
 #                                      name until they update.
+#   - dropped_column_not_ignored    — post-policy `remove_column` on a table
+#                                      whose model does not list the column in
+#                                      ignored_columns: processes that booted
+#                                      before the migration keep naming it.
 
 require "pathname"
 require "open3"
@@ -271,6 +275,66 @@ rule "rolling_deploy_rename" do |offenses, path, lines|
       detail: "`#{match[1]}` breaks workers still running the previous release during a rolling deploy",
       remediation: "keep the old name (e.g. `self.table_name`/`alias_attribute`), or expand and contract: add the new table/column, " \
                    "ship code that uses it, and drop the old one in a later release"
+    )
+  end
+end
+
+# A process caches its column list when it boots. One that booted before a
+# drop migration ran keeps naming the dropped column -- in every INSERT, and in
+# every SELECT of a model with ignored_columns, which enumerates columns
+# instead of selecting `*` -- until it restarts, however little code reads the
+# column. A production control-plane worker that booted mid-rollout failed
+# every poll, landing pass, and reconcile for seven hours on
+# "Unknown column 'app_settings.host_admission_policy'". Listing the column in
+# the model's ignored_columns in the release that drops it keeps it out of
+# both statements; the entry is removable a release later.
+NO_UNIGNORED_DROP_POLICY_VERSION = "20261128120000"
+MODEL_GLOBS = [
+  ROOT.join("app/models/**/*.rb"),
+  *PLUGIN_ROOTS.plugin_directories.map { |directory| directory.join("app/models/**/*.rb") }
+].freeze
+
+def naive_singular(table)
+  return table.sub(/ies\z/, "y") if table.end_with?("ies")
+  return table.sub(/(ss|x|ch|sh)es\z/, '\1') if table.match?(/(ss|x|ch|sh)es\z/)
+  table.sub(/s\z/, "")
+end
+
+# Model files for a table: an explicit `self.table_name = "<table>"`, or the
+# conventional file name. A table without a model has no column cache to
+# go stale, so it yields nothing.
+def model_sources_for(table)
+  @model_sources ||= MODEL_GLOBS.flat_map { |glob| Pathname.glob(glob) }.uniq.map { |p| [ p, p.read ] }
+  singular = naive_singular(table)
+  @model_sources.select do |path, source|
+    source.match?(/self\.table_name\s*=\s*["':]#{Regexp.escape(table)}\b/) ||
+      (path.basename(".rb").to_s == singular && !source.match?(/self\.table_name\s*=/))
+  end
+end
+
+rule "dropped_column_not_ignored" do |offenses, path, lines|
+  next if path.basename.to_s < "#{NO_UNIGNORED_DROP_POLICY_VERSION}_"
+
+  method = nil
+  lines.each_with_index do |line, i|
+    method = Regexp.last_match(1) if line =~ /^\s*def\s+(up|down|change)\b/
+    next if method == "down"
+
+    match = line.match(/^\s*remove_column\s+:(\w+)\s*,\s*:(\w+)/)
+    next unless match
+
+    table, column = match[1], match[2]
+    models = model_sources_for(table)
+    next if models.empty?
+    next if models.any? { |_model, source| source.match?(/ignored_columns[^\n]*\b#{Regexp.escape(column)}\b/) }
+
+    offenses << Offense.new(
+      rule: "dropped_column_not_ignored",
+      path: path,
+      line: i + 1,
+      detail: "`remove_column :#{table}, :#{column}` while #{models.map { |m, _| m.relative_path_from(ROOT) }.join(', ')} " \
+              "does not ignore it -- processes that booted before the migration keep selecting and inserting it",
+      remediation: "add `self.ignored_columns += %w[#{column}]` to the model in the same release; drop the entry a release later"
     )
   end
 end
