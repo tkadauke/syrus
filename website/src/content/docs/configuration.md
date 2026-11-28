@@ -943,3 +943,16 @@ plugins:
 Each plugin validates its own configuration and controls root-to-project
 overlays. Configuration owned by a disabled or missing plugin is diagnosed and
 does not activate that plugin's behavior.
+
+## Runtime environment policy
+
+Administrators manage runtime-image build capacity, resource quotas,
+vulnerability and prohibited-package gates, base ABI compatibility, automatic
+rollback, revocation behavior, worker caching, and the optional executable
+`/scratch` profile from **Administration → Retention settings**. The same page
+shows OCI registry readiness and integrates image, captured source, build log,
+provenance, SBOM, pull-event, and audit retention.
+
+OCI credentials stay in deployment configuration and are never returned to the
+browser. Build networking remains default-deny; allowlist entries can require
+an internal mirror in place of a public package source.

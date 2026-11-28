@@ -18,7 +18,7 @@ module RuntimeImages
 
       def self.current
         configured = ENV[ENV_KEY].presence
-        return Orchestrator::DEFAULT_POLICY.deep_dup unless configured
+        return admin_policy unless configured
 
         overrides = JSON.parse(configured)
         raise ProviderError, "#{ENV_KEY} must contain a JSON object" unless overrides.is_a?(Hash)
@@ -26,6 +26,14 @@ module RuntimeImages
         Orchestrator::DEFAULT_POLICY.deep_merge(overrides.deep_stringify_keys.slice(*CONFIGURABLE_KEYS))
       rescue JSON::ParserError => e
         raise ProviderError, "#{ENV_KEY} is invalid JSON: #{e.message}"
+      end
+
+      def self.admin_policy
+        settings = EnvironmentPolicy.current.fetch("supply_chain")
+        Orchestrator::DEFAULT_POLICY.deep_merge(
+          "vulnerabilities" => { "blocked_severities" => settings.fetch("blocked_severities") },
+          "prohibited_packages" => settings.fetch("prohibited_packages")
+        )
       end
     end
   end

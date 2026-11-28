@@ -50,6 +50,19 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
       rollback_retention_count: 2,
       launch_failure_threshold: 3
     },
+    runtime_environment: {
+      policy: {
+        builder: { max_concurrent_builds: 2, max_concurrent_per_namespace: 1, max_attempts: 3, cpus: 2, memory_bytes: 4294967296, pids: 512, storage_bytes: 10737418240, timeout_seconds: 1500, log_bytes: 5242880, max_output_bytes: 2147483648 },
+        supply_chain: { blocked_severities: ["critical", "high"], prohibited_packages: [] },
+        base_promotion: { minimum_abi: 1, maximum_abi: 1 },
+        recovery: { launch_failure_threshold: 3, rollback_retention_count: 2 },
+        revocation: { terminate_running_turns_on_severe: true },
+        worker_cache: { max_bytes: 21474836480, max_concurrent_pulls: 2, bandwidth_bytes_per_second: 0, unused_retention_hours: 168 },
+        scratch: { enabled: false, size_bytes: 1073741824 }
+      },
+      oci_registry: { configured: false, credentials: {} },
+      build_network_rules: []
+    },
     ...overrides
   }
 }
@@ -111,6 +124,27 @@ describe("RetentionSettings", () => {
     expect(screen.getAllByText("10GB").length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText(/worker-a: 3GB/)).toBeInTheDocument()
     expect(screen.getByText(/worker environment override/)).toBeInTheDocument()
+    expect(screen.getByText("Environment policy")).toBeInTheDocument()
+    expect(screen.getByText("No runtime-image OCI registry is configured.")).toBeInTheDocument()
+  })
+
+  it("saves builder and supply-chain policy from the retention administration page", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "PATCH") return Promise.resolve(jsonResponse(retentionPayload({ message: "Retention settings updated." })))
+      return Promise.resolve(jsonResponse(retentionPayload()))
+    })
+    renderRoute()
+    await screen.findByText("Environment policy")
+
+    fireEvent.change(screen.getByLabelText("Concurrent builds"), { target: { value: "4" } })
+    fireEvent.change(screen.getByLabelText("Prohibited packages (comma separated)"), { target: { value: "telnet, rsh" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save environment policy" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/retention_settings",
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"max_concurrent_builds":4') })
+    ))
+    expect(fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")?.[1]?.body).toContain('"prohibited_packages":["telnet","rsh"]')
   })
 
   it("sets a table to infinite retention and saves 0", async () => {

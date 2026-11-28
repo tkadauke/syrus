@@ -49,7 +49,14 @@ module RuntimeImages
       def compatibility = contract.fetch("compatibility")
       def min_confinement_policy = contract.fetch("min_confinement_policy")
       def providers = contract.fetch("providers")
-      def supported?(abi_version) = abi_version.is_a?(Integer) && abi_version.between?(compatibility.fetch("min"), compatibility.fetch("max"))
+      def supported?(abi_version)
+        return false unless abi_version.is_a?(Integer) && abi_version.between?(compatibility.fetch("min"), compatibility.fetch("max"))
+        return true unless defined?(EnvironmentPolicy) && AppSetting.table_exists?
+
+        abi_version.between?(EnvironmentPolicy.value("base_promotion", "minimum_abi"), EnvironmentPolicy.value("base_promotion", "maximum_abi"))
+      rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
+        true
+      end
 
       # Canonical JSON (sorted keys) so the digest never depends on YAML order.
       def canonical(value = contract) = JSON.generate(sort_keys(value))

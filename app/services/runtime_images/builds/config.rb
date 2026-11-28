@@ -6,19 +6,24 @@ module RuntimeImages
       PLATFORMS = %w[linux/amd64 linux/arm64].freeze
       MAX_RECIPE_BYTES = 64.kilobytes
 
-      def self.max_concurrent_builds = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_CONCURRENCY", 2))
-      def self.max_concurrent_per_namespace = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_NAMESPACE_CONCURRENCY", 1))
-      def self.max_attempts = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_ATTEMPTS", 3))
+      def self.setting(key, env_key)
+        configured = ENV[env_key]
+        configured.present? ? configured : EnvironmentPolicy.value("builder", key)
+      end
+
+      def self.max_concurrent_builds = Integer(setting("max_concurrent_builds", "RUNTIME_IMAGE_BUILD_CONCURRENCY"))
+      def self.max_concurrent_per_namespace = Integer(setting("max_concurrent_per_namespace", "RUNTIME_IMAGE_BUILD_NAMESPACE_CONCURRENCY"))
+      def self.max_attempts = Integer(setting("max_attempts", "RUNTIME_IMAGE_BUILD_MAX_ATTEMPTS"))
       def self.lease_duration = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_LEASE_SECONDS", 1800)).seconds
 
       # Per-build ceilings enforced by the isolated builder.
-      def self.build_cpus = Float(ENV.fetch("RUNTIME_IMAGE_BUILD_CPUS", 2))
-      def self.build_memory_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MEMORY_BYTES", 4.gigabytes))
-      def self.build_pids = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_PIDS", 512))
-      def self.build_storage_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_STORAGE_BYTES", 10.gigabytes))
-      def self.build_duration = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_TIMEOUT_SECONDS", 1500))
-      def self.build_log_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_LOG_BYTES", 5.megabytes))
-      def self.max_output_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_OUTPUT_BYTES", 2.gigabytes))
+      def self.build_cpus = Float(setting("cpus", "RUNTIME_IMAGE_BUILD_CPUS"))
+      def self.build_memory_bytes = Integer(setting("memory_bytes", "RUNTIME_IMAGE_BUILD_MEMORY_BYTES"))
+      def self.build_pids = Integer(setting("pids", "RUNTIME_IMAGE_BUILD_PIDS"))
+      def self.build_storage_bytes = Integer(setting("storage_bytes", "RUNTIME_IMAGE_BUILD_STORAGE_BYTES"))
+      def self.build_duration = Integer(setting("timeout_seconds", "RUNTIME_IMAGE_BUILD_TIMEOUT_SECONDS"))
+      def self.build_log_bytes = Integer(setting("log_bytes", "RUNTIME_IMAGE_BUILD_LOG_BYTES"))
+      def self.max_output_bytes = Integer(setting("max_output_bytes", "RUNTIME_IMAGE_BUILD_MAX_OUTPUT_BYTES"))
       def self.max_source_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_SOURCE_BYTES", 1.gigabyte))
       def self.max_source_entries = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_SOURCE_ENTRIES", 200_000))
       def self.worker_confined? = ENV["RUNTIME_IMAGE_BUILD_WORKER_CONFINED"] == "1"

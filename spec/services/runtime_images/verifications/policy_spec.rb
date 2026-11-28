@@ -26,4 +26,14 @@ RSpec.describe RuntimeImages::Verifications::Policy do
 
     expect { described_class.current }.to raise_error(RuntimeImages::ProviderError, /invalid JSON/)
   end
+
+  it "uses the administrator supply-chain policy when no deployment override is present" do
+    ENV.delete(described_class::ENV_KEY)
+    RuntimeImages::EnvironmentPolicy.update!(
+      "supply_chain" => { "blocked_severities" => [ "critical" ], "prohibited_packages" => [ "telnet" ] }
+    )
+
+    expect(described_class.current.dig("vulnerabilities", "blocked_severities")).to eq([ "critical" ])
+    expect(described_class.current["prohibited_packages"]).to eq([ "telnet" ])
+  end
 end

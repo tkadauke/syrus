@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_084341) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_151136) do
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
     t.bigint "user_id", null: false
@@ -279,6 +279,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_084341) do
     t.integer "wakeup_chain_limit", default: 100, null: false
     t.integer "coworker_environment_rollback_retention_count", default: 2, null: false
     t.integer "coworker_environment_launch_failure_threshold", default: 3, null: false
+    t.json "runtime_environment_policy"
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"

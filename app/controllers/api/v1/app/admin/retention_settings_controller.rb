@@ -19,12 +19,15 @@ module Api
 
             RetentionPolicySetting.transaction do
               update_retention_settings!(attributes.delete(:policies))
+              RuntimeImages::EnvironmentPolicy.update!(attributes.delete(:runtime_environment_policy)) if attributes.key?(:runtime_environment_policy)
               AppSetting.current.update!(attributes)
             end
             render json: payload.merge(message: I18n.t("api.admin_retention_settings.updated"))
           rescue ActiveRecord::RecordInvalid => error
             render_error("validation_failed", error.record.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
+          rescue ArgumentError => error
+            render_error("validation_failed", error.message, status: :unprocessable_content)
           end
 
           private
@@ -44,8 +47,25 @@ module Api
               coworker_environment_recovery: {
                 rollback_retention_count: setting.coworker_environment_rollback_retention_count || 2,
                 launch_failure_threshold: setting.coworker_environment_launch_failure_threshold || 3
-              }
+              },
+              runtime_environment: runtime_environment_payload
             }
+          end
+
+          def runtime_environment_payload
+            configuration = RuntimeImages::OciRegistry::Configuration.from_env
+            {
+              policy: RuntimeImages::EnvironmentPolicy.current,
+              oci_registry: configuration ? {
+                configured: true, url: configuration.url, repository_prefix: configuration.repository_prefix,
+                secure: configuration.secure?, credentials: RuntimeImages::OciRegistry::Configuration::ROLES.index_with { |role| configuration.credential?(role) }
+              } : { configured: false, credentials: {} },
+              build_network_rules: RuntimeImageBuildNetworkRule.order(:source_class, :host, :port).map do |rule|
+                rule.attributes.slice("id", "source_class", "host", "port", "path_prefix", "ecosystem", "required", "enabled")
+              end
+            }
+          rescue RuntimeImages::OciRegistry::Configuration::Invalid => error
+            { policy: RuntimeImages::EnvironmentPolicy.current, oci_registry: { configured: false, error: error.message, credentials: {} }, build_network_rules: [] }
           end
 
           def prepared_layer_cache_workers
@@ -110,9 +130,11 @@ module Api
                                    :coworker_environment_rollback_retention_count,
                                    :coworker_environment_launch_failure_threshold ]).uniq
 
-            submitted = params
-              .expect(retention_settings: permitted_settings)
+            runtime_environment_policy = params.dig(:retention_settings, :runtime_environment_policy)
+            submitted = params.require(:retention_settings)
+              .permit(*permitted_settings, runtime_environment_policy: {})
               .to_h
+            submitted.delete("runtime_environment_policy")
 
             validation_message = validate_retention_values(submitted, definitions)
             if validation_message
@@ -133,7 +155,15 @@ module Api
               "coworker_environment_rollback_retention_count",
               "coworker_environment_launch_failure_threshold"
             )
-            app_setting_attributes.symbolize_keys.merge(policies: policy_attributes)
+            result = app_setting_attributes.symbolize_keys.merge(policies: policy_attributes)
+            if runtime_environment_policy.respond_to?(:to_unsafe_h)
+              policy = runtime_environment_policy.to_unsafe_h
+              result[:runtime_environment_policy] = policy
+              recovery = policy["recovery"].to_h
+              result[:coworker_environment_launch_failure_threshold] = recovery["launch_failure_threshold"] if recovery.key?("launch_failure_threshold")
+              result[:coworker_environment_rollback_retention_count] = recovery["rollback_retention_count"] if recovery.key?("rollback_retention_count")
+            end
+            result
           end
 
           def validate_retention_values(submitted, definitions)

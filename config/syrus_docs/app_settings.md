@@ -382,6 +382,16 @@ Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a wri
 
 ## Data retention
 
+The retention administration page also contains the instance-wide **Environment
+policy**. Administrators can set isolated-builder concurrency and resource
+ceilings, blocked vulnerability severities and prohibited packages, the
+supported runtime ABI window, automatic rollback and severe-revocation
+behavior, worker-cache ceilings, and the optional executable `/scratch`
+profile. OCI registry credentials remain deployment secrets; the page reports
+the configured registry endpoint and which scoped credential roles are
+present. Build-network allowlist and required internal-mirror rules are shown
+from the same authoritative rules used by isolated builds.
+
 Retention is configured on **Admin → Retention Settings**. Detailed sweep,
 archive, pruning, and extension-point mechanics live in the
 [data-retention operations guide](../../docs/engineering/operations/data-retention.md).
@@ -405,9 +415,11 @@ archive, pruning, and extension-point mechanics live in the
 | `workflow_step_resource_profile_retention_days` | 180 days |
 | `runtime_image_retention_days` | 30 days |
 | `runtime_image_pull_event_retention_days` | 30 days |
-| `runtime_image_verification_evidence_retention_days` | 180 days |
-| `runtime_image_audit_event_retention_days` | 180 days |
+| `runtime_image_build_source_retention_days` | 30 days |
+| `runtime_image_build_log_retention_days` | 30 days |
+| `runtime_image_verification_attempt_retention_days` | 180 days |
 | `runtime_image_verification_evidence_retention_days` | 90 days |
+| `runtime_image_audit_event_retention_days` | 180 days |
 
 `job_log_retention_days` controls the detailed output shown for a Run. After
 the default 30-day window, stdout, stderr, tool-call, and system chunks are

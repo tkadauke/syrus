@@ -21,6 +21,11 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
   validates :image_digest, :policy_digest, format: { with: RuntimeImage::DIGEST_FORMAT }
   validate :digest_matches_image
 
+  scope :terminal, -> { where(state: TERMINAL_STATES) }
+  scope :prunable, -> {
+    terminal.where.not(id: select("MAX(id)").group(:runtime_image_id))
+  }
+
   def terminal? = TERMINAL_STATES.include?(state)
   def accepted? = state == "accepted"
 

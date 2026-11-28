@@ -25,7 +25,7 @@ module RuntimeImages
 
     attr_reader :hostname
 
-    def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: DEFAULT_MAX_PULLS,
+    def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: nil,
                    pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
                    lease_seconds: DEFAULT_LEASE_SECONDS, claim_ttl: DEFAULT_CLAIM_TTL, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
       @engine = engine
@@ -42,6 +42,7 @@ module RuntimeImages
       raise ArgumentError, "claim_ttl (#{claim_ttl}s) must exceed the engine remove timeout (#{bound}s)" if bound && claim_ttl <= bound
       @clock = clock
       @sleeper = sleeper
+      max_concurrent_pulls ||= EnvironmentPolicy.value("worker_cache", "max_concurrent_pulls")
       @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
       @inflight = {}
       @inflight_mutex = Mutex.new

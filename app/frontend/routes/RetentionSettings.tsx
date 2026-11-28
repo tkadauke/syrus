@@ -65,65 +65,122 @@ function RetentionSettingsView({ payload, onNotice }: { payload: RetentionSettin
     <>
       <AvailableSpaceCard onNotice={onNotice} payload={payload} />
       <StorageLimitsCard payload={payload} />
+      <RuntimeEnvironmentPolicyCard onNotice={onNotice} payload={payload} />
 
       <section className="divide-y divide-border rounded border border-border bg-surface">
         {payload.tables.map((table) => (
           <TableRow availableBytes={payload.available_space?.available_bytes ?? null} key={table.key} onNotice={onNotice} table={table} />
         ))}
       </section>
-      <CoworkerEnvironmentRecoveryCard onNotice={onNotice} payload={payload} />
     </>
   )
 }
 
-function CoworkerEnvironmentRecoveryCard({ payload, onNotice }: { payload: RetentionSettingsPayload; onNotice: (message: string | null) => void }) {
+function RuntimeEnvironmentPolicyCard({ payload, onNotice }: { payload: RetentionSettingsPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
-  const recovery = payload.coworker_environment_recovery
-  const [rollbackCount, setRollbackCount] = useState(String(recovery.rollback_retention_count))
-  const [failureThreshold, setFailureThreshold] = useState(String(recovery.launch_failure_threshold))
+  const environment = payload.runtime_environment
+  const [policy, setPolicy] = useState(environment.policy)
+
+  useEffect(() => setPolicy(environment.policy), [environment.policy])
+
   const save = useMutation({
-    mutationFn: () =>
-      updateRetentionSettings({
-        coworker_environment_rollback_retention_count: Number(rollbackCount),
-        coworker_environment_launch_failure_threshold: Number(failureThreshold)
-      }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKey, data)
-      onNotice(data.message || t("retention_settings.settings_updated"))
+    mutationFn: () => updateRetentionSettings({ runtime_environment_policy: policy }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || t("retention_settings.settings_updated"))
     }
   })
 
+  const numberField = (section: "builder" | "base_promotion" | "recovery" | "worker_cache" | "scratch", key: string, min = 0) => (
+    <label className="text-xs text-text-secondary">
+      {t(`retention_settings.environment.${section}_${key}`)}
+      <Input
+        className="mt-1 w-full"
+        min={min}
+        onChange={(event) => setPolicy((current) => ({ ...current, [section]: { ...current[section], [key]: Number(event.target.value) } }))}
+        type="number"
+        value={String((policy[section] as Record<string, number | boolean>)[key])}
+      />
+    </label>
+  )
+
   return (
-    <section className="rounded border border-border bg-surface p-4">
-      <SectionHeading>{t("retention_settings.coworker_recovery_heading")}</SectionHeading>
-      <p className="mt-1 text-sm text-text-secondary">{t("retention_settings.coworker_recovery_description")}</p>
-      <form
-        className="mt-4 flex flex-wrap items-end gap-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          save.mutate()
-        }}
-      >
-        <label className="text-xs text-text-secondary">
-          {t("retention_settings.rollback_count_label")}
-          <Input className="mt-1 w-32" min={0} onChange={(event) => setRollbackCount(event.target.value)} type="number" value={rollbackCount} />
-        </label>
-        <label className="text-xs text-text-secondary">
-          {t("retention_settings.launch_failure_threshold_label")}
-          <Input className="mt-1 w-32" min={1} onChange={(event) => setFailureThreshold(event.target.value)} type="number" value={failureThreshold} />
-        </label>
-        <Button disabled={save.isPending} size="sm" type="submit">
-          {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
-        </Button>
-      </form>
-      {save.isError ? (
-        <p className="mt-2 text-xs text-danger" role="alert">
-          {errorMessage(save.error, t("retention_settings.error_update"))}
+    <section className="rounded border border-border bg-surface p-6 space-y-5">
+      <div>
+        <SectionHeading>{t("retention_settings.environment.heading")}</SectionHeading>
+        <p className="mt-1 text-sm text-text-secondary">{t("retention_settings.environment.description")}</p>
+      </div>
+
+      <div className="rounded border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary">{t("retention_settings.environment.oci_heading")}</h3>
+        <p className="mt-1 text-xs text-text-secondary">
+          {environment.oci_registry.configured
+            ? t("retention_settings.environment.oci_configured", { url: environment.oci_registry.url, prefix: environment.oci_registry.repository_prefix })
+            : t("retention_settings.environment.oci_unconfigured")}
         </p>
-      ) : null}
+        {environment.oci_registry.error ? <p className="mt-1 text-xs text-danger">{environment.oci_registry.error}</p> : null}
+        <p className="mt-1 text-xs text-text-secondary">{t("retention_settings.environment.oci_credentials", { roles: Object.entries(environment.oci_registry.credentials).filter(([, present]) => present).map(([role]) => role).join(", ") || t("retention_settings.environment.none") })}</p>
+      </div>
+
+      <PolicyGroup heading={t("retention_settings.environment.builder_heading")}>
+        {numberField("builder", "max_concurrent_builds", 1)}
+        {numberField("builder", "max_concurrent_per_namespace", 1)}
+        {numberField("builder", "max_attempts", 1)}
+        {numberField("builder", "cpus", 0.1)}
+        {numberField("builder", "memory_bytes", 1)}
+        {numberField("builder", "storage_bytes", 1)}
+        {numberField("builder", "timeout_seconds", 1)}
+        {numberField("builder", "log_bytes", 1)}
+        {numberField("builder", "max_output_bytes", 1)}
+      </PolicyGroup>
+
+      <PolicyGroup heading={t("retention_settings.environment.supply_chain_heading")}>
+        <label className="text-xs text-text-secondary sm:col-span-2">
+          {t("retention_settings.environment.blocked_severities")}
+          <Input className="mt-1" onChange={(event) => setPolicy((current) => ({ ...current, supply_chain: { ...current.supply_chain, blocked_severities: commaList(event.target.value) } }))} value={policy.supply_chain.blocked_severities.join(", ")} />
+        </label>
+        <label className="text-xs text-text-secondary sm:col-span-2">
+          {t("retention_settings.environment.prohibited_packages")}
+          <Input className="mt-1" onChange={(event) => setPolicy((current) => ({ ...current, supply_chain: { ...current.supply_chain, prohibited_packages: commaList(event.target.value) } }))} value={policy.supply_chain.prohibited_packages.join(", ")} />
+        </label>
+      </PolicyGroup>
+
+      <PolicyGroup heading={t("retention_settings.environment.lifecycle_heading")}>
+        {numberField("base_promotion", "minimum_abi", 1)}
+        {numberField("base_promotion", "maximum_abi", 1)}
+        {numberField("recovery", "launch_failure_threshold", 1)}
+        {numberField("recovery", "rollback_retention_count")}
+        <Checkbox checked={policy.revocation.terminate_running_turns_on_severe} label={t("retention_settings.environment.terminate_severe")} onChange={(event) => setPolicy((current) => ({ ...current, revocation: { terminate_running_turns_on_severe: event.target.checked } }))} />
+      </PolicyGroup>
+
+      <PolicyGroup heading={t("retention_settings.environment.cache_scratch_heading")}>
+        {numberField("worker_cache", "max_bytes")}
+        {numberField("worker_cache", "max_concurrent_pulls", 1)}
+        {numberField("worker_cache", "bandwidth_bytes_per_second")}
+        {numberField("worker_cache", "unused_retention_hours", 1)}
+        <Checkbox checked={policy.scratch.enabled} label={t("retention_settings.environment.scratch_enabled")} onChange={(event) => setPolicy((current) => ({ ...current, scratch: { ...current.scratch, enabled: event.target.checked } }))} />
+        {numberField("scratch", "size_bytes", 1)}
+      </PolicyGroup>
+
+      <div>
+        <h3 className="text-sm font-medium text-text-primary">{t("retention_settings.environment.network_heading")}</h3>
+        <p className="mt-1 text-xs text-text-secondary">{t("retention_settings.environment.network_description")}</p>
+        {environment.build_network_rules.length ? <ul className="mt-2 space-y-1 text-xs text-text-secondary">{environment.build_network_rules.map((rule) => <li key={rule.id}>{rule.source_class}: {rule.host}{rule.port ? `:${rule.port}` : ""}{rule.required ? ` · ${t("retention_settings.environment.mirror_required")}` : ""}</li>)}</ul> : <p className="mt-2 text-xs text-warning">{t("retention_settings.environment.network_empty")}</p>}
+      </div>
+
+      <Button disabled={save.isPending} onClick={() => save.mutate()} type="button">{save.isPending ? t("retention_settings.saving") : t("retention_settings.environment.save_environment_policy")}</Button>
+      {save.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
     </section>
   )
+}
+
+function PolicyGroup({ heading, children }: { heading: string; children: ReactNode }) {
+  return <fieldset><legend className="text-sm font-medium text-text-primary">{heading}</legend><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div></fieldset>
+}
+
+function commaList(value: string): string[] {
+  return value.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean)
 }
 
 function StorageLimitsCard({ payload }: { payload: RetentionSettingsPayload }) {

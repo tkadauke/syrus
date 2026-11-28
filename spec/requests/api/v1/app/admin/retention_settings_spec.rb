@@ -68,6 +68,42 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
       "coding_workspace_bytes" => 10.gigabytes,
       "prepared_layer_cache_workers" => []
     )
+    expect(parse_body.dig("runtime_environment", "policy", "builder", "max_concurrent_builds")).to eq(2)
+    expect(parse_body.dig("runtime_environment", "oci_registry", "configured")).to be(false)
+  end
+
+  it "updates environment policy and mirrors recovery settings used by coworker lifecycle code" do
+    sign_in_as(admin)
+
+    patch "/api/v1/app/admin/retention_settings", params: {
+      retention_settings: {
+        runtime_environment_policy: {
+          builder: { max_concurrent_builds: 4 },
+          supply_chain: { prohibited_packages: %w[telnet rsh] },
+          recovery: { launch_failure_threshold: 5, rollback_retention_count: 4 }
+        }
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("runtime_environment", "policy", "builder", "max_concurrent_builds")).to eq(4)
+    expect(RuntimeImages::Verifications::Policy.current["prohibited_packages"]).to eq(%w[telnet rsh])
+    expect(AppSetting.current.reload).to have_attributes(
+      coworker_environment_launch_failure_threshold: 5,
+      coworker_environment_rollback_retention_count: 4
+    )
+  end
+
+  it "rejects invalid environment policy without changing the current policy" do
+    sign_in_as(admin)
+
+    patch "/api/v1/app/admin/retention_settings", params: {
+      retention_settings: { runtime_environment_policy: { base_promotion: { minimum_abi: 3, maximum_abi: 1 } } }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(AppSetting.current.reload.runtime_environment_policy).to be_nil
   end
 
   it "shows worker-attributed effective prepared-cache limits in storage diagnostics" do
