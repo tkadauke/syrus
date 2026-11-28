@@ -60,6 +60,7 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
   { id: "installations", labelKey: "nav_installations", to: "/admin/installations", paths: ["/admin/installations"], groupId: "users_access", order: 40 },
   { id: "settings", labelKey: "nav_settings", to: "/settings/edit", paths: ["/settings/edit"], groupId: "system", order: 10 },
   { id: "retention_settings", labelKey: "nav_retention_settings", to: "/admin/retention_settings", paths: ["/admin/retention_settings"], groupId: "system", order: 15 },
+  { id: "runtime_environment_settings", labelKey: "nav_runtime_environment_settings", to: "/admin/runtime_environment_settings", paths: ["/admin/runtime_environment_settings"], groupId: "system", order: 16 },
   { id: "features", labelKey: "nav_features", to: "/admin/features", paths: ["/admin/features"], groupId: "system", order: 20, visible: (ff) => Object.keys(ff).length > 0 },
   { id: "plugins", labelKey: "nav_plugins", to: "/admin/plugins", paths: ["/admin/plugins"], groupId: "system", order: 30 },
   { id: "scoped_chat_events", labelKey: "nav_scoped_chat_events", to: "/admin/scoped_chat_events", paths: ["/admin/scoped_chat_events"], groupId: "product_data", order: 10 },

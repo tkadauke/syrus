@@ -43,6 +43,18 @@
   "nav_invitations": "Invitationes",
   "nav_settings": "Praescripta",
   "nav_retention_settings": "Praescripta Retentionis",
+  "nav_runtime_environment_settings": "Praescriptum Ambitus",
+  "aria_runtime_environment_settings": "Praescriptum ambitus administratoris",
+  "runtime_environment_settings": {
+    "heading": "Praescriptum Ambitus", "loading": "Praescriptum ambitus oneratur…", "error_load": "Praescriptum ambitus onerari non potuit.", "error_save": "Praescriptum ambitus servari non potuit.", "updated": "Praescriptum ambitus renovatum est.", "save": "Praescriptum serva", "saving": "Servatur…",
+    "registry_heading": "Registrum OCI", "registry_description": "Registrum externum et identitates distinctas configura.", "registry_url": "URL registri", "repository_prefix": "Praefixum repositorii", "credential_username": "Nomen {{role}}", "credential_password": "Tessera {{role}}", "password_unchanged": "Configurata — vacuum relinque",
+    "builder_heading": "Capacitas et limites constructoris", "builder_description": "Constructiones separatas et facultates limita.", "max_concurrent_builds": "Constructiones simultaneae", "max_concurrent_per_namespace": "Per spatium nominis", "cpus": "CPU per constructionem", "memory_bytes": "Memoria bytes", "storage_bytes": "Repositorium bytes", "timeout_seconds": "Tempus constructionis", "log_bytes": "Limes actorum",
+    "network_heading": "Rete constructionis et specula", "network_description": "Egressus constructionis nisi permissus negatur.", "source_class": "Classis fontis", "host": "Hospes", "internal_mirror": "Speculum internum necessarium", "add_rule": "Regulam adde", "required_mirror": "speculum necessarium", "remove": "Remove",
+    "verification_heading": "Praescriptum vulnerabilitatis et fasciculorum", "verification_description": "Candidati limites violantes recusantur.", "blocked_severities": "Gravitates vetitae", "prohibited_packages": "Fasciculi prohibiti",
+    "lifecycle_heading": "Promotio basis et revocatio", "lifecycle_description": "ABI, regressum, et revocationem rege.", "rollback_retention_days": "Fenestra regressus (dies)", "abi_gate": "ABI congruens requiritur", "terminate_severe": "Cursus post revocationem gravem termina",
+    "cache_heading": "Thesaurus operarii", "cache_description": "Tractus et limites pressionis configura.", "max_concurrent_pulls": "Tractus simultanei", "pull_timeout_seconds": "Tempus tractus", "high_pressure_percent": "Pressio alta (%)", "critical_pressure_percent": "Pressio critica (%)", "prefetch_active": "Imagines activas praeacquire",
+    "scratch_heading": "Scratch exsecutabile", "scratch_description": "Tmpfs /scratch fixum et terminatum optionaliter adde.", "mount_profile": "Forma montis", "scratch_disabled": "Communis", "scratch_enabled": "/scratch exsecutabile", "scratch_size": "Magnitudo scratch"
+  },
   "nav_features": "Facultates",
   "nav_operational_logs": "Acta",
   "nav_plugins": "Plugin",

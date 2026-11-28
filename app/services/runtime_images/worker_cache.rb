@@ -25,13 +25,14 @@ module RuntimeImages
 
     attr_reader :hostname
 
-    def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: DEFAULT_MAX_PULLS,
-                   pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
+    def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: nil,
+                   pull_timeout: nil, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
                    lease_seconds: DEFAULT_LEASE_SECONDS, claim_ttl: DEFAULT_CLAIM_TTL, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
       @engine = engine
       @service = service
       @hostname = hostname
-      @pull_timeout = pull_timeout
+      policy = EnvironmentPolicy.current
+      @pull_timeout = pull_timeout || policy.fetch("cache", "pull_timeout_seconds")
       @acquire_timeout = acquire_timeout
       @lease_seconds = lease_seconds
       @claim_ttl = claim_ttl
@@ -42,7 +43,7 @@ module RuntimeImages
       raise ArgumentError, "claim_ttl (#{claim_ttl}s) must exceed the engine remove timeout (#{bound}s)" if bound && claim_ttl <= bound
       @clock = clock
       @sleeper = sleeper
-      @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
+      @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls || policy.fetch("cache", "max_concurrent_pulls")))
       @inflight = {}
       @inflight_mutex = Mutex.new
     end
@@ -147,8 +148,9 @@ module RuntimeImages
       total = usage.fetch(:total_bytes).to_f
       free = usage.fetch(:free_bytes).to_f
       used_percent = total.zero? ? 0.0 : ((total - free) / total * 100).round(1)
-      level = if used_percent >= CRITICAL_PRESSURE_PERCENT then "critical"
-      elsif used_percent >= HIGH_PRESSURE_PERCENT then "high"
+      policy = EnvironmentPolicy.current
+      level = if used_percent >= policy.fetch("cache", "critical_pressure_percent") then "critical"
+      elsif used_percent >= policy.fetch("cache", "high_pressure_percent") then "high"
       else "ok"
       end
       { total_bytes: total.to_i, free_bytes: free.to_i, used_percent: used_percent, level: level,

@@ -578,6 +578,8 @@ Rails.application.routes.draw do
           post "settings/clear_secret", to: "settings#clear_secret"
           get "retention_settings", to: "retention_settings#show"
           patch "retention_settings", to: "retention_settings#update"
+          get "runtime_environment_settings", to: "runtime_environment_settings#show"
+          patch "runtime_environment_settings", to: "runtime_environment_settings#update"
           resources :retention_archives, only: %i[ index ] do
             member do
               get :download

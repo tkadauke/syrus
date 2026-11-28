@@ -373,6 +373,8 @@ de:
       stacked_children: "Aktive gestapelte Kind-Jobs hängen von diesem Branch ab: %{slugs}; setze sie zurück oder lande sie zuerst."
       state: "%{slug} kann im Status %{state} nicht zurückgesetzt werden; wiederhole oder öffne ihn zuerst erneut."
   api:
+    admin_runtime_environment_settings:
+      updated: "Umgebungsrichtlinie aktualisiert."
     runtime_terminal:
       input_lease_required: "Der Agent benötigt eine aktive Eingabelease, bevor er Eingabeereignisse senden kann."
     workflow_outcome_overrides:

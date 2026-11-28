@@ -407,6 +407,8 @@ en:
       stacked_children: "Live stacked children depend on this branch: %{slugs}; reset or land them first."
       state: "%{slug} cannot be reset from %{state}; retry or reopen it first."
   api:
+    admin_runtime_environment_settings:
+      updated: "Environment policy updated."
     runtime_terminal:
       input_lease_required: "The agent must hold an active input lease before sending input events."
     workflow_outcome_overrides:

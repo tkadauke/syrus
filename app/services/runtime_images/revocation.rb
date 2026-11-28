@@ -6,7 +6,8 @@ module RuntimeImages
       count = 0
       image.with_lock do
         image.mark_revoked!(reason: reason, now: now)
-        count = request_termination(image.digest, now:) if severity.to_s == "severe"
+        terminate = EnvironmentPolicy.current.fetch("revocation", "terminate_running_on_severe")
+        count = request_termination(image.digest, now:) if severity.to_s == "severe" && terminate
       end
       count
     end

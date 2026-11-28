@@ -89,6 +89,11 @@ class AppSetting < ApplicationRecord
   encrypts :telegram_bot_token
   encrypts :discord_bot_token
   encrypts :plugin_manifest_signing_key
+  encrypts :runtime_image_registry_builder_password
+  encrypts :runtime_image_registry_worker_password
+  encrypts :runtime_image_registry_admin_password
+
+  validate :runtime_environment_policy_is_valid
 
   # Singleton row. .current returns the only record, creating it if missing.
   # On the very first create (fresh database), an explicitly configured
@@ -351,6 +356,14 @@ class AppSetting < ApplicationRecord
   end
 
   private
+
+  def runtime_environment_policy_is_valid
+    return unless has_attribute?(:runtime_environment_policy) && runtime_environment_policy.present?
+
+    RuntimeImages::EnvironmentPolicy.new(RuntimeImages::EnvironmentPolicy::DEFAULTS.deep_merge(runtime_environment_policy.deep_stringify_keys))
+  rescue RuntimeImages::EnvironmentPolicy::Invalid => error
+    errors.add(:runtime_environment_policy, error.message)
+  end
 
   def beta_mode_enabled_changed?
     has_attribute?(:beta_mode_enabled) && saved_change_to_beta_mode_enabled?

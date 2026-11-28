@@ -18,12 +18,16 @@ module RuntimeImages
 
       def self.current
         configured = ENV[ENV_KEY].presence
-        return Orchestrator::DEFAULT_POLICY.deep_dup unless configured
-
-        overrides = JSON.parse(configured)
+        overrides = configured ? JSON.parse(configured) : {}
         raise ProviderError, "#{ENV_KEY} must contain a JSON object" unless overrides.is_a?(Hash)
-
-        Orchestrator::DEFAULT_POLICY.deep_merge(overrides.deep_stringify_keys.slice(*CONFIGURABLE_KEYS))
+        admin = EnvironmentPolicy.current
+        durable = {}
+        blocked = admin.override("verification", "blocked_severities")
+        durable["vulnerabilities"] = { "blocked_severities" => blocked } if blocked
+        prohibited = admin.override("verification", "prohibited_packages")
+        durable["prohibited_packages"] = prohibited if prohibited
+        overrides = overrides.deep_stringify_keys.deep_merge(durable)
+        Orchestrator::DEFAULT_POLICY.deep_merge(overrides.slice(*CONFIGURABLE_KEYS))
       rescue JSON::ParserError => e
         raise ProviderError, "#{ENV_KEY} is invalid JSON: #{e.message}"
       end

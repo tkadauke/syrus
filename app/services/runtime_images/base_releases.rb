@@ -10,8 +10,9 @@ module RuntimeImages
   # transition is audited. Nothing here falls back to another image: when no
   # release is launchable, +launch_state+ says why and callers block the turn.
   class BaseReleases
-    # How long a retired base stays pullable so rollback remains possible.
     ROLLBACK_RETENTION = 90.days
+    # How long a retired base stays pullable so rollback remains possible.
+    def rollback_retention = EnvironmentPolicy.current.fetch("base", "rollback_retention_days").days
 
     Problem = Data.define(:code, :message)
 
@@ -181,7 +182,7 @@ module RuntimeImages
       previous = active(platform: release.platform)
       # Hold the replaced base for rollback before switching, so a registry
       # failure aborts the change instead of leaving no way back.
-      @service.retain(previous.runtime_image, reason: "coworker base rollback window", until_time: Time.current + ROLLBACK_RETENTION, actor: actor) if previous
+      @service.retain(previous.runtime_image, reason: "coworker base rollback window", until_time: Time.current + rollback_retention, actor: actor) if previous
       @service.retain(release.runtime_image, reason: "active coworker base", actor: actor)
 
       now = Time.current

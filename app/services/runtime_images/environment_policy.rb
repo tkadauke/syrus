@@ -1,0 +1,52 @@
+module RuntimeImages
+  # Durable instance policy for runtime-image builds and worker execution.
+  # Environment variables remain deployment fallbacks; values saved by an
+  # administrator take precedence and are captured in build policy snapshots.
+  class EnvironmentPolicy
+    DEFAULTS = {
+      "builder" => { "max_concurrent_builds" => 2, "max_concurrent_per_namespace" => 1,
+                     "cpus" => 2.0, "memory_bytes" => 4.gigabytes, "storage_bytes" => 10.gigabytes,
+                     "timeout_seconds" => 1500, "log_bytes" => 5.megabytes },
+      "verification" => { "blocked_severities" => %w[critical high], "prohibited_packages" => [] },
+      "base" => { "promotion_requires_compatible_abi" => true, "rollback_retention_days" => 90 },
+      "revocation" => { "terminate_running_on_severe" => true },
+      "cache" => { "max_concurrent_pulls" => 2, "pull_timeout_seconds" => 600,
+                   "high_pressure_percent" => 80, "critical_pressure_percent" => 92,
+                   "prefetch_active" => false },
+      "runtime" => { "mount_profile" => "standard", "scratch_size" => "1g" }
+    }.freeze
+
+    class Invalid < RuntimeImages::Error; end
+
+    def self.current
+      value = AppSetting.current.has_attribute?(:runtime_environment_policy) ? AppSetting.current.runtime_environment_policy : nil
+      overrides = value.to_h.deep_stringify_keys
+      new(DEFAULTS.deep_merge(overrides), overrides: overrides)
+    end
+
+    def initialize(value, overrides: value)
+      @value = value
+      @overrides = overrides
+      validate!
+    end
+
+    def to_h = @value.deep_dup
+    def fetch(*path) = path.reduce(@value) { |memo, key| memo.fetch(key.to_s) }
+    def override(*path) = path.reduce(@overrides) { |memo, key| memo.is_a?(Hash) ? memo[key.to_s] : nil }
+
+    private
+
+    def validate!
+      positive = [ %w[builder max_concurrent_builds], %w[builder max_concurrent_per_namespace],
+                   %w[builder cpus], %w[builder memory_bytes], %w[builder storage_bytes],
+                   %w[builder timeout_seconds], %w[builder log_bytes], %w[cache max_concurrent_pulls],
+                   %w[cache pull_timeout_seconds], %w[base rollback_retention_days] ]
+      positive.each { |path| raise Invalid, "#{path.join('.')} must be positive" unless fetch(*path).to_f.positive? }
+      %w[high_pressure_percent critical_pressure_percent].each do |key|
+        raise Invalid, "cache.#{key} must be between 1 and 100" unless fetch("cache", key).to_f.between?(1, 100)
+      end
+      raise Invalid, "cache critical pressure must exceed high pressure" unless fetch("cache", "critical_pressure_percent").to_f > fetch("cache", "high_pressure_percent").to_f
+      raise Invalid, "runtime.mount_profile is invalid" unless fetch("runtime", "mount_profile").in?(%w[standard executable_scratch])
+    end
+  end
+end

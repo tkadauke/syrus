@@ -308,16 +308,16 @@ class RetentionPolicyRegistry
       archivable: false
     ),
     Definition.new(
-      key: :runtime_image_verification_evidence,
+      key: :runtime_image_build_provenance,
       model: "RuntimeImageVerificationAttempt",
       table_name: "runtime_image_verification_attempts",
       age_column: :finished_at,
       scope_name: :prunable,
-      setting_key: :runtime_image_verification_evidence_retention_days,
+      setting_key: :runtime_image_build_provenance_retention_days,
       default_value: 180,
       unit: :days,
       executor_class: nil,
-      description: "Superseded digest-bound runtime image verification attestations and their restricted evidence. The latest attestation for every image is always retained.",
+      description: "Runtime image source snapshots, sanitized build logs, provenance, SBOM references, and verification attempts. The latest evidence for every image is always retained.",
       category: "Security",
       archivable: false
     ),

@@ -51,8 +51,8 @@ module ContainerExecution
     def chat_agent_user = chat_agent_env("USER", "1000:1000")
     def chat_agent_pids_limit = Integer(chat_agent_env("PIDS", "256"))
     def chat_agent_tmpfs_size = chat_agent_env("TMPFS", "256m")
-    def chat_agent_mount_profile = chat_agent_env("MOUNT_PROFILE", "standard")
-    def chat_agent_scratch_size = chat_agent_env("SCRATCH", "1g")
+    def chat_agent_mount_profile = runtime_policy("mount_profile", chat_agent_env("MOUNT_PROFILE", "standard"))
+    def chat_agent_scratch_size = runtime_policy("scratch_size", chat_agent_env("SCRATCH", "1g"))
     def chat_agent_memory = chat_agent_env("MEMORY", "4g")
     def chat_agent_cpus = chat_agent_env("CPUS", "2")
     def seccomp_profile = ENV.fetch("SYRUS_CONTAINER_EXECUTION_SECCOMP", "builtin")
@@ -100,6 +100,14 @@ module ContainerExecution
       ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_#{key}"].presence ||
         ENV["SYRUS_CONTAINER_EXECUTION_COWORKER_#{key}"].presence ||
         fallback
+    end
+
+    def runtime_policy(key, fallback)
+      return fallback unless defined?(RuntimeImages::EnvironmentPolicy)
+
+      RuntimeImages::EnvironmentPolicy.current.override("runtime", key) || fallback
+    rescue ActiveRecord::StatementInvalid
+      fallback
     end
   end
 end

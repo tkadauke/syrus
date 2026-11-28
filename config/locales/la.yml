@@ -373,6 +373,8 @@ la:
       stacked_children: "Filii Job strati vivi ab hoc ramo pendent: %{slugs}; eos prius repone vel terrae affer."
       state: "%{slug} ex statu %{state} reponi non potest; prius iterum conare vel reaperi."
   api:
+    admin_runtime_environment_settings:
+      updated: "Praescriptum ambitus renovatum est."
     runtime_terminal:
       input_lease_required: "Agens locationem activam initus tenere debet antequam eventus initus mittat."
     workflow_outcome_overrides:

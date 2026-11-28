@@ -18,15 +18,20 @@ module RuntimeImages
       attr_reader :url, :repository_prefix, :timeout
 
       def self.from_env(env = ENV)
-        url = env["#{ENV_PREFIX}URL"].to_s.strip
+        setting = AppSetting.current if AppSetting.table_exists?
+        value = ->(name) do
+          attribute = :"runtime_image_registry_#{name.downcase}"
+          setting&.has_attribute?(attribute) && setting.public_send(attribute).present? ? setting.public_send(attribute) : env["#{ENV_PREFIX}#{name}"]
+        end
+        url = value.call("URL").to_s.strip
         return nil if url.empty?
         credentials = ROLES.each_with_object({}) do |role, memo|
           name = role.to_s.upcase
-          secret = env["#{ENV_PREFIX}#{name}_PASSWORD"].to_s
+          secret = value.call("#{name}_PASSWORD").to_s
           next if secret.empty?
-          memo[role] = Credential.new(username: env["#{ENV_PREFIX}#{name}_USERNAME"], secret: secret)
+          memo[role] = Credential.new(username: value.call("#{name}_USERNAME"), secret: secret)
         end
-        new(url: url, repository_prefix: env.fetch("#{ENV_PREFIX}REPOSITORY_PREFIX", "syrus"),
+        new(url: url, repository_prefix: value.call("REPOSITORY_PREFIX").presence || "syrus",
             credentials: credentials, timeout: env.fetch("#{ENV_PREFIX}TIMEOUT", 30))
       end
 
