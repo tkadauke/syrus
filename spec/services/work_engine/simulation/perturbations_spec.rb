@@ -165,6 +165,78 @@ RSpec.describe WorkEngine::Simulation::Runner do
       expect(result.events).to include(a_string_matching(/tick 40: event late close/))
     end
 
+    # Regression: the runner failed a Step a second time after Run#fail! had
+    # already propagated, undoing the dispatcher's provider-backoff reopen and
+    # hard-failing a Workflow production keeps running.
+    it "reruns a transiently failed step after its backoff instead of failing the workflow" do
+      result = run(<<~YAML)
+        name: transient prepare failure
+        runner:
+          auto_retry_failed_jobs: false
+        repository:
+          owner: simulation
+          name: transient-prepare-failure
+        jobs:
+          job:
+            title: Transient prepare failure
+            state: queued
+            workflow:
+              template: true
+              kind: initial
+        outcomes:
+          default: success
+          steps:
+            job:prepare:
+              - status: failure
+                failure_code: rate_limited
+                error_message: simulated transient rate_limited
+              - success
+        success_states:
+          job: [implemented]
+      YAML
+
+      expect(result.status).to eq("success")
+      expect(result.events).to include(a_string_matching(/phase admission ran for workflow/))
+      expect(result.events.grep(/retry .* via/)).to be_empty
+    end
+
+    it "answers the landing queue's mergeability poll so an approved Job without evidence still lands" do
+      result = run(<<~YAML)
+        name: approved without mergeability evidence
+        repository:
+          owner: simulation
+          name: approved-without-mergeability-evidence
+          auto_merge_enabled: true
+        jobs:
+          job:
+            title: Approved before any mergeability poll
+            state: approved
+            branch_name: syrus/direct-approved-no-evidence
+            pr_number: 7101
+            pr_checks_state: passing
+            approved_at: "2026-09-15 08:00:00"
+        outcomes:
+          default: success
+        success_states:
+          job: [closed]
+      YAML
+
+      expect(result.status).to eq("success")
+      expect(result.events).to include(a_string_matching(/mergeability poll answered clean/))
+    end
+
+    it "treats an approval the Job's state refuses as no action at all" do
+      result = run(Rails.root.join("spec/fixtures/work_engine_simulations/stalled_intake_reclassifies.yml").read + <<~YAML)
+        events:
+          - name: refused approval
+            once: true
+            when: { tick: 0 }
+            do: { approve: job }
+      YAML
+
+      expect(result.status).to eq("success")
+    end
+
     it "records an inapplicable injected event instead of aborting the scenario" do
       result = run(SINGLE_JOB + <<~YAML)
         events:

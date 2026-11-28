@@ -104,6 +104,7 @@ module WorkEngine
         success_states: {},
         wait_states: {},
         auto_retry_failed_jobs: true,
+        phase_admission_jobs: true,
         global_reconcile: false,
         max_ticks: DEFAULT_MAX_TICKS,
         ignored_reconciler_issue_kinds: DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS,
@@ -120,6 +121,8 @@ module WorkEngine
         @success_states = success_states.to_h
         @wait_states = wait_states.to_h
         @auto_retry_failed_jobs = auto_retry_failed_jobs
+        @phase_admission_jobs = phase_admission_jobs
+        @pending_phase_admissions = []
         @global_reconcile = global_reconcile
         @max_ticks = max_ticks.to_i.positive? ? max_ticks.to_i : DEFAULT_MAX_TICKS
         @ignored_reconciler_issue_kinds = Array(ignored_reconciler_issue_kinds).map(&:to_s)
@@ -143,6 +146,8 @@ module WorkEngine
             with_stubbed_judgment_runner do
               register_runtime_fleet!
               seed_worker_environments!
+              @mergeability_poll_cursor = enqueued_job_backlog
+              @phase_admission_cursor = enqueued_job_backlog
               max_ticks.times do |tick|
                 @current_tick = tick
                 before = fingerprint
@@ -153,7 +158,9 @@ module WorkEngine
                 retry_failed_jobs!(tick)
                 wake_jobs!(tick)
                 process_landing_queue!(tick)
+                answer_mergeability_polls!(tick)
                 execute_active_runs!(tick)
+                run_due_phase_admissions!(tick)
                 if (failures = observe_invariants!(tick)).present?
                   return violated(tick + 1, failures)
                 end
@@ -254,10 +261,12 @@ module WorkEngine
       # workflow the simulation never gave a workspace, say. Such an event is
       # recorded as inapplicable rather than aborting the scenario. Scripted
       # events still raise: their preconditions are the fixture's to keep.
+      # The action is deliberately not wrapped in a transaction of its own:
+      # production calls these services outside one, and a wrapper would make
+      # every row they write a lock held across the whole action, which the
+      # row-lock order checker rightly rejects.
       def apply_injected_action!(tick, event)
-        return apply_scenario_action!(tick, event) if event["fuzz"].blank?
-
-        ActiveRecord::Base.transaction(requires_new: true) { apply_scenario_action!(tick, event) }
+        apply_scenario_action!(tick, event)
       rescue StandardError => e
         raise if event["fuzz"].blank?
 
@@ -485,7 +494,12 @@ module WorkEngine
 
       def approve_job!(job_id)
         job = Job.find(job_id)
-        job.approve!(via: "operator") if job.may_approve?
+        # An approval the Job's state refuses is no operator action at all:
+        # saving anyway would touch the Job and reset the stall clocks the
+        # reconciler reads, which no real refused click does.
+        return unless job.may_approve?
+
+        job.approve!(via: "operator")
         job.save!
       end
 
@@ -507,7 +521,9 @@ module WorkEngine
 
       def fail_job!(job_id)
         job = Job.find(job_id)
-        job.force_fail! if job.may_force_fail?
+        return unless job.may_force_fail?
+
+        job.force_fail!
         job.save!
       end
 
@@ -1081,6 +1097,88 @@ module WorkEngine
         events << "tick #{tick}: landing_queue active lock #{e.lock_key}"
       end
 
+      # The landing queue refuses to land on stale mergeability evidence and
+      # enqueues PollMergeStateJob instead, which in production re-reads the
+      # PR from GitHub within seconds and wakes the queue. There are no queue
+      # workers here, so without a stand-in a Job whose evidence went stale
+      # (or was never recorded, as for a seeded mid-landing Job that falls
+      # back to approved) waits forever on a poll that never runs. Answer each
+      # poll enqueued for a scenario Job with GitHub's reply as the injected
+      # fact: the PR is cleanly mergeable at its recorded head.
+      # A blocked start (an Epic sibling's turn, a gate) or a provider
+      # backoff schedules a WorkflowPhaseAdmissionJob to look again later.
+      # There are no queue workers here, so the runner performs the scheduled
+      # admissions itself once the world is quiet -- the backoff has elapsed
+      # when nothing else is moving. Without this, a transient failure the
+      # dispatcher deferred never resumes. Scenarios that model the wake
+      # explicitly with `resume_deferred_phase` events can opt out with
+      # `runner: { phase_admission_jobs: false }`.
+      def run_due_phase_admissions!(tick)
+        return unless @phase_admission_jobs
+
+        adapter = ActiveJob::Base.queue_adapter
+        if adapter.respond_to?(:enqueued_jobs)
+          fresh = adapter.enqueued_jobs.drop(@phase_admission_cursor)
+          @phase_admission_cursor = adapter.enqueued_jobs.size
+          fresh.each do |entry|
+            next unless entry[:job] == WorkflowPhaseAdmissionJob
+
+            args = Array(entry[:args]).first(2)
+            @pending_phase_admissions << args unless @pending_phase_admissions.include?(args)
+          end
+        end
+        return if @pending_phase_admissions.empty? || !no_active_runs?
+
+        scenario_workflow_ids = Workflow.where(job_id: job_ids).pluck(:id).to_set
+        due = @pending_phase_admissions.select { |workflow_id, _| scenario_workflow_ids.include?(workflow_id.to_i) }
+        @pending_phase_admissions -= due
+        due.each do |workflow_id, step_id|
+          fast_forward_step_retry_not_before!(step_id)
+          WorkflowPhaseAdmissionJob.new.perform(*[ workflow_id, step_id ].compact)
+          events << "tick #{tick}: phase admission ran for workflow #{workflow_id}"
+        end
+      end
+
+      # Simulated time does not pass, so a Step reopened behind a provider
+      # backoff (`retry_not_before`) would never become due. The world is
+      # quiet when admissions run, which is when the wait would elapse in
+      # production; move the not-before to now, as auto-retry attempts are
+      # fast-forwarded.
+      def fast_forward_step_retry_not_before!(step_id)
+        step = Step.find_by(id: step_id)
+        return unless step
+
+        not_before = step.details.to_h[StepDispatcher::RETRY_NOT_BEFORE_DETAIL]
+        return if not_before.blank? || Time.zone.parse(not_before.to_s) <= Time.current
+
+        step.update!(details: step.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => Time.current.iso8601))
+      end
+
+      def enqueued_job_backlog
+        adapter = ActiveJob::Base.queue_adapter
+        adapter.respond_to?(:enqueued_jobs) ? adapter.enqueued_jobs.size : 0
+      end
+
+      def answer_mergeability_polls!(tick)
+        adapter = ActiveJob::Base.queue_adapter
+        return unless adapter.respond_to?(:enqueued_jobs)
+
+        fresh = adapter.enqueued_jobs.drop(@mergeability_poll_cursor)
+        @mergeability_poll_cursor = adapter.enqueued_jobs.size
+        polled_ids = fresh.filter_map { |entry| Array(entry[:args]).first.to_i if entry[:job] == PollMergeStateJob } & job_ids
+        Job.where(id: polled_ids.uniq).find_each do |job|
+          job.update_columns(
+            mergeability_checked_at: Time.current,
+            github_mergeable: true,
+            github_mergeable_state: "clean",
+            pr_mergeable: true,
+            pr_mergeable_checked_at: Time.current,
+            updated_at: Time.current
+          )
+          events << "tick #{tick}: mergeability poll answered clean for #{job.slug}"
+        end
+      end
+
       def retry_failed_jobs!(tick)
         return unless auto_retry_failed_jobs?
 
@@ -1264,6 +1362,14 @@ module WorkEngine
       def drain_run_failure!(run)
         step = run.step&.reload
         return unless step
+        # Run#fail! already propagates on commit (Runs::LifecyclePropagation
+        # fails the Step and dispatches). When that dispatch reopened the Step
+        # -- the provider-transient backoff, an infrastructure rerun -- failing
+        # it a second time here undid the reopen and then hard-failed the
+        # Workflow production keeps running, so every transient failure the
+        # simulator injected looked fatal. Only a Step propagation left alone
+        # is still drained here.
+        return if step.queued? || step.succeeded? || step.skipped?
         # Runs::LifecyclePropagation already scheduled an in-place retry of
         # this step and deliberately left it unfailed; failing it here would
         # model a cascade production never performs.
@@ -2062,7 +2168,7 @@ module WorkEngine
       end
 
       def final_states
-        Job.where(id: job_ids).order(:id).to_h { |job| [ job.slug, job.state ] }
+        Job.where(id: job_ids).order(:id).to_h { |job| [ job.slug, job.manual_paused? ? "#{job.state}:manual_paused" : job.state ] }
       end
 
       def success(ticks)

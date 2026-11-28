@@ -83,6 +83,53 @@ RSpec.describe WorkEngine::Simulation::Fuzz do
     end
   end
 
+  describe described_class::LockOrderWatch do
+    let(:checker) { Syrus::LockOrder::Checker }
+    let(:violation) { Syrus::LockOrder::Violation.new(held: "WorkUnit", taking: "WorkIntent", site: "a.rb:1", held_site: "b.rb:2") }
+
+    around do |example|
+      previous = checker.mode
+      checker.mode = :record
+      example.run
+    ensure
+      checker.mode = previous
+      checker.reset!
+    end
+
+    it "reports inversions a run newly takes, ignoring the ones its baseline already took" do
+      watch = described_class.new
+      other = violation.with(site: "c.rb:3")
+
+      watch.learning { watch.watch { checker.violations << violation } }
+      _, found = watch.watch { checker.violations.push(violation, other); :result }
+
+      expect(found).to eq([ other ])
+    end
+
+    it "turns a new inversion into a violated result through the default runner" do
+      fuzz = described_class.module_parent::Fuzzer.new(paths: [ seed_path ], output_dir: @dir.join("out"), out: out)
+      allow(WorkEngine::Simulation::ScenarioExecution).to receive(:call) do
+        checker.violations << violation
+        result(status: "success")
+      end
+
+      outcome = fuzz.send(:run_scenario_file, seed_path)
+
+      expect(outcome.status).to eq("violated")
+      expect(described_class.module_parent::Oracle.failure_signature(outcome, expected_statuses: %w[success])).to eq("invariant:lock_order")
+    end
+  end
+
+  describe described_class::Catalog do
+    it "aims only Job-free perturbations at a seed without Jobs" do
+      context = described_class.context_for({ "work_intents" => { "intent" => {} } }, ticks: 5)
+      events = described_class.new(Random.new(4), context).draw(40)
+
+      expect(events.map { |event| event["fuzz"] }.uniq).to all(satisfy { |kind| !kind.match?(/pause|approve|transient|worker_died/) })
+      expect(events.to_json).not_to include('"job":null')
+    end
+  end
+
   describe "failures" do
     it "shrinks a failing iteration to the injected events that matter and writes a reproduction" do
       iterations, failures = fuzzer(seed: 11, iterations: 40).call
@@ -128,6 +175,12 @@ RSpec.describe WorkEngine::Simulation::Fuzz do
       stalled = result(status: "stuck", final_states: { "JOB-1" => "closed", "JOB-2" => "running" }, stuck_reasons: [ "no state changed" ])
 
       expect(signature(stalled)).to eq("stuck:no state changed")
+    end
+
+    it "passes a quiet world whose remaining Job an operator is holding" do
+      held = result(status: "stuck", final_states: { "JOB-1" => "running:manual_paused" }, stuck_reasons: [ "no state changed" ])
+
+      expect(signature(held)).to be_nil
     end
 
     it "fails on invariant violations, keyed by invariant" do

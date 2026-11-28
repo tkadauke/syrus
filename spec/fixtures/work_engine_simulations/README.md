@@ -294,3 +294,93 @@ run:
     reason: local_worker_pressure_critical
     deferral_count: 40
 ```
+
+## Invariant assertions
+
+Every scenario asserts the invariant monitor (`app/services/invariants/`)
+after every tick, scoped to the scenario's Jobs. Production thresholds are
+wall-clock hours, which never elapse in a simulated tick, so the simulator
+zeroes them and asserts persistence instead: a violation fails the scenario
+(status `violated`) once the same fingerprint has held for its sustain
+window of consecutive ticks (`landing_progress` 10, `slot_holders` 3,
+`retry_storms` 1, `failed_blockers` 5, `zombie_workflows` 5), or at once if it
+is still present when the scenario ends quiescent (`waiting`, or `stuck`
+because nothing changed). A scenario that deliberately models a violating
+state declares it, with a reason:
+
+```yaml
+invariants:
+  only: [zombie_workflows]           # default: every invariant
+  except: [landing_progress]
+  sustain: { failed_blockers: 20 }   # ticks
+  options: { retry_storms: { max_failures: 8 } }
+  expected:
+    - invariant: failed_blockers
+      job: parent                    # optional fixture key
+      discriminator: zombie_workflow # optional prefix of the violation's discriminator
+      required: true                 # fail if it never appears
+      reason: the scenario models a failed dependency holding its dependent
+```
+
+## Perturbation events
+
+These exist mainly for the fuzzer but work in any scenario. `when: { tick: 7 }`
+fires on tick 7 and `when: { tick: { at_least: 7 } }` (with `once: true`) on
+the first tick from 7 on; a quiet world is not declared stuck while such an
+event is still due. `inject_outcome: { job:, step:, outcome:, count: }`
+overrides the scripted outcome of the job's next Run (of that step kind, when
+given) -- `worker_died` for a worker dying mid-step, or
+`{ status: failure, failure_code: timeout }` for a transient failure.
+`pause_work: job` / `unpause_work: job` run the operator's `JobManualPause`.
+`rewrite_stack_parent: child` moves the stack parent's head and fails the
+child's next `pr_open` with `awaiting_stable_base`, the way the
+StackBaseFreshness barrier does when the parent was force-pushed mid-run.
+An event carrying `fuzz:` that cannot apply at its tick (storage loss for a
+workflow without a simulated workspace, say) is logged as inapplicable
+instead of aborting the scenario.
+
+## Fuzzing
+
+```sh
+bin/simulator --fuzz --seed 1 --iterations 300               # every scenario as a seed
+bin/simulator --fuzz --seed 1 --iteration 17 path/to/seed.yml # replay one iteration
+```
+
+The fuzzer runs each seed once unperturbed (skipping seeds whose baseline
+does not pass), then per iteration picks a seed and one to four
+perturbations from a catalog -- worker death, transient failures, a grader
+killed by a deploy, operator pause and unpause, main moving, breaking and
+healing, provider outages, CI flakes, external merges and closes, a provider
+switch, spurious wakes and deferred-phase resumes, stack parent rewrites,
+worker and storage loss -- scheduled at ticks inside the seed's own
+timeline. Everything is derived from `--seed` and the iteration index, so
+an iteration replays exactly.
+
+An iteration fails when an invariant is violated, or when the world stops
+without reaching the seed's expected status and some Job is left in a state
+that does not say why it stopped (anything but implemented, approved,
+landing, closed, failed, or no_change_needed, or held by an operator pause),
+or when a run takes row locks out of the global order (`Syrus::LockOrder`,
+recorded the way the test suite checks it; inversions a seed's own baseline
+already takes are ignored). A failure is printed with its
+replay command and injected events, shrunk by dropping injected events while
+the same failure persists, and written to
+`tmp/simulator_fuzz/<seed>__seed<N>_iter<I>.yml`. The file carries a `fuzz:`
+block, so `bin/simulator` judges it with the fuzzer's oracle and it fails
+for as long as the bug reproduces. To promote one, copy it here, replace the
+`fuzz:` block with ordinary `expect:` assertions, and fix the bug.
+
+`spec/services/work_engine/simulation/fuzz_pass_spec.rb` runs a small fixed
+fuzz pass on every CI run.
+
+## Stand-ins for queue jobs
+
+There are no queue workers in a simulation, so the runner performs two kinds
+of enqueued job itself. `WorkflowPhaseAdmissionJob`s (scheduled by blocked
+starts and by the dispatcher's provider-transient backoff) run once the world
+is quiet, with any `retry_not_before` fast-forwarded the way auto-retry
+attempts are; a scenario that models those wakes with explicit
+`resume_deferred_phase` events can opt out with
+`runner: { phase_admission_jobs: false }`. `PollMergeStateJob`s the landing
+queue enqueues on stale mergeability evidence are answered with the injected
+fact that the PR is cleanly mergeable at its recorded head.

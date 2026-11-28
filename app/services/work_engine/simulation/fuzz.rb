@@ -34,8 +34,9 @@ module WorkEngine
       # `expect:` -- so a world that stops changing passes when every Job is
       # in a state that names why it stopped: done, failed, or waiting on an
       # operator (implemented, approved and landing, whose progress the
-      # landing_progress invariant separately asserts). A Job left queued or
-      # running in a quiet world is the silent stall the fuzzer hunts.
+      # landing_progress invariant separately asserts), or held by an operator
+      # pause. A Job left queued or running in a quiet world with nobody
+      # holding it is the silent stall the fuzzer hunts.
       module Oracle
         SETTLED_JOB_STATES = %w[implemented approved landing closed failed no_change_needed].freeze
 
@@ -54,7 +55,7 @@ module WorkEngine
         end
 
         def self.settled?(result)
-          result.final_states.present? && result.final_states.values.all? { |state| SETTLED_JOB_STATES.include?(state) }
+          result.final_states.present? && result.final_states.values.all? { |state| SETTLED_JOB_STATES.include?(state) || state.end_with?(":manual_paused") }
         end
       end
 
@@ -63,6 +64,7 @@ module WorkEngine
       class Catalog
         TRANSIENT_FAILURE_CODES = %w[provider_transient timeout git_transport_transient rate_limited run_job_crashed].freeze
         STEP_KINDS = [ nil, "prepare", "implement", "grader_fanout", "grader_collect", "grader", "pr_open", "push", "auto_merge", "merge_train_land" ].freeze
+        JOBLESS_KINDS = %w[advance_main main_break_heal provider_outage spurious_wake lose_worker].freeze
         Context = Data.define(:job_keys, :stack_children, :workers, :workspace, :ticks)
 
         def self.context_for(data, ticks:)
@@ -93,6 +95,8 @@ module WorkEngine
             weighted["rewrite_stack_parent"] = 3 if context.stack_children.any?
             weighted["lose_worker"] = 2 if context.workers.any?
             weighted["lose_storage"] = 1 if context.workspace
+            # A seed made only of WorkIntents has no Job to aim at.
+            weighted.select! { |kind, _| JOBLESS_KINDS.include?(kind) } if context.job_keys.empty?
             weighted.sort.flat_map { |kind, weight| [ kind ] * weight }
           end
         end
@@ -167,6 +171,57 @@ module WorkEngine
         end
       end
 
+      # The row-lock order (Syrus::LockOrder) is checked by the test suite
+      # only, so a perturbation that drives a service into taking locks out
+      # of order -- the precondition for a production deadlock -- would pass
+      # bin/simulator silently. The fuzzer installs the checker in record mode
+      # and treats a new inversion as a failure. Under rspec, where the suite
+      # already runs the checker in raise mode, this stays out of the way.
+      class LockOrderWatch
+        def initialize
+          @known = Set.new
+          @learning = false
+        end
+
+        def watch
+          return [ yield, [] ] unless enabled?
+
+          Syrus::LockOrder::Checker.reset!
+          result = yield
+          found = Syrus::LockOrder::Checker.violations.uniq { |violation| key(violation) }
+          Syrus::LockOrder::Checker.reset!
+          if @learning
+            @known.merge(found.map { |violation| key(violation) })
+            return [ result, [] ]
+          end
+          [ result, found.reject { |violation| @known.include?(key(violation)) } ]
+        end
+
+        def learning
+          @learning = true
+          yield
+        ensure
+          @learning = false
+        end
+
+        private
+
+        def key(violation) = [ violation.held, violation.taking, violation.site, violation.held_site ]
+
+        def enabled?
+          return @enabled unless @enabled.nil?
+
+          require Rails.root.join("lib/syrus/lock_order").to_s
+          checker = Syrus::LockOrder::Checker
+          if checker.mode.nil?
+            ENV["SYRUS_LOCK_ORDER_WRITES"] ||= "1"
+            checker.install!
+            checker.mode = :record
+          end
+          @enabled = checker.mode == :record
+        end
+      end
+
       Iteration = Data.define(:index, :seed, :path, :events, :result, :signature)
       Failure = Data.define(:iteration, :minimized_events, :repro_path, :reproduced)
 
@@ -184,6 +239,7 @@ module WorkEngine
           @output_dir = Pathname(output_dir)
           @out = out
           @runner = runner || method(:run_scenario_file)
+          @lock_order = LockOrderWatch.new
           @baselines = {}
         end
 
@@ -243,9 +299,13 @@ module WorkEngine
           false
         end
 
+        # A seed's own lock-order inversions are pre-existing, not something a
+        # perturbation caused: they are learned here and ignored afterwards.
         def baseline(path)
-          @baselines[path.to_s] ||= run(load(path), [])
+          @baselines[path.to_s] ||= lock_order.learning { run(load(path), []) }
         end
+
+        attr_reader :lock_order
 
         def run_iteration(index, eligible)
           path, data, events = plan(index, eligible)
@@ -265,12 +325,21 @@ module WorkEngine
         def report_iteration(iteration)
           result = iteration.result
           verdict = iteration.signature ? "FAIL #{iteration.signature}" : "pass"
-          out.puts "iteration #{iteration.index} (seed #{seed}) #{relative(iteration.path)}: #{verdict} -- #{result.status} after #{result.ticks} ticks"
+          out.puts "iteration #{iteration.index} (seed #{seed}) #{relative(iteration.path)}: #{verdict} -- #{result.status} after #{result.ticks} ticks#{settled_note(result)}"
           return unless iteration.signature
 
           out.puts "  replay: bin/simulator --fuzz --seed #{seed} --iteration #{iteration.index} #{relative(iteration.path)}"
           iteration.events.each { |event| out.puts "    #{describe(event)}" }
           result.stuck_reasons.first(8).each { |reason| out.puts "  #{reason}" }
+        end
+
+        # A pass that only settled (rather than reaching the seed's expected
+        # status) says where every Job stopped, so a reviewer can tell an
+        # explicable end from a suspicious one.
+        def settled_note(result)
+          return "" if result.success? || result.waiting? || result.final_states.blank?
+
+          " (" + result.final_states.map { |slug, state| "#{slug}=#{state}" }.join(" ") + ")"
         end
 
         def describe(event)
@@ -321,7 +390,17 @@ module WorkEngine
         end
 
         def run_scenario_file(file)
-          ScenarioExecution.call(path: file)
+          result, violations = lock_order.watch { ScenarioExecution.call(path: file) }
+          return result if violations.empty?
+
+          lines = violations.map do |violation|
+            "invariant lock_order: took #{violation.taking} at #{violation.site} while holding #{violation.held} from #{violation.held_site}"
+          end
+          result.with(
+            status: "violated",
+            invariant_violations: result.invariant_violations + lines,
+            stuck_reasons: [ "scenario otherwise ended #{result.status}", *lines, *result.stuck_reasons ]
+          )
         rescue => e
           Result.new(
             scenario: file.basename.to_s, ticks: 0, status: "error", events: [],

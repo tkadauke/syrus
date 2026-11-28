@@ -33,9 +33,14 @@ three callers:
 - `GET /api/v1/admin/invariants` evaluates live (`?only=`, `?job_id=`,
   `?include_resolved=true`) and annotates each violation with the recorded
   episode's `first_detected_at` and `detection_count`.
-- The work-engine simulator can evaluate them from `ScenarioRunner`'s
-  `tick_observer`, with `Scope.for_jobs` limiting evaluation to the scenario's
-  Jobs (`spec/services/invariants/simulation_spec.rb` pins this seam).
+- The work-engine simulator asserts them after every tick of every scenario
+  (`WorkEngine::Simulation::InvariantAssertions`), with `Scope.for_jobs`
+  limiting evaluation to the scenario's Jobs. Duration thresholds are zeroed
+  there and replaced by persistence in ticks, since a simulated tick takes no
+  wall-clock time; scenarios that model a violating state declare it under
+  `invariants: expected:`. The simulator's fuzz mode
+  (`bin/simulator --fuzz`) uses the same assertions as its main oracle. See
+  `spec/fixtures/work_engine_simulations/README.md`.
 
 Open episodes also raise the admin `invariant_violations` system alert
 (severity `warn`, banner only); its dismissal key is the set of open

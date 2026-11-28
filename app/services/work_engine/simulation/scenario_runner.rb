@@ -27,6 +27,7 @@ module WorkEngine
           success_states: success_states,
           wait_states: wait_states,
           auto_retry_failed_jobs: world.runner.fetch("auto_retry_failed_jobs", true),
+          phase_admission_jobs: world.runner.fetch("phase_admission_jobs", true),
           global_reconcile: world.runner.fetch("global_reconcile", false),
           max_ticks: tick_limit,
           tick_observer: tick_observer,

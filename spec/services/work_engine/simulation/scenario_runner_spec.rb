@@ -260,9 +260,12 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     first_merge_index = result.events.index { |event| event.match?(/RUN-\d+ auto_merge ->/) }
     preflights = result.events.first(first_merge_index).grep(/RUN-\d+ mergeability_preflight ->/)
     expect(preflights.size).to eq(3)
-    # The failing unit retried on its own; the other two merged exactly once.
+    # The failing unit retried on its own -- the dispatcher reruns its
+    # transient merge failure in place after the provider backoff -- and the
+    # other two merged exactly once.
     expect(result.events.grep(/auto_merge -> success/).size).to eq(3)
-    expect(jobs.second.workflows.where(trigger_kind: "auto_merge").count).to eq(2)
+    expect(result.events.grep(/auto_merge -> .*BadGateway/).size).to eq(1)
+    expect(jobs.second.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
     expect(jobs.first.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
   end
 
@@ -611,7 +614,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     "queued_step_without_run" => "queued_step_without_run",
     "running_workflow_with_failed_step" => "running_workflow_with_failed_step",
     "codex_overload_initial_retries" => "auto retry",
-    "worker_died_retries_once" => "retryable_run_failure",
+    # The dispatcher reruns a step whose worker died in place.
+    "worker_died_retries_once" => "implement -> worker_died",
     "zombie_terminal_unit_orphaned_run" => "running_run_without_live_worker_evidence",
     "closed_job_active_work_unit" => "closed_job_active_runtime_work",
     "running_step_with_terminal_run" => "running_step_with_terminal_runs",
