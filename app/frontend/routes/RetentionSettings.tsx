@@ -83,10 +83,11 @@ function CoworkerEnvironmentRecoveryCard({ payload, onNotice }: { payload: Reten
   const [rollbackCount, setRollbackCount] = useState(String(recovery.rollback_retention_count))
   const [failureThreshold, setFailureThreshold] = useState(String(recovery.launch_failure_threshold))
   const save = useMutation({
-    mutationFn: () => updateRetentionSettings({
-      coworker_environment_rollback_retention_count: Number(rollbackCount),
-      coworker_environment_launch_failure_threshold: Number(failureThreshold)
-    }),
+    mutationFn: () =>
+      updateRetentionSettings({
+        coworker_environment_rollback_retention_count: Number(rollbackCount),
+        coworker_environment_launch_failure_threshold: Number(failureThreshold)
+      }),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data)
       onNotice(data.message || t("retention_settings.settings_updated"))
@@ -97,12 +98,30 @@ function CoworkerEnvironmentRecoveryCard({ payload, onNotice }: { payload: Reten
     <section className="rounded border border-border bg-surface p-4">
       <SectionHeading>{t("retention_settings.coworker_recovery_heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("retention_settings.coworker_recovery_description")}</p>
-      <form className="mt-4 flex flex-wrap items-end gap-4" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <label className="text-xs text-text-secondary">{t("retention_settings.rollback_count_label")}<Input className="mt-1 w-32" min={0} onChange={(event) => setRollbackCount(event.target.value)} type="number" value={rollbackCount} /></label>
-        <label className="text-xs text-text-secondary">{t("retention_settings.launch_failure_threshold_label")}<Input className="mt-1 w-32" min={1} onChange={(event) => setFailureThreshold(event.target.value)} type="number" value={failureThreshold} /></label>
-        <Button disabled={save.isPending} size="sm" type="submit">{save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}</Button>
+      <form
+        className="mt-4 flex flex-wrap items-end gap-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          save.mutate()
+        }}
+      >
+        <label className="text-xs text-text-secondary">
+          {t("retention_settings.rollback_count_label")}
+          <Input className="mt-1 w-32" min={0} onChange={(event) => setRollbackCount(event.target.value)} type="number" value={rollbackCount} />
+        </label>
+        <label className="text-xs text-text-secondary">
+          {t("retention_settings.launch_failure_threshold_label")}
+          <Input className="mt-1 w-32" min={1} onChange={(event) => setFailureThreshold(event.target.value)} type="number" value={failureThreshold} />
+        </label>
+        <Button disabled={save.isPending} size="sm" type="submit">
+          {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
+        </Button>
       </form>
-      {save.isError ? <p className="mt-2 text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
+      {save.isError ? (
+        <p className="mt-2 text-xs text-danger" role="alert">
+          {errorMessage(save.error, t("retention_settings.error_update"))}
+        </p>
+      ) : null}
     </section>
   )
 }
