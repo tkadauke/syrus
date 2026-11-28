@@ -3273,6 +3273,12 @@ module WorkEngine
         classification = effective_failure_classification(run)
         next if classification.nil?
         next unless classification.retryable || provider_quota_classification?(classification)
+        # The retry this failure called for already ran. Every plan the issue
+        # can make is refused for a Run that has a performed attempt, so
+        # planning one each pass is pure churn: a failed repair Workflow whose
+        # retry was still being worked by a newer Workflow was planned and
+        # skipped every minute for a night.
+        next if retry_already_performed_for_run?(run)
 
         issue(
           kind: :retryable_run_failure,
@@ -4502,6 +4508,10 @@ module WorkEngine
       workflow = run.workflow
       job = run.job
       workflow && job && workflow == latest_workflow_for_job(job)
+    end
+
+    def retry_already_performed_for_run?(run)
+      AutoRetryAttempt.unskipped.where(run_id: run.id).where.not(performed_at: nil).exists?
     end
 
     def repair_failure_still_needs_validation?(run)

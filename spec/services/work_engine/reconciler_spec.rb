@@ -8321,6 +8321,71 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_plans.map(&:action)).not_to include("retry_workflow", "retry_failed_step", "resume_failed_step")
   end
 
+  # Regression: a failed retry Workflow whose own retry had already run (a
+  # newer retry Workflow was working on the Job) still read as a repair
+  # failure needing validation, so every reconcile pass planned a retry for it
+  # and the executor skipped it as "already scheduled for this Run" -- about
+  # nine hundred futile repairs over one production night.
+  describe "a failed repair workflow whose retry has already been performed" do
+    let(:failed_attempt) do
+      workflow.update_columns(state: "failed", finished_at: 1.hour.ago)
+      failed_workflow_attempt_with_diagnostic(
+        job: job,
+        finished_at: 10.minutes.ago,
+        step_kind: "adversarial_review",
+        error_class: "Steps::Base::StepFailed",
+        error_message: "Selected model is at capacity. Please try a different model."
+      )
+    end
+    let(:failed_retry) { failed_attempt.first }
+    let(:failed_retry_run) { failed_attempt.last }
+
+    before do
+      replace_failure_classification!(
+        failed_retry_run,
+        classification: "provider_transient",
+        retryable: true,
+        confidence: 0.9,
+        reason: "provider capacity",
+        classified_at: 10.minutes.ago
+      )
+      newer = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        agent_provider: job.agent_provider,
+        state: "running",
+        started_at: 5.minutes.ago,
+        chain_template: []
+      )
+      newer.steps.create!(kind: "prepare", position: 0, state: "running")
+      job.update_columns(state: "running")
+    end
+
+    it "is still planned while no retry was scheduled for the Run" do
+      result = reconcile(job_id: job.id)
+
+      expect(kind(result, :retryable_run_failure)).to be_present
+    end
+
+    it "is not planned again once that retry has run" do
+      AutoRetryAttempt.create!(
+        job: job,
+        workflow: failed_retry,
+        run: failed_retry_run,
+        agent_provider: "claude",
+        failure_classification: "provider_transient",
+        retry_kind: "retry_workflow",
+        attempt_number: 1,
+        scheduled_at: 6.minutes.ago,
+        performed_at: 5.minutes.ago
+      )
+
+      result = reconcile(job_id: job.id)
+
+      expect(kind(result, :retryable_run_failure)).to be_nil
+    end
+  end
+
   it "plans provider usage-limit failures for the provider reset time" do
     run.update_columns(
       state: "failed",
