@@ -22,7 +22,10 @@ class Coworkers::Environment < ApplicationRecord
   belongs_to :coworker, class_name: "Coworkers::Coworker", inverse_of: :environment
   has_many :revisions, -> { order(:number) }, class_name: "Coworkers::EnvironmentRevision",
            foreign_key: :coworker_environment_id, inverse_of: :environment, dependent: :destroy
+  has_many :activations, -> { order(:activated_at, :id) }, class_name: "Coworkers::EnvironmentActivation",
+           foreign_key: :coworker_environment_id, inverse_of: :environment, dependent: :destroy
   belongs_to :active_revision, class_name: "Coworkers::EnvironmentRevision", optional: true
+  belongs_to :active_activation, class_name: "Coworkers::EnvironmentActivation", optional: true
   belongs_to :candidate_revision, class_name: "Coworkers::EnvironmentRevision", optional: true
   belongs_to :active_runtime_image, class_name: "RuntimeImage", optional: true
   belongs_to :candidate_runtime_image, class_name: "RuntimeImage", optional: true
@@ -61,5 +64,9 @@ class Coworkers::Environment < ApplicationRecord
       # A new environment owns no revisions yet, so any pointer is foreign.
       errors.add(name, I18n.t("api.coworkers.environment_foreign_revision")) if new_record? || revision.coworker_environment_id != id
     end
+
+    return unless active_activation && (new_record? || active_activation.coworker_environment_id != id)
+
+    errors.add(:active_activation, I18n.t("api.coworkers.environment_foreign_revision"))
   end
 end

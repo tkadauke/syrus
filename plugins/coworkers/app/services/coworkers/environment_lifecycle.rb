@@ -24,7 +24,7 @@ class Coworkers::EnvironmentLifecycle
     end
   end
 
-  def publish!(revision = @environment.candidate_revision, actor: "system")
+  def publish!(revision = @environment.candidate_revision, actor: "system", authority:)
     raise Coworkers::EnvironmentRevision::InvalidTransition, "no candidate revision is available" unless revision
     raise Coworkers::EnvironmentBuildRequest::Disabled, "coworker custom environments are not enabled" unless Feature.coworker_custom_environments_enabled?
 
@@ -34,14 +34,27 @@ class Coworkers::EnvironmentLifecycle
       unless revision.candidate? && image&.pullable?
         raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"
       end
+      unless authority&.allow? && authority.subject.revision_id == revision.id && authority.subject.image_digest == image.digest
+        raise Coworkers::EnvironmentRevision::InvalidTransition, "publication authority does not match the candidate"
+      end
       mark_incompatible!(revision) unless compatible_now?(revision)
       raise Coworkers::EnvironmentRevision::InvalidTransition, "candidate is incompatible with the active runtime ABI" unless revision.candidate?
+      attestation = current_attestation!(revision)
 
       previous = @environment.active_revision
+      previous_activation = @environment.active_activation
       previous.transition_to!(:retired) if previous&.active?
       revision.transition_to!(:active)
       event = audit("published", revision, actor: actor)
+      activation = @environment.activations.create!(
+        revision:, runtime_image: image, previous_activation:, verification_attestation: attestation,
+        authority_lease: authority.lease, inherited_from_activation: authority.inherited_from,
+        source_digest: revision.source_digest, image_digest: image.digest,
+        authority_kind: authority.inherited_from ? "inherited" : "permission",
+        actor: actor.to_s, activated_at: @now
+      )
       @environment.transition_to!(:active, active_revision: revision, active_runtime_image: image,
+                                  active_activation: activation,
                                   candidate_revision: nil, candidate_runtime_image: nil,
                                   last_error_code: nil, last_audit_event: event)
       Syrus::Host::RuntimeImages.retain(image, reason: "active coworker environment", actor: actor)
@@ -81,7 +94,7 @@ class Coworkers::EnvironmentLifecycle
       candidate.transition_to!(:retired) if candidate&.candidate?
       event = audit("disabled", active || candidate, actor: actor)
       @environment.update!(state: "revoked", active_revision: nil, active_runtime_image: nil,
-                           candidate_revision: nil, candidate_runtime_image: nil,
+                           active_activation: nil, candidate_revision: nil, candidate_runtime_image: nil,
                            last_error_code: "coworker_disabled", last_audit_event: event)
     end
   end
@@ -102,6 +115,13 @@ class Coworkers::EnvironmentLifecycle
   end
 
   private
+
+  def current_attestation!(revision)
+    attestation = Coworkers::EnvironmentVerificationEvidence.current(revision, now: @now)
+    return attestation if attestation
+
+    raise Coworkers::EnvironmentRevision::InvalidTransition, "candidate has no current accepted verification attestation"
+  end
 
   def begin_verification!(revision)
     revision.transition_to!(:verifying) if revision.building?
@@ -162,7 +182,7 @@ class Coworkers::EnvironmentLifecycle
     attrs = { last_error_code: reason.to_s, last_audit_event: event }
     active_remains = @environment.active_revision_id.present? && @environment.active_revision_id != revision.id
     attrs[:state] = active_remains ? "active" : "revoked" if projected_current
-    attrs.merge!(active_revision: nil, active_runtime_image: nil) if @environment.active_revision_id == revision.id
+    attrs.merge!(active_revision: nil, active_runtime_image: nil, active_activation: nil) if @environment.active_revision_id == revision.id
     attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil) if @environment.candidate_revision_id == revision.id
     @environment.update!(attrs)
     publish_event("revoked", revision)
@@ -172,7 +192,7 @@ class Coworkers::EnvironmentLifecycle
   def clear_candidate!(revision, state:, code:, event:, clear_active: false)
     active_remains = @environment.active_revision_id.present? && !clear_active
     attrs = { state: active_remains ? "active" : state.to_s, last_error_code: code, last_audit_event: event }
-    attrs.merge!(active_revision: nil, active_runtime_image: nil) if clear_active
+    attrs.merge!(active_revision: nil, active_runtime_image: nil, active_activation: nil) if clear_active
     if @environment.candidate_revision_id == revision.id || @environment.candidate_revision_id.nil?
       attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil)
     end
