@@ -275,6 +275,41 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY).map { |e| e["name"] }).to contain_exactly("unit", "e2e")
   end
 
+  # Regression: the CI-phase manifest, the selection record and the
+  # target-health checks each fingerprinted every target from scratch, so a
+  # production fan-out hashed the repository a few hundred times -- three to
+  # four minutes per landing round before a grader Step existed.
+  it "hashes each workspace file once across every fingerprint the fan-out computes" do
+    write_config(<<~YAML)
+      grade:
+        - name: unit
+          run: bin/rspec
+          phases: [landing, ci]
+        - name: lint
+          run: bin/lint
+          phases: [landing, ci]
+        - name: e2e
+          run: bin/e2e
+          phases: [ci]
+    YAML
+    @ws_path.join("app/models").mkpath
+    @ws_path.join("app/models/user.rb").write("class User; end\n")
+    allow(@git).to receive(:run).with("ls-files", chdir: anything).and_return(".syrus.yml\napp/models/user.rb\n")
+    workflow.update!(trigger_kind: "auto_merge")
+    stub_changed_files("app/models/user.rb")
+    hashed = Hash.new(0)
+    allow(Digest::SHA256).to receive(:file).and_wrap_original do |original, path|
+      hashed[path.to_s] += 1
+      original.call(path)
+    end
+
+    handler.call
+
+    expect(workflow.reload.artifact(LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY)["targets"].size).to eq(3)
+    expect(hashed).to include(@ws_path.join("app/models/user.rb").to_s => 1, @ws_path.join(".syrus.yml").to_s => 1)
+    expect(hashed.values).to all(eq(1))
+  end
+
   # A suite too slow or too red to gate a landing on (e2e here) opts out of
   # landing parity: landing does not run it, and the gate names it as a
   # post-merge delta rather than blocking on a missing landing result.

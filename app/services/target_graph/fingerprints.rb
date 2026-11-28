@@ -43,13 +43,21 @@ class TargetGraph
     ].freeze
     DEFAULT_GRADER_CAPABILITIES = { "os" => [ "linux" ] }.freeze
 
-    def self.for_target(workspace_path:, graph:, label:)
-      new(workspace_path: workspace_path, graph: graph).for_target(label)
+    # `file_digests` shares file listing and hashing across callers that
+    # fingerprint many targets against one unchanging workspace; see
+    # TargetGraph::FileDigests. Omitted, each call hashes on its own.
+    def self.for_target(workspace_path:, graph:, label:, file_digests: nil)
+      new(workspace_path: workspace_path, graph: graph, file_digests: file_digests).for_target(label)
     end
 
-    def initialize(workspace_path:, graph:)
+    def initialize(workspace_path:, graph:, file_digests: nil)
       @workspace_path = Pathname.new(workspace_path)
       @graph = graph
+      if file_digests && file_digests.workspace_path.expand_path != @workspace_path.expand_path
+        raise ArgumentError, "file digests for #{file_digests.workspace_path} cannot fingerprint #{@workspace_path}"
+      end
+
+      @file_digests = file_digests || FileDigests.new(@workspace_path)
     end
 
     def for_target(label)
@@ -60,14 +68,18 @@ class TargetGraph
         .filter_map { |dependency_label| graph.target(dependency_label) }
       relevant_targets = [ target, *dependencies ]
       prepare_targets = dependencies.select { |dependency| dependency.kind == "prepare" && dependency.executable? }
+      # Computed once: the input payload and the counts below used to hash
+      # the target's whole source scope twice.
+      source_files = source_file_entries(relevant_targets)
+      config_files = config_file_entries(relevant_targets)
 
       Result.new(
-        input_fingerprint: digest(input_payload(target, relevant_targets)),
+        input_fingerprint: digest(input_payload(target, relevant_targets, source_files: source_files, config_files: config_files)),
         command_fingerprint: digest(command_payload(target, dependencies)),
         environment_fingerprint: digest(environment_payload(target, prepare_targets)),
         metadata: {
-          "source_file_count" => source_file_entries(relevant_targets).size,
-          "config_file_count" => config_file_entries(relevant_targets).size,
+          "source_file_count" => source_files.size,
+          "config_file_count" => config_files.size,
           "dependency_labels" => dependencies.map { |dependency| dependency.label.to_s },
           "prepare_target_labels" => prepare_targets.map { |dependency| dependency.label.to_s },
           "worker_environment" => worker_environment_metadata_for(target)
@@ -77,14 +89,14 @@ class TargetGraph
 
     private
 
-    attr_reader :workspace_path, :graph
+    attr_reader :workspace_path, :graph, :file_digests
 
-    def input_payload(target, relevant_targets)
+    def input_payload(target, relevant_targets, source_files:, config_files:)
       {
         "target_label" => target.label.to_s,
         "source_scopes" => relevant_targets.to_h { |entry| [ entry.label.to_s, sorted_strings(entry.source_scope) ] },
-        "source_files" => source_file_entries(relevant_targets),
-        "config_files" => config_file_entries(relevant_targets)
+        "source_files" => source_files,
+        "config_files" => config_files
       }
     end
 
@@ -150,13 +162,7 @@ class TargetGraph
 
     def source_file_entries(relevant_targets)
       patterns = relevant_targets.flat_map(&:source_scope).map(&:to_s).reject(&:empty?).uniq
-      paths = if patterns.empty?
-        repository_files
-      else
-        repository_files.select { |path| RepositoryContent::Glob.match?(patterns, path) }
-      end
-
-      file_entries(paths)
+      file_entries(file_digests.matching_files(patterns))
     end
 
     def config_file_entries(relevant_targets)
@@ -175,26 +181,7 @@ class TargetGraph
     end
 
     def file_entries(paths)
-      paths.sort.filter_map do |relative_path|
-        absolute_path = workspace_path.join(relative_path)
-        next unless absolute_path.file?
-
-        {
-          "path" => relative_path,
-          "sha256" => Digest::SHA256.file(absolute_path).hexdigest,
-          "bytes" => absolute_path.size
-        }
-      end
-    end
-
-    def repository_files
-      @repository_files ||= begin
-        GitRunner.new.run("ls-files", chdir: workspace_path.to_s).lines.map(&:strip).reject(&:empty?)
-      rescue GitRunner::GitError
-        Dir.glob("**/*", File::FNM_DOTMATCH, base: workspace_path.to_s)
-          .reject { |path| path == "." || path.start_with?(".git/") || path.start_with?(".syrus/") }
-          .select { |path| workspace_path.join(path).file? }
-      end
+      file_digests.entries_for(paths)
     end
 
     def bundler_version
