@@ -33,14 +33,6 @@ RSpec.describe RuntimeImages::Verifications::Orchestrator do
     expect(attempt.checks.pluck(:verifier_key, :state)).to eq([ [ "sbom", "passed" ], [ "vulnerability", "passed" ] ])
     expect(calls).to eq(%w[sbom vulnerability])
     expect(image.reload).to be_candidate
-    expect(attempt.attestation).to have_attributes(
-      image_digest: image.digest, policy_digest: attempt.policy_digest, outcome: "accepted"
-    )
-    expect(attempt.attestation.evidence_digest).to match(RuntimeImage::DIGEST_FORMAT)
-    expect(attempt.attestation.safe_summary.fetch("checks")).to eq(
-      [ { "key" => "sbom", "state" => "passed" }, { "key" => "vulnerability", "state" => "passed" } ]
-    )
-    expect(image.reload).to be_verified_candidate
   end
 
   it "bounds retries when an attempt number keeps colliding" do
@@ -84,22 +76,5 @@ RSpec.describe RuntimeImages::Verifications::Orchestrator do
     expect(first.reload).to have_attributes(number: 1, state: "rejected", decision: "rejected", failure_code: "high_vulnerability")
     expect(second).to have_attributes(number: 2, state: "accepted", decision: "candidate")
     expect(image.reload).to be_pullable
-  end
-
-  it "invalidates prior acceptance and emits a safe revocation candidate for a newly blocking finding" do
-    registry.register("vulnerability", ->(**) { result })
-    policy = { "checks" => [ { "key" => "vulnerability", "required" => true } ] }
-    accepted = orchestrator.verify(image, policy: policy)
-
-    registry.register("vulnerability", ->(**) {
-      result(outcome: :failed, failure_class: "policy", code: "blocked_vulnerability", message: "restricted")
-    })
-    rejected = orchestrator.verify(image, policy: policy)
-
-    expect(accepted.attestation.reload).to have_attributes(invalidation_reason: "superseded")
-    candidate = RuntimeImageRevocationCandidate.find_by!(triggering_attestation: rejected.attestation)
-    expect(candidate).to have_attributes(runtime_image: image, prior_attestation: accepted.attestation,
-                                         reason_code: "blocked_vulnerability", state: "pending")
-    expect(candidate.safe_summary.to_json).not_to include("restricted")
   end
 end

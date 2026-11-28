@@ -9,8 +9,6 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
           foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
   has_one :policy_evidence, class_name: "RuntimeImagePolicyEvidence",
           foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
-  has_one :attestation, class_name: "RuntimeImageVerificationAttestation",
-          foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
 
   attr_readonly :runtime_image_id, :number, :image_digest, :policy_snapshot, :policy_digest, :started_at
   attribute :policy_snapshot, :json, default: -> { {} }

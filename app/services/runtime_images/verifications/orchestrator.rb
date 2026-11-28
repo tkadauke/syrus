@@ -93,7 +93,6 @@ module RuntimeImages
             image.update!(verification_state: attempt.accepted? ? "candidate" : attempt.state)
           end
         end
-        Attestor.new.issue!(attempt, now: now)
         attempt
       end
 

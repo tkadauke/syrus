@@ -35,25 +35,14 @@ module Api
         end
 
         def serialize_policy_evidence(image)
-          attempt = image&.runtime_image_verification_attempts&.order(number: :desc)&.first
-          evidence = attempt&.policy_evidence
-          scan = attempt&.scan_evidence
-          return nil unless evidence || scan
+          evidence = image&.runtime_image_verification_attempts&.order(number: :desc)&.first&.policy_evidence
+          return nil unless evidence
 
-          base = evidence ? evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge(
+          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge(
             "report" => evidence.report.attached? ? JSON.parse(evidence.report.download) : nil
-          ) : {}
-          base.merge(
-            "attestation" => attempt.attestation&.slice(*%w[image_digest policy_digest evidence_digest outcome safe_summary issued_at expires_at invalidated_at invalidation_reason]),
-            "supply_chain" => scan && scan.slice(*%w[image_digest scanner_name scanner_version database_version sbom_format sbom_digest report_digest finding_summary exemptions decision_evidence scanned_at]).merge(
-              "sbom" => scan.sbom.attached? ? JSON.parse(scan.sbom.download) : nil,
-              "report" => scan.scan_report.attached? ? JSON.parse(scan.scan_report.download) : nil
-            )
           )
         rescue JSON::ParserError
-          { "attestation" => attempt&.attestation&.slice(*%w[image_digest policy_digest evidence_digest outcome safe_summary issued_at expires_at]),
-            "image_policy" => evidence&.slice(*%w[image_digest safe_summary report_digest scanned_at]),
-            "supply_chain" => scan&.slice(*%w[image_digest scanner_name scanner_version database_version sbom_digest report_digest finding_summary scanned_at]) }
+          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge("report" => nil)
         end
       end
     end

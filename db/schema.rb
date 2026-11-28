@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_025957) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_152853) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -4223,21 +4223,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_025957) do
     t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
   end
 
-  create_table "runtime_image_revocation_candidates", force: :cascade do |t|
-    t.integer "runtime_image_id", null: false
-    t.integer "prior_attestation_id", null: false
-    t.integer "triggering_attestation_id", null: false
-    t.string "reason_code", limit: 64, null: false
-    t.json "safe_summary"
-    t.string "state", limit: 24, default: "pending", null: false
-    t.datetime "detected_at", null: false
-    t.datetime "resolved_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["runtime_image_id", "state"], name: "idx_ri_revocation_candidates_state"
-    t.index ["triggering_attestation_id"], name: "idx_ri_revocation_trigger", unique: true
-  end
-
   create_table "runtime_image_scan_evidences", force: :cascade do |t|
     t.integer "runtime_image_verification_attempt_id", null: false
     t.string "image_digest", limit: 71, null: false
@@ -4274,27 +4259,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_025957) do
     t.datetime "updated_at", null: false
     t.index ["runtime_image_id", "number"], name: "idx_ri_verification_attempt_number", unique: true
     t.index ["state", "started_at"], name: "idx_ri_verification_attempt_state"
-  end
-
-  create_table "runtime_image_verification_attestations", force: :cascade do |t|
-    t.integer "runtime_image_id", null: false
-    t.integer "runtime_image_verification_attempt_id", null: false
-    t.string "image_digest", limit: 71, null: false
-    t.string "policy_digest", limit: 71, null: false
-    t.string "evidence_digest", limit: 71, null: false
-    t.string "outcome", limit: 24, null: false
-    t.json "safe_summary"
-    t.string "vulnerability_database_version", limit: 191
-    t.datetime "issued_at", null: false
-    t.datetime "expires_at", null: false
-    t.datetime "invalidated_at"
-    t.string "invalidation_reason", limit: 100
-    t.datetime "exact_evidence_purged_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["outcome", "expires_at"], name: "idx_ri_attestations_expiry"
-    t.index ["runtime_image_id", "issued_at"], name: "idx_ri_attestations_image_issued"
-    t.index ["runtime_image_verification_attempt_id"], name: "idx_ri_attestations_attempt", unique: true
   end
 
   create_table "runtime_image_verification_checks", force: :cascade do |t|

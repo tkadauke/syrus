@@ -19,8 +19,6 @@ class RuntimeImage < ApplicationRecord
 
   belongs_to :runtime_image_namespace
   has_many :runtime_image_verification_attempts, dependent: :destroy
-  has_many :runtime_image_verification_attestations, dependent: :destroy
-  has_many :runtime_image_revocation_candidates, dependent: :destroy
   attr_readonly :runtime_image_namespace_id, :digest, :platform, :source_kind, :source_ref, :source_digest
 
   validates :digest, presence: true, format: { with: DIGEST_FORMAT }
@@ -54,8 +52,8 @@ class RuntimeImage < ApplicationRecord
   def pullable? = available? && revoked_at.nil? && verification_state == "candidate"
   def candidate? = verification_state == "candidate"
   def verified_candidate?
-    latest = runtime_image_verification_attestations.where(image_digest: digest).order(issued_at: :desc).first
-    candidate? && latest&.valid_at?
+    latest_attempt = runtime_image_verification_attempts.where(image_digest: digest).order(number: :desc).first
+    candidate? && latest_attempt&.accepted?
   end
   def retained?(now = Time.current) = retention_state == "retained" && (retain_until.nil? || retain_until > now)
 

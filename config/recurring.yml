@@ -125,10 +125,6 @@ default: &default
     class: RuntimeImageBuildDispatchJob
     queue: control_plane
     schedule: every minute
-  reevaluate_runtime_image_verifications:
-    class: RuntimeImageVerificationReevaluationJob
-    queue: runtime_image_builds
-    schedule: every hour
   sample_worker_host_health:
     class: WorkerHostHealthSampleJob
     queue: cleanup
