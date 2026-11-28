@@ -5111,6 +5111,22 @@ in any `FROM` of a multi-stage Dockerfile, so a final stage built from another
 image passes `base_ancestry`; and NY46, images that predate verification
 default to `candidate` with no attestation and are never verified.
 
+## F157. Coworker environment locks re-read with plain reads — fixed
+
+**Invariant.** As F149: a decision made under a row lock reads the locked rows
+as last committed.
+
+**Counterexample.** Main's coworker environment Epic (#576) merged with main's
+own guard (`locked_plain_reread_spec.rb`) red on seven plain `reload`s after
+the environment lock: active selection, `revoke!`, the reconciler's activation
+projection repair, and `rollback!`. A sweep of the Epic found the reads in
+`revoke!` and `rollback!` safe today only because nothing in those
+transactions reads before the lock; any read added ahead of the lock would make
+them stale.
+
+**Fix.** Locking reads at all seven sites, the guard's own remedy. The guard
+spec was the failing spec; `plugins/coworkers` specs pass (825 examples).
+
 
 ## F156. Every runtime image re-evaluation of a built image failed — fixed
 
