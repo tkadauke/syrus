@@ -1,11 +1,22 @@
-import { app, autoUpdater as nativeAutoUpdater } from "electron"
+import { execFile } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { promisify } from "node:util"
+import { app, autoUpdater as nativeAutoUpdater, dialog } from "electron"
 import electronUpdater from "electron-updater"
 import { resolveChannel } from "./channel.js"
+import { t } from "./i18n.js"
 import { isPinnedTestBuild } from "./pinnedTestBuild.js"
+import { installedBundleVersion } from "./selfInstall.js"
+import { shouldRecoverStrandedUpdate, type ShipItState } from "./strandedUpdate.js"
 
 const { autoUpdater } = electronUpdater
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000
+const execFileAsync = promisify(execFile)
+const UPDATE_LOG_BASENAME = "auto-update.log"
 
 // Auto-update rides the GitHub Releases feed baked in by electron-builder's
 // publish config (latest-mac.yml + zip). macOS updates only install into a
@@ -31,6 +42,83 @@ const updatesEnabled = () =>
 let downloadedVersion: string | null = null
 let checkTimer: NodeJS.Timeout | null = null
 
+const appendUpdateLog = (event: string, detail = "") => {
+  try {
+    const suffix = detail === "" ? "" : ` ${detail.replace(/\s+/g, " ").trim()}`
+    fs.appendFileSync(path.join(app.getPath("userData"), UPDATE_LOG_BASENAME), `${new Date().toISOString()} ${event}${suffix}\n`)
+  } catch {
+    // Update logging must never stop the updater itself.
+  }
+}
+
+const readPlistValue = async (plist: string, key: string): Promise<string | null> => {
+  try {
+    const { stdout } = await execFileAsync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plist])
+    return stdout.trim() || null
+  } catch {
+    return null
+  }
+}
+
+const bundlePathFromURL = (value: string): string => {
+  try {
+    return value.startsWith("file:") ? fileURLToPath(value) : value
+  } catch {
+    return value
+  }
+}
+
+const recoverStrandedMacUpdate = async (deps: UpdateDeps) => {
+  if (process.platform !== "darwin" || !app.isPackaged) {
+    return false
+  }
+
+  const runningInfoPlist = path.resolve(path.dirname(process.execPath), "..", "Info.plist")
+  const bundleId = await readPlistValue(runningInfoPlist, "CFBundleIdentifier")
+  const uid = process.getuid?.()
+  if (!bundleId || uid === undefined) {
+    return false
+  }
+
+  const statePlist = path.join(os.homedir(), "Library", "Caches", `${bundleId}.ShipIt`, "ShipItState.plist")
+  const updateBundleURL = await readPlistValue(statePlist, "updateBundleURL")
+  const state: ShipItState | null = updateBundleURL ? { updateBundleURL } : null
+  const stagedVersion = state ? await installedBundleVersion(bundlePathFromURL(state.updateBundleURL)) : null
+  if (!shouldRecoverStrandedUpdate({ state, stagedVersion, runningVersion: app.getVersion() })) {
+    return false
+  }
+
+  appendUpdateLog("stranded-install-detected", `version=${stagedVersion}`)
+  await dialog.showMessageBox({
+    type: "info",
+    message: t("updates.recovering", { version: stagedVersion }),
+    detail: t("updates.recovering_detail")
+  })
+
+  try {
+    // ShipIt waits for this process to terminate. Arm it first so launchd is
+    // already committed to the swap before the app exits.
+    await execFileAsync("/bin/launchctl", ["kickstart", "-k", `gui/${uid}/${bundleId}.ShipIt`])
+    appendUpdateLog("install-armed", `recovery version=${stagedVersion}`)
+    deps.onBeforeQuitForUpdate()
+    app.quit()
+    return true
+  } catch (error) {
+    appendUpdateLog("recovery-failed", error instanceof Error ? error.message : String(error))
+    await dialog.showMessageBox({
+      type: "error",
+      message: t("updates.recovery_failed"),
+      detail: t("updates.recovery_failed_detail")
+    })
+    return false
+  }
+}
+
+const checkForUpdates = () => {
+  appendUpdateLog("check")
+  return autoUpdater.checkForUpdates()
+}
+
 type UpdateDeps = {
   // main.ts re-renders the app menu and tray menu with a
   // "Restart to update Syrus (vX)" item.
@@ -48,7 +136,12 @@ export const initAutoUpdates = (deps: UpdateDeps) => {
 
   autoUpdater.autoDownload = true
 
+  autoUpdater.on("update-available", (info) => {
+    appendUpdateLog("download", `version=${info.version}`)
+  })
+
   autoUpdater.on("update-downloaded", (info) => {
+    appendUpdateLog("downloaded", `version=${info.version}`)
     downloadedVersion = info.version
     deps.onUpdateDownloaded(info.version)
   })
@@ -57,15 +150,15 @@ export const initAutoUpdates = (deps: UpdateDeps) => {
   // autoInstallOnAppQuit — belt-and-braces beyond our own menu item.
   nativeAutoUpdater.on("before-quit-for-update", deps.onBeforeQuitForUpdate)
 
-  // Log-only: a tray app that dialogs about failed update checks would spam
-  // every offline user.
+  // File-only: a tray app that dialogs about failed update checks would spam
+  // every offline user, while stdout is invisible for Finder launches.
   autoUpdater.on("error", (error) => {
-    console.warn("[auto-update]", error instanceof Error ? error.message : error)
+    appendUpdateLog("error", error instanceof Error ? error.message : String(error))
   })
 
-  void autoUpdater.checkForUpdates().catch(() => {})
+  void recoverStrandedMacUpdate(deps).then((recovering) => recovering ? undefined : checkForUpdates()).catch(() => {})
   checkTimer = setInterval(() => {
-    void autoUpdater.checkForUpdates().catch(() => {})
+    void checkForUpdates().catch(() => {})
   }, CHECK_INTERVAL_MS)
 }
 
@@ -75,6 +168,7 @@ export const downloadedUpdateVersion = () => downloadedVersion
 // quitAndInstall closes all windows before any quit event fires, so the
 // hide-on-close handler would otherwise preventDefault and abort the install.
 export const quitAndInstallUpdate = () => {
+  appendUpdateLog("install-armed", downloadedVersion ? `version=${downloadedVersion}` : "")
   autoUpdater.quitAndInstall()
 }
 
@@ -95,7 +189,7 @@ export const checkForUpdatesInteractive = async (): Promise<InteractiveCheckResu
   }
 
   try {
-    const result = await autoUpdater.checkForUpdates()
+    const result = await checkForUpdates()
     const available = result?.updateInfo?.version
     if (available && available !== app.getVersion()) {
       return { outcome: "downloading", version: available }
