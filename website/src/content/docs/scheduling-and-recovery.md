@@ -120,6 +120,18 @@ retry selection, and the usual conflict, passing-PR, duplicate-retry, and
 landing-recovery safety checks still apply. The confirmation and new workflow
 retain the requested mode and source failure context in their audit data.
 
+Automatic retries stop early for a failure that keeps coming back unchanged.
+A rerun of a step that fails with exactly the same error as the run before
+it is not rerun again in place; Syrus moves on to a fresh attempt instead.
+Once a Job has failed the same step with the same error four times, across
+in-place reruns and fresh attempts together, Syrus stops retrying and holds
+the Job for an operator with the retry budget marked exhausted. Lost workers,
+rate and usage limits, and lost workspaces are not counted this way: their
+retries already change the conditions. Neither are outages of GitHub, the
+agent provider, or a package registry: Syrus keeps retrying those on a
+widening backoff for up to 90 minutes, so an outage ends with the work
+carrying on rather than waiting for an operator.
+
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
 

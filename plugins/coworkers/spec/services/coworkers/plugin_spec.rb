@@ -66,6 +66,7 @@ RSpec.describe "Coworkers plugin" do
       "coworker_grants",
       "coworker_provisioning_attempts",
       "coworker_review_contexts",
+      "coworker_turn_environment_bindings",
       "coworker_workspace_conflicts",
       "coworker_workspace_repositories",
       "coworkers",

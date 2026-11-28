@@ -301,6 +301,33 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(journaling).to be_due(now: Time.utc(2026, 11, 5, 0, 31))
   end
 
+  # Regression: the third failure reaches the alert threshold, and an alert
+  # that raised for a coworker without a main chat rolled the whole failure
+  # record back inside the fire job's task lock. The poll path then lost the
+  # third failure (count stayed at 2), so the nightly retry cap never engaged.
+  # Deliberately unstubbed alert and no main chat, driven through the poller.
+  it "keeps the third polled failure when the alerted coworker has no main chat" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9))
+    allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise("workspace locked")
+    expect(coworker.coworker_chats.where(role: "main")).to be_empty
+
+    [ Time.utc(2026, 11, 4, 1, 15), Time.utc(2026, 11, 4, 2, 15), Time.utc(2026, 11, 4, 3, 15) ].each do |time|
+      travel_to(time) { perform_poll }
+    end
+
+    expect(journaling.reload).to have_attributes(
+      state: "scheduled", consecutive_failure_count: 3, last_fired_at: Time.utc(2026, 11, 4, 3, 15)
+    )
+    expect(journaling.system_result_history.last).to include(
+      "date" => "2026-11-03", "result" => "failed", "recorded_at" => "2026-11-04T03:15:00Z"
+    )
+    expect(journaling.occurrences.find_by!(due_at: Time.utc(2026, 11, 4, 3))).to have_attributes(
+      failed_at: Time.utc(2026, 11, 4, 3, 15), completed_at: nil
+    )
+    expect(journaling).not_to be_due(now: Time.utc(2026, 11, 4, 4, 15))
+  end
+
   it "records dates outside the seven-day catch-up window as skipped" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
     journaling.update_columns(last_journaled_on: Date.new(2026, 10, 20))

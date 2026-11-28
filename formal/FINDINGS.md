@@ -5055,6 +5055,48 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F160. A CI repair held behind a moved main on a queued Job waited forever — fixed
+
+Found by the simulator fuzzer on `queued_job_with_published_pr_converges`.
+
+**Before.** A CI repair dispatched while the agent provider was out is
+deferred at start. If main moves before it starts, its launch gate blocks it
+on `branch_behind_base`. Only a rebase clears that block, and starting a
+rebase preempts every CI repair on the Job (`preempts_ci_failure?`), so the
+repair could never run as dispatched. Nothing rebases a queued Job, though,
+and the Job's own retry (`queued_job_after_cancelled_workflow`) reads only the
+latest Workflow -- the blocked repair. Neither could proceed
+(`SupersededCiRepair.behind_before_parks`).
+
+**Alternatives.** Having `PollPullRequestJob` skip CI reactions for queued
+Jobs would close one entry: the poller already defers repairs until a Job is
+approved and dispatches a rebase instead when the branch is behind. The block
+is reached by any repair main overtakes between dispatch and start -- a
+manual rerun (which is not deferred until approval), a Job that leaves
+`approved` while its repair waits, any provider outage long enough for main to
+move -- so closing one entry leaves the class. Rebasing the blocked repair's
+Job would start work its own lifecycle has not asked for (a queued Job's retry
+rebuilds the branch anyway), and the rebase would cancel the repair
+regardless.
+
+**Fix.** `CiRepairSafety::BEHIND_BASE_BLOCK_KINDS` names blocks moot without a
+base comparison, and `CiRepairSafety.moot_block?` is the one answer the
+reconciler's detection, the queued cancellation and the running cancellation
+read: a behind-base block while the branch is still behind, or a block on the
+repair's own base once main moved past it. The reconciler skips its
+first-Run grace period for a moot block, which is recorded state, not a Run
+about to be created. Cancelling a behind-base repair un-handles its head SHA,
+so the poller's next pass rebases first if the Job is approved, instead of
+reading the failure as answered.
+
+**Proof.** `SupersededCiRepair.lean`: `moot_cancels_behind`,
+`moot_keeps_base_blocks` (every other block's answer is unchanged),
+`moot_current_base_only_behind` and `moot_never_clearable`.
+
+**Spec.** The simulation `ci_repair_behind_base_yields_to_queued_job_retry`
+(stuck before) and `spec/services/work_engine/cancel_superseded_ci_repair_behind_base_spec.rb`.
+
+---
 ## F155. The candidate probe asked for a launch-only image and was always refused — fixed
 
 **Invariant.** A verification check can reach the image it verifies.

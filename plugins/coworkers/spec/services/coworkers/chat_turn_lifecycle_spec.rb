@@ -39,6 +39,19 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
     expect(lifecycle.synchronize { :ran }).to eq(:ran)
   end
 
+  it "leaves environment pinning to the confined worker a turn is requeued onto" do
+    allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission).and_return(queue: "resume-confined-worker")
+    allow(@environment_resolver).to receive(:resolve)
+      .and_raise(Coworkers::TurnEnvironmentSelection::Unavailable, "base not ready")
+    lifecycle = described_class.new(chat_session: chat, user_message: message)
+
+    expect(lifecycle.admission).to eq(queue: "resume-confined-worker")
+    lifecycle.turn_started!
+
+    expect(@environment_resolver).not_to have_received(:resolve)
+    expect(@environment_resolver).not_to have_received(:persist!)
+  end
+
   it "supplies plugin-owned copy for rejected admission" do
     allow(Coworkers::PrivilegedGrantGate).to receive(:turn_admission)
       .and_return(outcome: "blocked")

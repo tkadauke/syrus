@@ -97,7 +97,7 @@ RSpec.describe "Vite build config" do
     expect(config).to include(
       "nonVendor" => nil,
       "appEvents" => "app-events",
-      "eagerPluginContribution" => "builtin-plugin-contributions",
+      "eagerPluginContribution" => nil,
       "react" => "vendor-react",
       "tanstack" => "vendor-query",
       "d3" => nil,

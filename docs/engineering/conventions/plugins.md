@@ -61,8 +61,13 @@ modules. Reads are synchronous, and external bundles can subscribe to registry
 changes when they need to react to contributions added after first render.
 
 In-repository plugins remain build-time modules. At application startup,
-`app/frontend/builtInPluginContributions.ts` discovers their files and feeds
-the same registry external bundles use. Component keys keep the public
+`app/frontend/builtInPluginContributions.ts` discovers their lazily loaded
+files (routes, tabs, cards, slots) and feeds the same registry external bundles
+use. Contributions read synchronously while rendering (tool cards, chat message
+and artifact renderers, provider connect panels, runtime session views) are
+registered by one `builtInPlugin<Kind>.ts` file per kind that only that kind's
+consumer imports, so they stay out of the startup download; see
+[Frontend surfaces](../architecture/frontend.md). Component keys keep the public
 `<plugin>/<Name>` format, and consumers continue loading plugin locales through
 `loadPluginModule` before resolving the component.
 

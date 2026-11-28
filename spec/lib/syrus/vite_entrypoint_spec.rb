@@ -44,6 +44,34 @@ RSpec.describe Syrus::ViteEntrypoint do
     end
   end
 
+  it "lists the entry, its static imports transitively, and their CSS as the startup files" do
+    manifest = {
+      "app/frontend/main.tsx" => { "file" => "spa-entry-main.digested.js", "isEntry" => true, "imports" => [ "_vendor", "_shared" ], "dynamicImports" => [ "app/frontend/routes/Search.tsx" ] },
+      "_vendor" => { "file" => "spa-vendor.digested.js", "imports" => [ "_runtime" ] },
+      "_shared" => { "file" => "spa-shared.digested.js", "imports" => [ "_runtime" ], "css" => [ "spa-shared.digested.css" ] },
+      "_runtime" => { "file" => "spa-runtime.digested.js" },
+      "app/frontend/routes/Search.tsx" => { "file" => "spa-Search.digested.js", "isDynamicEntry" => true, "imports" => [ "_vendor" ] }
+    }
+
+    with_manifest(manifest.to_json) do |entrypoint|
+      expect(entrypoint.startup_files).to eq(%w[
+        spa-entry-main.digested.js
+        spa-vendor.digested.js
+        spa-shared.digested.js
+        spa-shared.digested.css
+        spa-runtime.digested.js
+      ])
+    end
+  end
+
+  it "refuses a startup graph that imports a chunk the manifest does not list" do
+    manifest = { "app/frontend/main.tsx" => { "file" => "spa-entry-main.digested.js", "imports" => [ "_gone" ] } }
+
+    with_manifest(manifest.to_json) do |entrypoint|
+      expect { entrypoint.startup_files }.to raise_error(described_class::Missing, /incomplete/)
+    end
+  end
+
   it "explains how to produce the manifest when the SPA has not been built" do
     with_manifest(nil) do |entrypoint|
       expect { entrypoint.file }.to raise_error(described_class::Missing, /npm run build/)

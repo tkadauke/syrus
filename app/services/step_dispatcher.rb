@@ -1545,6 +1545,10 @@ class StepDispatcher
     return false unless step&.failed?
     return false unless retryable_infrastructure_failure?(step)
     return false if step.runs.count > INFRASTRUCTURE_STEP_RETRY_LIMIT
+    # A rerun that failed exactly like the run before it is not a passing
+    # blip: fail the Workflow and let the auto-retry ladder start a fresh
+    # one, against a budget it shares with these reruns.
+    return false if Runs::RepeatedFailure.stop_in_place?(step.runs.reorder(id: :desc).first)
 
     if (delay = provider_transient_retry_delay(step))
       return retry_step_after_provider_backoff!(step, delay)

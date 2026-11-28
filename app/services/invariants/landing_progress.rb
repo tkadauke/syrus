@@ -109,8 +109,25 @@ module Invariants
         return key.to_s.presence || "landing_queue_blocked"
       end
       return "waiting_behind_jobs" if Array(job.landing_queue_blocker_job_ids).any? || Array(job.landing_queue_waiting_job_ids).any?
+      return "landing_capacity_full" if landing_capacity_full?(job)
 
       nil
+    end
+
+    # Every landing lane of the Job's branch is held, so the landing queue
+    # cannot dispatch it: the Job waits for the landing ahead of it, which
+    # answers for itself (its Run, its WorkUnit's blocked reason, or this
+    # invariant). The queue does not record that wait as a blocker, so a
+    # landing held for hours -- a provider outage, say -- made every Job
+    # behind it read as stranded.
+    def landing_capacity_full?(job)
+      return false unless job.approved?
+
+      @delivery_policies ||= {}
+      policy = @delivery_policies[job.repository_id] ||= DeliveryPolicy.for(repository: job.repository)
+      WorkDefinitions.landing_capacity_full?(job, policy: policy)
+    rescue StandardError
+      false
     end
 
     def latest_workflow(job)

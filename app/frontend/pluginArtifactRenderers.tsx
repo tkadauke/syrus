@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import type { TypedArtifact } from "./api/artifacts"
 import { getEagerPluginContributions, subscribeToPluginContributions } from "./pluginContributionRegistry"
-import "./builtInPluginContributions"
+import "./builtInPluginArtifactRenderers"
 
 // Extension point for custom typed-artifact renderers (the artifact
 // renderer registry contract -- see artifactRendererRegistry.ts).

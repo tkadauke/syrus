@@ -74,7 +74,9 @@ module Admin
       %r{\Aapp/frontend/plugin(AdminPages|SidebarPages|WorkspaceTabs|SlugPreviewCards|RuntimeSessionViews)\.tsx\z},
       %r{\Aapp/frontend/pluginAgentProviderConnectPanels\.tsx\z},
       %r{\Aapp/frontend/pluginArtifactRenderers\.tsx\z},
-      %r{\Aapp/frontend/routes/App\.tsx\z},
+      # The lazy route table split out of App.tsx carries App.tsx's one
+      # hard-coded plugin route; App.tsx itself no longer names a plugin.
+      %r{\Aapp/frontend/routes/routeChunks\.ts\z},
       %r{\Aapp/frontend/routes/chat/WorkspacePanels\.tsx\z},
       %r{\Aapp/frontend/routes/chat/workspaceTabs\.ts\z},
       %r{\Aapp/services/admin/plugin_source_boundary_audit\.rb\z},

@@ -6,7 +6,10 @@ When a Step fails, `StepDispatcher#fail!` decides what that means:
 * advance, for kinds whose remediation is `:advance`;
 * the next loop iteration, for `:retry_step`;
 * otherwise an in-place infrastructure retry, if the last Run was classified
-  retryable and the Step has at most `INFRASTRUCTURE_STEP_RETRY_LIMIT` Runs
+  retryable, the Step has at most `INFRASTRUCTURE_STEP_RETRY_LIMIT` Runs, and
+  `Runs::RepeatedFailure.stop_in_place?` does not hold (the rerun failed
+  exactly like the Run before it, or the Job's shared identical-failure budget
+  is spent -- `repeated` below; RetryTermination.lean bounds that budget)
   (for a transient provider error the rerun waits out a backoff first; the
   outcome and the Run it adds are the same, so timing is not modelled);
 * otherwise a try branch, if one applies;
@@ -48,6 +51,8 @@ structure Input where
   retryable : Bool
   runs : Nat
   tryBranch : Bool
+  /-- `Runs::RepeatedFailure.stop_in_place?` on the Step's latest Run. -/
+  repeated : Bool
   deriving DecidableEq, Repr
 
 def limit : Nat := 2
@@ -58,7 +63,7 @@ def dispatch (i : Input) : Outcome :=
   | .advance => .advance
   | .retryStep => .loopIteration
   | .none =>
-    if i.retryable && decide (i.runs ≤ limit) then .infraRetry
+    if i.retryable && decide (i.runs ≤ limit) && !i.repeated then .infraRetry
     else if i.tryBranch then .tryBranch
     else .hardFail
 
@@ -71,7 +76,7 @@ def repairAfter (i : Input) : Outcome := dispatch i
 theorem repair_after_agrees (i : Input) : repairAfter i = dispatch i := rfl
 
 theorem repair_before_diverges :
-    repairBefore ⟨.none, true, 1, false⟩ ≠ dispatch ⟨.none, true, 1, false⟩ := by decide
+    repairBefore ⟨.none, true, 1, false, false⟩ ≠ dispatch ⟨.none, true, 1, false, false⟩ := by decide
 
 /-- One loss-and-replay round on a Step with no step-kind remediation: an
 infrastructure retry adds a Run, and anything else ends the replay. -/
@@ -89,9 +94,18 @@ def rounds : Nat → Input → Nat
 /-- Every replay chain stops after at most `limit` retries, whatever the
 starting Run count (checked for Steps that start with 1 to 3 Runs). -/
 theorem replay_terminates :
-    ∀ r ∈ [1, 2, 3], ∀ b ∈ [true, false], ∀ t ∈ [true, false],
-      rounds 10 ⟨.none, b, r, t⟩ ≤ limit ∧ step ⟨.none, b, limit + 1, t⟩ = none := by
+    ∀ r ∈ [1, 2, 3], ∀ b ∈ [true, false], ∀ t ∈ [true, false], ∀ p ∈ [true, false],
+      rounds 10 ⟨.none, b, r, t, p⟩ ≤ limit ∧ step ⟨.none, b, limit + 1, t, p⟩ = none := by
   decide
+
+/-- A rerun that repeated the previous Run's failure is never rerun in place
+again: the cascade falls through to a try branch or a hard fail, and the
+auto-retry ladder's fresh Workflow is the next remediation. -/
+theorem repeated_never_reruns (i : Input) (h : i.repeated = true) : dispatch i ≠ .infraRetry := by
+  cases i with
+  | mk rem b r t p =>
+    simp only at h; subst h
+    cases rem <;> simp [dispatch] <;> split <;> simp
 
 end CascadeReplay
 end SyrusModel

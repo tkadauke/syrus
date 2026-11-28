@@ -16,7 +16,11 @@ models:
   - path: app/services/step_dispatcher.rb
     owner: StepDispatcher
     method: retry_step_after_infrastructure_failure!
-    sha: 9df071daaad1a546
+    sha: 0e20017deb15bd15
+  - path: app/services/runs/repeated_failure.rb
+    owner: RepeatedFailure
+    method: stop_in_place?
+    sha: 5128092c8708814e
 - model: BranchBound.lean
   mirrors:
   - path: app/services/step_dispatcher.rb
@@ -62,11 +66,15 @@ models:
   - path: app/services/work_engine/repair_executor.rb
     owner: CancelSupersededCiRepair
     method: perform
-    sha: 761af84553510d84
+    sha: 7fb8c0eb58db138b
   - path: app/services/work_engine/reconciler.rb
     owner: Reconciler
     method: superseded_ci_repair_start_block?
-    sha: 01e6c41c4cc8649a
+    sha: 59ba9ff6fae76652
+  - path: app/services/work_units/gates/ci_repair_safety.rb
+    owner: CiRepairSafety
+    method: self.moot_block?
+    sha: 20fa67127d5bc5d5
 - model: AbandonedReplication.lean
   mirrors:
   - path: plugins/local_backups/app/services/local_backups/abandoned_replication_sweep.rb
@@ -283,14 +291,34 @@ models:
     sha: 6ca9a5286696ff0d
 - model: RetryTermination.lean
   mirrors:
+  - path: app/services/runs/repeated_failure.rb
+    owner: RepeatedFailure
+    method: outage_retry_window_open?
+    sha: 534f51eccd01eab7
+  - path: app/models/auto_retry_attempt.rb
+    owner: AutoRetryAttempt
+    method: self.backoff_for
+    sha: b2f984428249c0da
+  - path: app/services/invariants/retry_storms.rb
+    owner: RetryStorms
+    method: violations
+    sha: f615e2c488643be3
+  - path: app/services/work_engine/repeated_failure_circuit.rb
+    owner: RepeatedFailureCircuit
+    method: call
+    sha: 1f839130aabccc03
+  - path: app/services/runs/repeated_failure.rb
+    owner: RepeatedFailure
+    method: budget_exhausted?
+    sha: f697838ad23ef0ef
   - path: app/models/auto_retry_attempt.rb
     owner: AutoRetryAttempt
     method: self.retry_budget_limit_for
-    sha: 342424c51e9459b8
+    sha: 637cdcc6631a7d5f
   - path: app/services/work_engine/repair_planner.rb
     owner: Base
     method: retry_budget_available?
-    sha: da0373bfd69ca7c2
+    sha: 4582b43600037efe
   - path: app/services/work_engine/repair_executor.rb
     owner: Base
     method: schedule_auto_retry!

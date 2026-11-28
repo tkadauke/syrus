@@ -1,17 +1,22 @@
 // Syrus service worker.
 //
-// Scope is deliberately tiny: it caches exactly one document and intercepts
-// exactly one kind of request. It exists because an installed PWA has no
-// address bar, so when a navigation returns the ingress's 502 during a rolling
-// deploy, the browser replaces the app with an error page the user cannot
-// retry from. Nothing in the React app can catch that -- by then our
-// JavaScript is gone.
+// Scope is deliberately tiny: it caches exactly one document and does two
+// things with requests. It exists because an installed PWA has no address
+// bar, so when a navigation returns the ingress's 502 during a rolling deploy,
+// the browser replaces the app with an error page the user cannot retry from.
+// Nothing in the React app can catch that -- by then our JavaScript is gone.
+//
+// Its second job is to count the bytes of digested JS/CSS assets as they
+// stream through, and tell the page, so the startup screen can show a real
+// progress bar on a slow connection (app/assets/javascripts/
+// startup_diagnostics.js). It fetches those exactly as the browser would and
+// hands back the same status, headers and bytes; it only watches them pass.
 //
 // What it explicitly does NOT do: cache application assets. A caching service
 // worker in front of digested Vite bundles is how you ship a client pinned to
 // a build that no longer exists, and stale-asset incidents in this app have
-// already been expensive. Every request except a failed navigation goes
-// straight to the network, untouched.
+// already been expensive. Every request except a failed navigation goes to
+// the network, and nothing but the fallback document is ever stored.
 
 const CACHE = "syrus-shell-<%= SyrusVersion.current %>"
 const FALLBACK = "<%= Rails.application.routes.url_helpers.pwa_unavailable_path %>"
@@ -32,6 +37,119 @@ function shouldServeFallback(request, response, error) {
 // Exposed so the unit test exercises the shipped policy rather than a copy of
 // it; nothing in the worker's own lifecycle reads this back.
 self.__syrusShouldServeFallback = shouldServeFallback
+
+// ---- Startup download progress ----------------------------------------------
+
+const PROGRESS_MESSAGE_TYPE = "syrus:startup-asset-progress"
+const PROGRESS_INTERVAL_MS = 250
+// Content-hashed names only: Vite's `.digested.` files and Propshaft's
+// `-<hex digest>` ones. Both are immutable, so there is no freshness question.
+function isDigestedAssetPath(pathname) {
+  if (!/^\/assets\/[^/]+\.(?:js|css)$/.test(pathname)) return false
+  return pathname.indexOf(".digested.") !== -1 || /-[0-9a-f]{8,}\.(?:js|css)$/i.test(pathname)
+}
+
+// Which requests are worth counting. The page knows its startup list (the
+// shell embeds it) and keeps only those; the worker deliberately does not pin
+// one. Right after a deploy the worker is often a revision behind the page,
+// and that is exactly when the whole bundle downloads afresh -- a list baked
+// into the worker would miss every file the new page asks for.
+function shouldCountAsset(request) {
+  if (!request || request.method !== "GET" || request.mode === "navigate") return false
+  if (request.headers && typeof request.headers.get === "function" && request.headers.get("range")) return false
+  let url
+  try {
+    url = new URL(request.url)
+  } catch (e) {
+    return false
+  }
+  if (url.origin !== self.location.origin) return false
+  return isDigestedAssetPath(url.pathname)
+}
+
+// The same response, with its body passed through a byte counter. Only a
+// complete 200 with a readable body is rewrapped; anything else (opaque,
+// redirected, partial, bodiless) is returned exactly as it came.
+function countedResponse(response, onProgress) {
+  if (!response || !response.body || response.status !== 200 || response.redirected) return response
+  if (response.type === "opaque" || response.type === "opaqueredirect" || response.type === "error") return response
+  if (typeof TransformStream !== "function") return response
+
+  let loaded = 0
+  const report = (done) => {
+    try {
+      onProgress(loaded, done)
+    } catch (e) {
+      // Reporting is best-effort; the bytes still flow.
+    }
+  }
+  const counter = new TransformStream({
+    transform(chunk, controller) {
+      controller.enqueue(chunk)
+      loaded += chunk.byteLength || 0
+      report(false)
+    },
+    flush() {
+      report(true)
+    }
+  })
+  return new Response(response.body.pipeThrough(counter), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  })
+}
+
+// The page that asked: the request's own client, or for a request made while
+// a navigation is still committing, the client it will become. Failing both,
+// every window -- a page not waiting for that file ignores the message.
+function progressTargets(event) {
+  const id = event.clientId || event.resultingClientId
+  const direct = id ? self.clients.get(id) : Promise.resolve(null)
+  return direct.then((client) => (client ? [ client ] : self.clients.matchAll({ type: "window" })))
+}
+
+function progressReporter(event, path) {
+  let targets = null
+  let lastPostedAt = 0
+  return (loaded, done) => {
+    const now = Date.now()
+    if (!done && lastPostedAt && now - lastPostedAt < PROGRESS_INTERVAL_MS) return
+    lastPostedAt = now
+    if (!targets) targets = progressTargets(event).catch(() => [])
+    targets.then((clients) => {
+      clients.forEach((client) => {
+        try {
+          client.postMessage({ type: PROGRESS_MESSAGE_TYPE, path, loaded, done })
+        } catch (e) {
+          // A client that went away mid-download needs no progress.
+        }
+      })
+    })
+  }
+}
+
+// Fetches exactly as the browser would have. A network failure rejects just
+// as it would without the worker; a failure in the counting itself falls back
+// to the plain response (or, if its body was already claimed, a plain fetch).
+function countAssetFetch(event) {
+  const request = event.request
+  return fetch(request).then((response) => {
+    try {
+      const report = progressReporter(event, new URL(request.url).pathname)
+      const counted = countedResponse(response, report)
+      // Tells the page the worker is measuring before the first chunk lands.
+      if (counted !== response) report(0, false)
+      return counted
+    } catch (e) {
+      if (response.bodyUsed || (response.body && response.body.locked)) return fetch(request)
+      return response
+    }
+  })
+}
+
+// Exposed for the unit test, like the fallback policy above.
+self.__syrusStartupAssetProgress = { shouldCountAsset, countedResponse, countAssetFetch, PROGRESS_MESSAGE_TYPE }
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -57,6 +175,16 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request
+  if (shouldCountAsset(request)) {
+    let response
+    try {
+      response = countAssetFetch(event)
+    } catch (e) {
+      response = fetch(request)
+    }
+    event.respondWith(response)
+    return
+  }
   if (request.mode !== "navigate") return
 
   event.respondWith(

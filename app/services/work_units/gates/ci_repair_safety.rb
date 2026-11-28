@@ -7,6 +7,15 @@ module WorkUnits
       # graded, or behind a repair of that old base. The running and queued
       # cancellation paths and the reconciler read this one list.
       SUPERSEDABLE_BLOCK_KINDS = %w[base_not_known_healthy base_repair_active].freeze
+      # Blocks that are moot by themselves, with no base comparison. A branch
+      # behind its base may not be repaired until it is rebased, and starting a
+      # rebase preempts every CI repair on the Job (`preempts_ci_failure?`).
+      # Whatever clears the block -- a Syrus rebase, or a push that brings the
+      # branch up to date -- therefore either cancels the repair or moves the
+      # head its failure was reported on, so the repair can never run as
+      # dispatched. Waiting on it only held the Job lock: a queued Job's own
+      # retry waited behind the repair while nothing rebased the Job.
+      BEHIND_BASE_BLOCK_KINDS = %w[branch_behind_base].freeze
       RETRY_DELAY = 5.minutes
       RESERVING_STATES = %w[queued running].freeze
 
@@ -19,6 +28,18 @@ module WorkUnits
       # the repair can never pass this gate.
       def self.superseded_base?(job, base_sha, since: nil)
         new(nil).send(:base_superseded_for?, job, base_sha, since: since)
+      end
+
+      # Whether a CI repair held by a block of `kind` can never run and should
+      # be cancelled as superseded: a behind-base block while the branch is
+      # still behind, or a block on the repair's own base once main moved past
+      # that base (formal/SyrusModel/SupersededCiRepair.lean).
+      def self.moot_block?(job, kind, base_sha, since: nil)
+        kind = kind.to_s
+        return job.present? && job.commits_behind_base.to_i.positive? if BEHIND_BASE_BLOCK_KINDS.include?(kind)
+        return false unless SUPERSEDABLE_BLOCK_KINDS.include?(kind)
+
+        superseded_base?(job, base_sha, since: since)
       end
 
       def self.current_base_sha_for(job)

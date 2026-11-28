@@ -79,10 +79,21 @@ class WorkerEnvironmentGap < ApplicationRecord
       end
     end
 
-    def clear!(hostname:, repository_id:, now: Time.current)
+    # Clears what a success proves. A repository's own prepare installing
+    # says nothing about a grader target's tool (it never ran `xcodegen`), so
+    # it clears only untagged gaps; a grader that ran a prepare target clears
+    # the gaps tagged with that target. Clearing everything on any prepare
+    # once put an iOS target back on a worker still missing its tool.
+    def clear!(hostname:, repository_id:, prepare_targets: nil, now: Time.current)
       return 0 if hostname.blank?
 
-      uncleared.where(hostname: hostname, repository_id: repository_id).update_all(cleared_at: now, updated_at: now)
+      labels = Array(prepare_targets).map(&:to_s)
+      ids = uncleared.where(hostname: hostname, repository_id: repository_id).select(:id, :evidence).select do |gap|
+        prepare_targets.nil? ? gap.prepare_target.nil? : labels.include?(gap.prepare_target)
+      end.map(&:id)
+      return 0 if ids.empty?
+
+      where(id: ids).update_all(cleared_at: now, updated_at: now)
     end
 
     # The failure path: a Run whose step declared `worker_environment_missing`

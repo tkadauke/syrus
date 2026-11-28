@@ -1,0 +1,51 @@
+# GitHub's API is down from the moment the Job reaches pr_open until well
+# after the retry ladder of old would have given up. Every pr_open fails the
+# same way (a declared github_api_transient 502), which the identical-failure
+# budget would otherwise read as a deterministic failure and end at an
+# operator hold after four of them. An outage is exempt: it is retried on its
+# time-based backoff, bounded by how long it has lasted (90 minutes of wall
+# clock, which simulated ticks never use up), and the Job publishes its PR
+# once GitHub is back -- with no operator involved.
+name: github outage outlasting old ladder recovers
+repository:
+  owner: simulation
+  name: github-outage-outlasting-old-ladder
+runner:
+  # Only the engine's own retries: the harness's per-tick operator retry of a
+  # failed Job would hide a policy that gave up.
+  auto_retry_failed_jobs: false
+max_ticks: 150
+jobs:
+  job:
+    title: Publishes once GitHub recovers
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: github goes down before pr_open
+    once: true
+    when: { job: { id: job, state: running } }
+    do: { github_outage: { ticks: 60 } }
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  run_evidence:
+    # Four ladder attempts -- one more than the old MAX_ATTEMPTS -- each
+    # rerunning pr_open in place: far past the identical-failure budget (4).
+    - job: job
+      step: pr_open
+      state: failed
+      classification: github_api_transient
+      min_count: 12
+  events:
+    - "github outage until tick"
+    - 'pr_open -> success'
+  absent_events:
+    - operator_review_retry_budget_exhausted
+success_states:
+  job:
+    - implemented

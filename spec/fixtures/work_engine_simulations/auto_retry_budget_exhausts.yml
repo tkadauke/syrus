@@ -2,8 +2,9 @@ name: auto retry budget exhausts then stops
 runner:
   # Isolate the AutoRetryAttempt budget path: the harness's own per-tick
   # failed-job retry would otherwise retry forever outside any budget.
-  # Note worker_died carries its own larger budget (MAX_WORKER_DIED_ATTEMPTS),
-  # so this scenario fails with timeouts, which use the standard budget of 3.
+  # Note worker_died carries its own larger budget (MAX_WORKER_DIED_ATTEMPTS)
+  # and is exempt from the identical-failure budget (the retry runs on another
+  # worker), so this scenario fails with timeouts.
   auto_retry_failed_jobs: false
 jobs:
   first:
@@ -26,23 +27,23 @@ expect:
   queues:
     active_runs: empty
     active_work_units: empty
+  run_evidence:
+    # A deterministic timeout used to fail twelve times: three in-place
+    # reruns per workflow attempt times four attempts, each loop on its own
+    # budget. The two loops now share one budget per (step, fingerprint):
+    # an in-place rerun that fails exactly like the run before it hands over
+    # to a fresh workflow, and nothing retries once the step has failed that
+    # way Runs::RepeatedFailure::MAX_IDENTICAL_FAILURES (4) times.
+    - job: first
+      step: implement
+      state: failed
+      count: 4
   events:
-    # The budget story must have played out: three bounded attempts ran
-    # ("auto retry 3"), then the job stayed failed instead of retrying
-    # forever (unbounded retries hit max ticks) or stopping at once
-    # (fail-fast never reaches attempt 3). The executor's budget-exhausted
-    # skip itself is ephemeral repair output, so termination plus the
-    # third attempt is the observable pin.
-    - "auto retry 3"
-    - "-> started"
-invariants:
-  expected:
-    # The scenario is a deterministic timeout retried until the budget runs
-    # out, which is a retry storm by definition: each attempt also reruns the
-    # step in place for the retryable timeout before the workflow fails, so
-    # the failures pass retry_storms' threshold long before the budget stops
-    # them.
-    - invariant: retry_storms
-      job: first
-      required: true
-      reason: a deterministic failure retried as transient until the budget is spent
+    # One fresh-workflow retry ran, then the reconciler named the hold
+    # instead of scheduling a second.
+    - "auto retry 1"
+    - "operator_review_retry_budget_exhausted"
+  absent_events:
+    - "auto retry 2"
+# No invariants: expected block. The policy stops below retry_storms'
+# threshold (more than 5 identical failures), so every invariant must hold.

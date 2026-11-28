@@ -174,6 +174,34 @@ RSpec.describe ContainerExecution::Backend do
     end
   end
 
+  it "attributes a pinned runtime image digest to the process that runs it" do
+    configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
+    configure_coworker_egress("claude")
+    agent_home = File.join(@container_workspace, "agent-home")
+    FileUtils.mkdir_p(agent_home)
+    digest = "sha256:#{'a' * 64}"
+    policy = instance_double(Execution::ChatWorkloadPolicy, chat_agent?: true, fail_closed?: true,
+      name: "chat agent", runtime_image: nil, runtime_image_digest: digest)
+    seed_image = instance_double(ContainerExecution::SeedImage)
+    allow(seed_image).to receive(:with_image).and_yield("registry.example/coworker@#{digest}")
+    allow(ContainerExecution::SeedImage).to receive(:new).and_return(seed_image)
+    attributions = []
+    allow(ProcessRunner).to receive(:new) do |kwargs|
+      attributions << kwargs.fetch(:resource_attribution)
+      instance_double(ProcessRunner, run: success_result)
+    end
+    chat = instance_double(ChatSession, effective_chat_provider: "claude")
+    mounts = ProcessRunner.agent_mounts(@container_workspace, agent_home)
+
+    described_class.new.run(request(kind: "agent", network: "agent", chat_session: chat,
+      workload_policy: policy, mounts:, env: { "HOME" => agent_home }))
+    described_class.new.run(request)
+
+    # The inner runner's registration is the revocation admission check;
+    # without the digest a revoked image would launch and evade termination.
+    expect(attributions).to eq([ { "runtime_image_digest" => digest }, {} ])
+  end
+
   it "adds only the fixed bounded executable scratch mount when the administrator selects that profile" do
     configure_container_execution(host_paths: "#{@container_workspace}=#{@host_workspace}")
     configure_coworker_egress("codex")

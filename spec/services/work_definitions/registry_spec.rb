@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe WorkDefinitions do
+  # require_dependency searched every autoload path on each registry lookup,
+  # which runs on every dispatch.
+  it "loads its definition files once, not on every registry lookup" do
+    described_class.registry
+    allow(described_class).to receive(:require_dependency).and_call_original
+
+    3.times { described_class.registry }
+    described_class.child_kinds_for("initial")
+
+    expect(described_class).not_to have_received(:require_dependency)
+  end
+
   it "defines every non-legacy workflow trigger kind" do
     expected = Workflow::TriggerKind.values - Workflow::TriggerKind.runtime_role_values("legacy")
 

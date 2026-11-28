@@ -265,6 +265,23 @@ module ScheduledTasks
       notify_failure_recorded(date:, reason:)
     end
 
+    # The poller could not evaluate this system schedule because its
+    # definition is not registered. Records a failed occurrence for the
+    # current hour and counts a consecutive failure, at most once per hour so
+    # a minute poller does not inflate the count. Returns true when this call
+    # recorded the failure, false when the hour was already accounted for.
+    def record_unknown_system_schedule!(at: Time.current)
+      window_start = at.utc.change(min: 0, sec: 0, usec: 0)
+      with_lock do
+        occurrence = occurrences.find_or_create_by!(due_at: window_start)
+        next false if occurrence.completed_at? || occurrence.failed_at?
+
+        occurrence.fail!(at: at)
+        record_failure!
+        true
+      end
+    end
+
     private
 
     # The failure is recorded inside the fire job's task lock. A raising
@@ -320,6 +337,11 @@ module ScheduledTasks
       nil
     end
 
+    # An ArgumentError from the definition's catch-up policy (for example a
+    # schedule expression that no longer parses) means "no catch-up applies".
+    # An unregistered definition is not an argument problem: it raises
+    # SystemSchedules::UnknownSystemSchedule, which propagates so the poller
+    # reports it instead of reading the schedule as quietly not due.
     def system_catch_up_due?(now: Time.current)
       system_schedule? && system_schedule_definition.catch_up_due?(task: self, now: now)
     rescue ArgumentError

@@ -294,4 +294,103 @@ RSpec.describe PollScheduledTasksJob do
       end
     end
   end
+
+  describe "system schedules" do
+    # Due only through the definition's catch-up policy: the scheduled cron
+    # window has already fired this hour, so `due?` hinges on the definition.
+    let(:catch_up_definition) do
+      Class.new(ScheduledTasks::SystemSchedules::Definition) do
+        def prompt(task:, target_date:) = "catch up #{task.id}"
+        def catch_up_due?(task:, now:) = true
+      end
+    end
+    let(:now) { Time.utc(2026, 11, 4, 3, 30) }
+
+    def system_task(key)
+      cron_task(name: "System #{key}", prompt: nil, system_key: key).tap do |task|
+        task.update_columns(last_fired_at: now - 25.minutes)
+      end
+    end
+
+    def forget_definition(key)
+      ScheduledTasks::SystemSchedules.send(:definitions).delete(key)
+    end
+
+    # Regression: a definition registered by a plugin install was invisible
+    # to a process that had not synced the installer yet. The poller's
+    # `due?` swallowed the resulting "unknown system schedule" as not due,
+    # so the catch-up never fired and nothing was logged.
+    it "syncs plugin installs before evaluating a system schedule that is due only by catch-up" do
+      key = "spec_registered_on_sync"
+      forget_definition(key)
+      definition = catch_up_definition
+      allow(Syrus::Host::Installer).to receive(:sync!).and_wrap_original do |original|
+        ScheduledTasks::SystemSchedules.register(key, definition: definition)
+        original.call
+      end
+      task = system_task(key)
+
+      travel_to(now) do
+        expect { described_class.perform_now }
+          .to have_enqueued_job(ScheduledTasks::FireDueTaskJob).with(task, anything)
+      end
+    ensure
+      forget_definition(key)
+    end
+
+    it "records an unregistered system schedule as a visible failure, once per hour" do
+      key = "spec_never_registered"
+      forget_definition(key)
+      task = system_task(key)
+      ordinary = cron_task(name: "ordinary").tap { |t| t.update_columns(last_fired_at: now - 2.hours) }
+      exceptions_before = BackendExceptionEvent.count
+      logged = []
+      allow(Rails.logger).to receive(:error).and_wrap_original { |original, msg| logged << msg; original.call(msg) }
+
+      travel_to(now) do
+        expect { described_class.perform_now }
+          .to have_enqueued_job(ScheduledTasks::FireDueTaskJob).with(ordinary, anything)
+      end
+
+      expect(logged).to include(a_string_matching(/task ##{task.id} system_key="#{key}".*unknown system schedule/))
+      expect(task.reload.consecutive_failure_count).to eq(1)
+      expect(task.occurrences.sole).to have_attributes(due_at: Time.utc(2026, 11, 4, 3), failed_at: now, completed_at: nil)
+      expect(BackendExceptionEvent.count).to eq(exceptions_before + 1)
+      expect(BackendExceptionEvent.last).to have_attributes(
+        exception_class: ScheduledTasks::SystemSchedules::UnknownSystemSchedule.name,
+        message: "unknown system schedule: #{key}"
+      )
+
+      # The next minute's poll still logs, but does not inflate the count.
+      travel_to(now + 1.minute) { described_class.perform_now }
+      expect(task.reload.consecutive_failure_count).to eq(1)
+      expect(BackendExceptionEvent.count).to eq(exceptions_before + 1)
+      expect(logged.grep(/task ##{task.id} system_key/).size).to eq(2)
+
+      # A new hour is a new failure. (Its own scheduled window has already
+      # been attempted, so only the catch-up check can make it due.)
+      task.update_columns(last_fired_at: now + 1.hour - 25.minutes)
+      travel_to(now + 1.hour) { described_class.perform_now }
+      expect(task.reload.consecutive_failure_count).to eq(2)
+      expect(task.occurrences.count).to eq(2)
+    end
+
+    it "keeps reading a definition's argument errors as quietly not due" do
+      key = "spec_argument_error"
+      definition = Class.new(ScheduledTasks::SystemSchedules::Definition) do
+        def prompt(task:, target_date:) = "never"
+        def catch_up_due?(task:, now:) = raise(ArgumentError, "unparseable schedule")
+      end
+      ScheduledTasks::SystemSchedules.register(key, definition: definition)
+      task = system_task(key)
+
+      travel_to(now) do
+        expect { described_class.perform_now }.not_to have_enqueued_job(ScheduledTasks::FireDueTaskJob)
+      end
+      expect(task.reload.consecutive_failure_count).to eq(0)
+      expect(task.occurrences).to be_empty
+    ensure
+      forget_definition(key)
+    end
+  end
 end

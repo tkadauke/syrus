@@ -9234,6 +9234,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_plan.preconditions["retry_budget_available"]).to eq(false)
   end
 
+  # Regression: the auto-retry ladder budgeted per classification only, so a
+  # deterministic timeout that had already failed identically in place kept
+  # getting fresh workflows. It now shares Runs::RepeatedFailure's budget.
+  it "escalates a failure that repeated with the same fingerprint before the ladder is spent" do
+    step.update_columns(kind: "implement", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    (Runs::RepeatedFailure::MAX_IDENTICAL_FAILURES - 1).times do
+      earlier = Run.create!(job: job, step: step, trigger_kind: run.trigger_kind, state: "skipped")
+      earlier.update_columns(state: "failed", finished_at: 1.minute.ago)
+      RunDiagnostic.create!(run: earlier, error_class: "Timeout::Error", error_message: "execution expired")
+    end
+    RunDiagnostic.create!(run: run, error_class: "Timeout::Error", error_message: "execution expired")
+    RunFailureClassification.find_or_initialize_by(run_id: run.id).update!(
+      classification: "timeout", retryable: true, confidence: 0.85, reason: "timed out", classified_at: Time.current
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :operator_review_retry_budget_exhausted)
+
+    expect(AutoRetryAttempt.where(job: job)).to be_empty
+    expect(repair_plan).to be_present
+    expect(repair_plan.preconditions).to include("retry_budget_available" => false,
+                                                 "identical_failures" => Runs::RepeatedFailure::MAX_IDENTICAL_FAILURES)
+  end
+
   it "treats retry-launch rejections as consumed retry budget" do
     step.update_columns(kind: "implement", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)

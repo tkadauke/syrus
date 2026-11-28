@@ -410,10 +410,17 @@ module WorkDefinitions
     end
   end
 
+  # `require_dependency` searches every autoload path with `File.file?` on
+  # each call, even for a file already loaded, and `registry` -- consulted on
+  # every dispatch -- called this every time: about a tenth of a simulated
+  # tick. Load once. A code reload replaces this module, which resets the flag.
   def load_definitions
+    return if @definitions_loaded
+
     require_dependency "work_definitions/base"
     require_dependency "work_definitions/built_ins"
     require_dependency "work_definitions/registry_validator"
+    @definitions_loaded = true
   end
 
   def validate_registry!

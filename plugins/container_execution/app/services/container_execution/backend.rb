@@ -53,8 +53,18 @@ module ContainerExecution
         agent: request.agent,
         display_command: request.display_command || request.command.join(" "),
         on_spawned_process: request.on_spawned_process,
+        resource_attribution: runtime_image_attribution(request),
         backend: Syrus::Host::LocalExecution.new
       ).run
+    end
+
+    # This runner registers the process that actually runs a pinned image, so
+    # it carries the digest: registration then checks revocation atomically
+    # with launch, and a severe revocation can find the turn to terminate it.
+    def runtime_image_attribution(request)
+      policy = request.workload_policy
+      digest = policy.runtime_image_digest if policy.respond_to?(:runtime_image_digest)
+      digest.present? ? { "runtime_image_digest" => digest } : {}
     end
 
     def docker_command(request, image)

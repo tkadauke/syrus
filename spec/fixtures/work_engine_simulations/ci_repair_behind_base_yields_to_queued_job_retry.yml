@@ -1,0 +1,87 @@
+# Found by the simulator fuzzer on queued_job_with_published_pr_converges.
+# A CI repair is dispatched on a queued Job that already has a PR while its
+# agent provider is out, so the repair is deferred at start. Main then moves,
+# and when the repair's launch gate is evaluated the branch is behind base:
+# ci_repair_safety blocks it on `branch_behind_base`.
+#
+# Only a rebase clears that block, and starting a rebase preempts every CI
+# repair on the Job -- so the repair could never run as dispatched. Nothing
+# rebases a queued Job, though, and the Job's own retry (the reconciler's
+# queued_job_after_cancelled_workflow) only reads the latest Workflow, which
+# was the blocked repair. Each waited on the other forever. A CI repair held
+# on `branch_behind_base` is now cancelled as superseded, like one held on a
+# base main has moved past, and the Job's own retry proceeds.
+name: ci repair behind base yields to the queued job's retry
+repository:
+  owner: simulation
+  name: ci-repair-behind-base-yields-to-queued-job-retry
+jobs:
+  published:
+    title: Preserve a published implementation after terminal cleanup
+    state: queued
+    agent_provider: codex
+    pr_number: 84
+    branch_name: syrus/direct-published
+    commits_behind_base: 0
+    github_mergeable_state: clean
+    workflow:
+      kind: initial
+      state: cancelled
+      started_at: "2026-01-01 00:00:00 UTC"
+      finished_at: "2026-01-01 00:05:00 UTC"
+      intent:
+        state: cancelled
+      work_unit:
+        state: cancelled
+      artifacts:
+        publication_branch: syrus/direct-published
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: pr_open
+          state: succeeded
+          run:
+            state: succeeded
+events:
+  - name: the agent provider runs out
+    once: true
+    when: { tick: 0 }
+    do:
+      exhaust_provider_usage: codex
+  - name: CI fails on the published PR
+    once: true
+    when: { tick: 0 }
+    do:
+      report_ci_failure:
+        job: published
+  - name: main moves before the deferred repair starts
+    once: true
+    when: { tick: 0 }
+    do:
+      advance_main:
+        nonce: main-moves
+  - name: the agent provider comes back
+    once: true
+    when:
+      tick:
+        at_least: 10
+    do:
+      refresh_provider_usage: codex
+      wake_provider_admission: codex
+success_states:
+  published:
+    - implemented
+outcomes:
+  default: success
+expect:
+  jobs:
+    published:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - cancel_superseded_ci_repair
+    - retry_job_after_cancelled_workflow

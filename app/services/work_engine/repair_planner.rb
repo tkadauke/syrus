@@ -233,14 +233,20 @@ module WorkEngine
           return false unless run
 
           attempt_number = attempt_number_for_retryable_failure(run)
-          attempt_number.present? && attempt_number <= retry_budget_limit(retry_classification_for(run))
+          attempt_number.present? && attempt_number <= retry_budget_limit(retry_classification_for(run)) &&
+            !Runs::RepeatedFailure.budget_exhausted?(run) &&
+            Runs::RepeatedFailure.outage_retry_window_open?(run, now: now)
         end
 
         def retry_budget_exhausted_plan
           operator_plan(
             "operator_review_retry_budget_exhausted",
             "The retry classification has exhausted its automatic retry budget.",
-            preconditions: { retry_budget_available: false, classification: classification&.classification || primary_run&.agent_outcome }
+            preconditions: {
+              retry_budget_available: false,
+              classification: classification&.classification || primary_run&.agent_outcome,
+              identical_failures: (Runs::RepeatedFailure.identical_failures(primary_run) if primary_run&.step)
+            }.compact
           )
         end
 
@@ -330,7 +336,7 @@ module WorkEngine
           if classification&.classification == "rate_limited" && reset_at&.future?
             reset_at
           else
-            now + retry_backoff_for(attempt_number_for_retryable_failure(run))
+            now + retry_backoff_for(attempt_number_for_retryable_failure(run), retry_classification_for(run))
           end
         end
 
@@ -354,8 +360,8 @@ module WorkEngine
           classification&.classification || run.agent_outcome.to_s.presence || "unknown"
         end
 
-        def retry_backoff_for(attempt_number)
-          AutoRetryAttempt::BACKOFFS[attempt_number - 1] || AutoRetryAttempt::BACKOFFS.last
+        def retry_backoff_for(attempt_number, retry_classification = nil)
+          AutoRetryAttempt.backoff_for(retry_classification, attempt_number)
         end
       end
 
@@ -1096,7 +1102,11 @@ module WorkEngine
             return automatic_plan(
               "cancel_superseded_ci_repair",
               primary_workflow,
-              "The CI repair was blocked on a base SHA that is no longer the Job's current base, so no future health check can make this workflow meaningful.",
+              if WorkUnits::Gates::CiRepairSafety::BEHIND_BASE_BLOCK_KINDS.include?(issue.evidence["ci_repair_block_kind"])
+                "The CI repair is blocked because its branch is behind base; only a rebase clears that, and a rebase preempts the repair, so it can never run as dispatched."
+              else
+                "The CI repair was blocked on a base SHA that is no longer the Job's current base, so no future health check can make this workflow meaningful."
+              end,
               execution_steps: [ "WorkUnits::WorkflowCancellation.cancel!" ],
               preconditions: {
                 workflow_state: "queued",

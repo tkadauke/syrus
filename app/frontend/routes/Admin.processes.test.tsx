@@ -109,7 +109,7 @@ describe("App admin processes", () => {
         </QueryClientProvider>
       )
 
-      expect(screen.getByRole("main", { name: "Admin processes" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Admin processes" })).toBeInTheDocument()
       expect(await screen.findByText("claude --print")).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Operator (operator@example.com)" })).toHaveAttribute("href", "/app-shell/admin/users/1")
       expect(screen.getByRole("link", { name: "JOB-9 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-2")
@@ -279,7 +279,7 @@ describe("App admin processes", () => {
       </QueryClientProvider>
     )
 
-    const processDetail = screen.getByRole("main", { name: "Admin process detail" })
+    const processDetail = await screen.findByRole("main", { name: "Admin process detail" })
     expect(processDetail).toBeInTheDocument()
     expect(await within(processDetail).findByText("claude --print")).toBeInTheDocument()
     expect(within(processDetail).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")

@@ -68,8 +68,12 @@ RSpec.describe "desktop auto-update and release pipeline" do
 
   it "checks on launch and every six hours, logging errors instead of dialoging" do
     expect(app_updates).to include("CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000")
-    expect(app_updates).to match(/autoUpdater\.on\("error"[\s\S]*?console\.warn/)
-    expect(app_updates).not_to include("dialog.show")
+    # A failed check goes to the update log file: a tray app that dialogs
+    # about failed checks would spam every offline user. The only dialogs are
+    # the rare, actionable stranded-install recovery messages.
+    error_handler = app_updates[/autoUpdater\.on\("error", \(error\) => \{.*?\n  \}\)/m]
+    expect(error_handler).to include("appendUpdateLog(\"error\"")
+    expect(error_handler).not_to include("dialog")
   end
 
   it "offers the restart from both the app menu and the tray, plus a manual check" do

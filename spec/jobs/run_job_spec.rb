@@ -237,7 +237,7 @@ RSpec.describe RunJob, :ci_only do
       expect(samples.fetch(kind: "acquire_execution", queue: "merges", outcome: "recovered")).to eq(1)
     end
 
-    it "records exhausted lifecycle contention before preserving the final exception" do
+    it "records exhausted lifecycle contention before deferring the still-queued run" do
       run = job.initial_run
       run_job = RunJob.new
       run_job.instance_variable_set(:@run, run)
@@ -248,8 +248,9 @@ RSpec.describe RunJob, :ci_only do
       allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
       allow(Lineage).to receive(:lock!).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
 
-      expect { run_job.send(:acquire_run_execution!) }
-        .to raise_error(ActiveRecord::LockWaitTimeout, "still locked")
+      allow(run_job).to receive(:defer_run)
+      expect(run_job.send(:acquire_run_execution!)).to be(false)
+      expect(run_job).to have_received(:defer_run).with(run.id, anything)
       expect(messages.last).to include(
         "event" => "run_lifecycle_persistence_contention",
         "job_id" => job.id,
@@ -261,6 +262,24 @@ RSpec.describe RunJob, :ci_only do
         "error_message" => "still locked"
       )
       expect(messages.last.fetch("error_backtrace")).to be_an(Array)
+    end
+
+    # A grader fan-out claims a few dozen Runs of one Workflow at once; the
+    # losers of the ancestry row locks used to fail before running anything.
+    it "defers a queued run instead of failing it when claiming it stays lock-contended" do
+      run = job.initial_run
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      allow(Lineage).to receive(:lock!).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
+
+      expect(run_job).to receive(:defer_run).with(run.id, be_between(RunJob::ACQUIRE_CONTENTION_RETRY_DELAY, RunJob::ACQUIRE_CONTENTION_RETRY_DELAY * 2))
+
+      expect(run_job.send(:acquire_run_execution!)).to be(false)
+      expect(run.reload).to be_queued
+      expect(run.step.reload).to be_queued
     end
 
     it "defers a queued run when another work unit owns its required lock" do
@@ -1496,6 +1515,32 @@ RSpec.describe RunJob, :ci_only do
         expect { RunJob.perform_now(run.id) }.to have_enqueued_job(RunJob).with(run.id)
 
         expect(run.reload).to be_queued
+      end
+
+      # Regression (found by the simulator fuzzer): the last capable worker
+      # left after the Run was enqueued, and incapable workers kept handing it
+      # back every few seconds with no hold recorded anywhere.
+      it "records the no_capable_worker hold instead of handing back a Run no live worker can run" do
+        decision = RunQueueResolver.resolve(run: run)
+        blocked = decision.with(blocked_reason: RunQueueResolver::ENVIRONMENT_CHECK_BLOCKED_REASON)
+        allow(RunQueueResolver).to receive(:resolve).and_return(blocked)
+        allow(run).to receive(:hold_for_missing_capable_worker!)
+        handed_back = false
+
+        RunJob.hand_back_incapable!(run) { handed_back = true }
+
+        expect(handed_back).to be(false)
+        expect(run).to have_received(:hold_for_missing_capable_worker!).with(blocked)
+      end
+
+      it "hands back a Run another live worker can run" do
+        allow(run).to receive(:hold_for_missing_capable_worker!)
+        handed_back = false
+
+        RunJob.hand_back_incapable!(run) { handed_back = true }
+
+        expect(handed_back).to be(true)
+        expect(run).not_to have_received(:hold_for_missing_capable_worker!)
       end
 
       it "runs a Run whose placement this worker satisfies" do

@@ -21,7 +21,7 @@ module Coworkers
 
       revision = nil
       environment.with_lock do
-        environment.reload
+        environment.reload(lock: true)
         active = environment.active_revision
         return unless active&.active? && active.runtime_image_id == runtime_image_id
 

@@ -8,6 +8,7 @@ module Syrus
   # manifest Vite writes next to the build instead of a fixed alias.
   class ViteEntrypoint
     MANIFEST_PATH = "app/assets/builds/.vite/manifest.json".freeze
+    ENTRY = "app/frontend/main.tsx".freeze
 
     class Missing < StandardError; end
 
@@ -36,6 +37,29 @@ module Syrus
       raise Missing, "Vite manifest #{manifest_path} does not list app/frontend/main.tsx"
     end
 
+    # The files a first render waits for: the entry and everything it imports
+    # statically, transitively, plus the CSS Vite attached to those chunks.
+    # Dynamic imports are lazy routes and do not block startup.
+    def startup_files
+      manifest = parsed_manifest
+      seen = {}
+      files = []
+      queue = [ ENTRY ]
+      until queue.empty?
+        key = queue.shift
+        next if seen[key]
+
+        seen[key] = true
+        chunk = manifest.fetch(key)
+        files << chunk.fetch("file")
+        files.concat(Array(chunk["css"]))
+        queue.concat(Array(chunk["imports"]))
+      end
+      files.uniq
+    rescue KeyError => error
+      raise Missing, "Vite manifest #{manifest_path} is incomplete: #{error.message}"
+    end
+
     def plugin_import_map
       manifest = JSON.parse(manifest_path.read)
       sources = {
@@ -55,5 +79,13 @@ module Syrus
 
     private
       attr_reader :manifest_path
+
+      def parsed_manifest
+        raise Missing, "Vite manifest is missing: #{manifest_path} (run `npm run build`)" unless manifest_path.file?
+
+        JSON.parse(manifest_path.read)
+      rescue JSON::ParserError => error
+        raise Missing, "Vite manifest #{manifest_path} is unreadable: #{error.message}"
+      end
   end
 end

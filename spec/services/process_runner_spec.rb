@@ -20,8 +20,12 @@ RSpec.describe ProcessRunner, :ci_only do
   end
 
   it "fails closed before spawning when revocation state for a pinned image cannot be read" do
+    # The router consults the policy first to pick a backend; revocation is
+    # read later, at registration, atomically with the SpawnedProcess row. A
+    # non-fail-closed policy keeps this example on the local runner, whose
+    # registration is the boundary under test.
     policy = instance_double(Execution::ChatWorkloadPolicy,
-      runtime_image_digest: "sha256:#{'a' * 64}")
+      runtime_image_digest: "sha256:#{'a' * 64}", fail_closed?: false)
     allow(RuntimeImages::Revocation).to receive(:assert_launchable!)
       .and_raise(ActiveRecord::ConnectionNotEstablished)
     expect(Open3).not_to receive(:popen2e)
@@ -30,6 +34,22 @@ RSpec.describe ProcessRunner, :ci_only do
       described_class.new(
         env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir),
         network: "agent", timeout: 5, kind: "agent", workload_policy: policy
+      ).run
+    }.to raise_error(ActiveRecord::ConnectionNotEstablished)
+  end
+
+  it "fails closed before spawning a process attributed to a pinned image whose revocation state cannot be read" do
+    # A container backend's inner runner carries the digest as attribution
+    # rather than a workload policy.
+    allow(RuntimeImages::Revocation).to receive(:assert_launchable!)
+      .with("sha256:#{'a' * 64}").and_raise(ActiveRecord::ConnectionNotEstablished)
+    expect(Open3).not_to receive(:popen2e)
+
+    expect {
+      described_class.new(
+        env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir),
+        network: "agent", timeout: 5, kind: "agent",
+        resource_attribution: { "runtime_image_digest" => "sha256:#{'a' * 64}" }
       ).run
     }.to raise_error(ActiveRecord::ConnectionNotEstablished)
   end

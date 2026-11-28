@@ -291,6 +291,29 @@ Planner examples:
   exempt, and that path no longer clears the backoff or re-requests
   reconciliation — both of which belong to a genuine *transition*, not a
   permanent verdict.
+- **The in-place rerun and the ladder share one identical-failure budget.**
+  `StepDispatcher#retry_step_after_infrastructure_failure!` reruns a
+  retryable Step in place, and the ladder then starts fresh Workflows;
+  budgeted separately they multiplied, so a deterministic timeout failed
+  `(INFRASTRUCTURE_STEP_RETRY_LIMIT + 1) * (MAX_ATTEMPTS + 1)` = 12 times.
+  `Runs::RepeatedFailure` keys both on (Job, step kind,
+  `Runs::FailureFingerprint`) -- the fingerprint the `retry_storms`
+  invariant groups by. The in-place rerun stops as soon as a rerun fails
+  exactly like the Run before it (the next remediation is a fresh Workflow),
+  and neither loop retries once the Job has failed that step that way
+  `MAX_IDENTICAL_FAILURES` (4) times since its latest reopen; the planner then
+  names the hold `operator_review_retry_budget_exhausted` with
+  `identical_failures` in its preconditions. Lost or unprovisioned workers,
+  rate and usage limits, and workspace-recovery failures are exempt: their
+  retry already changes the conditions and has its own budget. So are
+  external outages (`AutoRetryAttempt::OUTAGE_CLASSIFICATIONS`:
+  `github_api_transient`, `provider_transient`, `prepare_network_transient`),
+  which repeat identically by nature; they skip the repeated-failure circuit
+  too and are retried on `OUTAGE_BACKOFFS` (5m, 10m, then 20m) while the
+  outage is younger than `OUTAGE_RETRY_HORIZON` (90 minutes), with
+  `MAX_OUTAGE_ATTEMPTS` only as a backstop.
+  `formal/SyrusModel/RetryTermination.lean` (`identical_retries_bound`) and
+  `CascadeReplay.lean` (`repeated_never_reruns`) model it.
 - The repeated-failure circuit is a second backstop for deterministic
   infrastructure/application crashes that keep rebuilding work but cannot be
   fixed by trying again. For each failed Run with a `RunDiagnostic`,

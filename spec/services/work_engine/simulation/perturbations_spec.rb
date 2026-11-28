@@ -284,6 +284,67 @@ RSpec.describe WorkEngine::Simulation::Runner do
       expect(result.status).to eq("success")
     end
 
+    it "kills the Runs in flight on a deploy restart and brings the fleet back on a new revision" do
+      result = run(SINGLE_JOB + <<~YAML)
+        events:
+          - name: deploy
+            once: true
+            when: { tick: 1 }
+            do: { deploy_restart: { revision: rev-2 } }
+      YAML
+
+      expect(result.status).to eq("success")
+      expect(result.events).to include(a_string_matching(/deploy restarted simulation-worker on rev-2; killed RUN-/))
+      expect(result.events).to include(a_string_matching(/tick 1: RUN-\d+ \w+ -> worker_died/))
+      expect(InstanceVersion.find_by(hostname: "simulation-worker", role: "worker").version).to eq("rev-2")
+    end
+
+    it "fails every GitHub-touching step during an outage window and recovers after it" do
+      result = run(SINGLE_JOB + <<~YAML)
+        events:
+          - name: github down
+            once: true
+            when: { job: { id: job, state: running } }
+            do: { github_outage: { ticks: 1 } }
+      YAML
+
+      expect(result.events).to include(a_string_matching(/github outage until tick/))
+      expect(result.events.grep(/github_api_transient/)).to be_empty # the window closed before pr_open ran
+      expect(result.status).to eq("success")
+    end
+
+    it "fails pr_open with a declared github_api_transient while GitHub is down" do
+      result = run(SINGLE_JOB + <<~YAML)
+        events:
+          - name: github down
+            once: true
+            when: { tick: 0 }
+            do: { github_outage: { ticks: 60 } }
+      YAML
+
+      expect(result.events).to include(a_string_matching(/pr_open -> .*github_api_transient/))
+      expect(Run.joins(:step, :run_failure_classification).where(steps: { kind: "pr_open" })
+                .where(run_failure_classifications: { classification: "github_api_transient" })).to exist
+    end
+
+    it "adds a worker to the fleet and takes it out again" do
+      result = run(SINGLE_JOB + <<~YAML)
+        events:
+          - name: join
+            once: true
+            when: { tick: 0 }
+            do: { join_worker: { hostname: fuzz-worker } }
+          - name: leave
+            once: true
+            when: { tick: 3 }
+            do: { leave_worker: { hostname: fuzz-worker } }
+      YAML
+
+      expect(result.status).to eq("success")
+      expect(result.events).to include("worker fuzz-worker joined the fleet", "worker fuzz-worker left the fleet")
+      expect(InstanceVersion.find_by(hostname: "fuzz-worker", role: "worker").outcome).to eq("lost")
+    end
+
     it "records an inapplicable injected event instead of aborting the scenario" do
       result = run(SINGLE_JOB + <<~YAML)
         events:
