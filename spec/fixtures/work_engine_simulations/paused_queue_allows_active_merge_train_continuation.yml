@@ -24,6 +24,11 @@ jobs:
           state: failed
           details:
             failure_code: merge_train_base_moved
+            # The dispatcher marks a failure its try branch took over; without
+            # it the reconciler reads this land as an orphaned failure the
+            # moment nothing runs (a worker death's in-place retry, say) and
+            # fails the train under the continuation.
+            try_branch_expanded: true
           run:
             state: failed
             diagnostic:
