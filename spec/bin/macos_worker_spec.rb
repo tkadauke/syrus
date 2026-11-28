@@ -24,7 +24,9 @@ RSpec.describe "native macOS worker scripts" do
 
       Dir.each_child(source) do |name|
         target = File.join(mirror, name)
-        next if tools.include?(name) || File.exist?(target)
+        # /usr/bin and /bin may expose the same entry, including dangling
+        # symlinks. Treat any existing directory entry as already mirrored.
+        next if tools.include?(name) || File.exist?(target) || File.symlink?(target)
 
         File.symlink(File.join(source, name), target)
       end
