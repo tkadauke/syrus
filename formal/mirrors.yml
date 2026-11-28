@@ -293,16 +293,32 @@ models:
   mirrors:
   - path: app/services/runs/repeated_failure.rb
     owner: RepeatedFailure
+    method: outage_retry_window_open?
+    sha: c3790e2b14cd4ac3
+  - path: app/models/auto_retry_attempt.rb
+    owner: AutoRetryAttempt
+    method: self.backoff_for
+    sha: b2f984428249c0da
+  - path: app/services/invariants/retry_storms.rb
+    owner: RetryStorms
+    method: violations
+    sha: f615e2c488643be3
+  - path: app/services/work_engine/repeated_failure_circuit.rb
+    owner: RepeatedFailureCircuit
+    method: call
+    sha: 1f839130aabccc03
+  - path: app/services/runs/repeated_failure.rb
+    owner: RepeatedFailure
     method: budget_exhausted?
     sha: f697838ad23ef0ef
   - path: app/models/auto_retry_attempt.rb
     owner: AutoRetryAttempt
     method: self.retry_budget_limit_for
-    sha: 342424c51e9459b8
+    sha: 637cdcc6631a7d5f
   - path: app/services/work_engine/repair_planner.rb
     owner: Base
     method: retry_budget_available?
-    sha: 29a963b970179447
+    sha: 4582b43600037efe
   - path: app/services/work_engine/repair_executor.rb
     owner: Base
     method: schedule_auto_retry!

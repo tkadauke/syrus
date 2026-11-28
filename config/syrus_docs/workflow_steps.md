@@ -117,7 +117,9 @@ fails with exactly the same error as the run before it is not rerun in place
 again (a fresh workflow attempt follows), and after the same step has failed
 with the same error four times on a Job, automatic retries stop and the Job
 waits for an operator. Lost workers, rate and usage limits, and lost
-workspaces are exempt.
+workspaces are exempt, and so are outages of GitHub, the agent provider, or a
+package registry: those are retried on a widening backoff (5, 10, then 20
+minutes) for up to 90 minutes after the outage began.
 
 For a verified permanent blocker, the tool records
 `Workflow#artifacts["cannot_proceed"]`, creates a

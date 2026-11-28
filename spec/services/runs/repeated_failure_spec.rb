@@ -96,5 +96,55 @@ RSpec.describe Runs::RepeatedFailure do
 
       expect(described_class.budget_exhausted?(runs.last)).to be(false)
     end
+    # An outage repeats identically by nature; it is bounded by how long it
+    # has lasted, not by this count.
+    it "exempts an external outage from the identical-failure budget" do
+      runs = 6.times.map { failed_run(step_in(workflow), message: "502 - Server Error", error_class: "Octokit::BadGateway", classification: "github_api_transient") }
+
+      expect(described_class.budget_exhausted?(runs.last)).to be(false)
+      expect(described_class.stop_in_place?(runs.last)).to be(false)
+    end
+  end
+
+  describe ".outage_retry_window_open?" do
+    def outage_run(at)
+      run = failed_run(step_in(workflow), message: "502 - Server Error", error_class: "Octokit::BadGateway", classification: "github_api_transient")
+      run.update_columns(finished_at: at)
+      run
+    end
+
+    it "stays open while the outage is younger than the retry horizon" do
+      outage_run(80.minutes.ago)
+      latest = outage_run(1.minute.ago)
+
+      expect(described_class.outage_retry_window_open?(latest)).to be(true)
+    end
+
+    it "closes once the outage has lasted past the horizon" do
+      outage_run((AutoRetryAttempt::OUTAGE_RETRY_HORIZON + 1.minute).ago)
+      latest = outage_run(1.minute.ago)
+
+      expect(described_class.outage_retry_window_open?(latest)).to be(false)
+    end
+
+    it "is always open for a failure that is not an outage" do
+      failed_run(step_in(workflow)).update_columns(finished_at: 3.hours.ago)
+      latest = failed_run(step_in(workflow))
+
+      expect(described_class.outage_retry_window_open?(latest)).to be(true)
+    end
+  end
+
+  describe "AutoRetryAttempt outage budget" do
+    it "retries an outage on its own backoff, capped by a backstop above the old ladder" do
+      expect(AutoRetryAttempt.retry_budget_limit_for("github_api_transient")).to eq(AutoRetryAttempt::MAX_OUTAGE_ATTEMPTS)
+      expect(AutoRetryAttempt::MAX_OUTAGE_ATTEMPTS).to be > AutoRetryAttempt::MAX_ATTEMPTS
+      expect(AutoRetryAttempt.backoff_for("provider_transient", 1)).to eq(5.minutes)
+      expect(AutoRetryAttempt.backoff_for("provider_transient", 7)).to eq(20.minutes)
+      expect(AutoRetryAttempt.backoff_for("timeout", 3)).to eq(1.hour)
+      # The backoffs reach the horizon before the backstop does.
+      cumulative = (1..AutoRetryAttempt::MAX_OUTAGE_ATTEMPTS).sum { |n| AutoRetryAttempt.backoff_for("github_api_transient", n) }
+      expect(cumulative).to be > AutoRetryAttempt::OUTAGE_RETRY_HORIZON
+    end
   end
 end

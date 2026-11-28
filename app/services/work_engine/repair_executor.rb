@@ -492,6 +492,10 @@ module WorkEngine
           if retry_kind != AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND && Runs::RepeatedFailure.budget_exhausted?(source_run)
             return "the same failure repeated #{Runs::RepeatedFailure::MAX_IDENTICAL_FAILURES} times"
           end
+          if retry_kind != AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND &&
+              !Runs::RepeatedFailure.outage_retry_window_open?(source_run, now: now)
+            return "the outage outlasted the #{(AutoRetryAttempt::OUTAGE_RETRY_HORIZON / 1.minute).round}-minute retry horizon"
+          end
           return nil unless retry_kind == "retry_workflow"
 
           "retry_workflow already scheduled for workflow" if AutoRetryAttempt.retry_workflow_scheduled_for?(workflow, lock: lock)

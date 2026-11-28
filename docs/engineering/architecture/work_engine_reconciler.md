@@ -305,7 +305,13 @@ Planner examples:
   names the hold `operator_review_retry_budget_exhausted` with
   `identical_failures` in its preconditions. Lost or unprovisioned workers,
   rate and usage limits, and workspace-recovery failures are exempt: their
-  retry already changes the conditions and has its own budget.
+  retry already changes the conditions and has its own budget. So are
+  external outages (`AutoRetryAttempt::OUTAGE_CLASSIFICATIONS`:
+  `github_api_transient`, `provider_transient`, `prepare_network_transient`),
+  which repeat identically by nature; they skip the repeated-failure circuit
+  too and are retried on `OUTAGE_BACKOFFS` (5m, 10m, then 20m) while the
+  outage is younger than `OUTAGE_RETRY_HORIZON` (90 minutes), with
+  `MAX_OUTAGE_ATTEMPTS` only as a backstop.
   `formal/SyrusModel/RetryTermination.lean` (`identical_retries_bound`) and
   `CascadeReplay.lean` (`repeated_never_reruns`) model it.
 - The repeated-failure circuit is a second backstop for deterministic

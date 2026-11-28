@@ -5,7 +5,7 @@ RSpec.describe Invariants::RetryStorms do
 
   # One failed attempt: a fresh Workflow whose `kind` step failed with the
   # given error, the way each automatic retry produces one.
-  def failed_attempt(kind: "prepare", message:, classification: "provider_transient", retryable: true, at: Time.current)
+  def failed_attempt(kind: "prepare", message:, classification: "timeout", retryable: true, at: Time.current)
     workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "initial", state: "failed", finished_at: at)
     step = Step.create!(workflow: workflow, kind: kind, position: 0, state: "failed")
     run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "skipped")
@@ -29,7 +29,7 @@ RSpec.describe Invariants::RetryStorms do
     storm = violations.first
     expect(storm.severity).to eq("critical")
     expect(storm.subject_id).to eq(job.id)
-    expect(storm.details).to include("step_kind" => "prepare", "failures" => 6, "classification" => "provider_transient", "retryable" => true)
+    expect(storm.details).to include("step_kind" => "prepare", "failures" => 6, "classification" => "timeout", "retryable" => true)
     expect(storm.affected_ids["run_ids"]).to match_array(runs.map(&:id))
     expect(storm.message).to include(job.slug, "prepare", "6")
   end
@@ -75,5 +75,42 @@ RSpec.describe Invariants::RetryStorms do
     6.times { |index| failed_attempt(message: native_gem_failure(index), classification: "application_error", retryable: false) }
 
     expect(described_class.call(now: Time.current).map(&:severity)).to eq([ "warning" ])
+  end
+  describe "external outages" do
+    def outage_failure(at: Time.current)
+      failed_attempt(kind: "pr_open", classification: "github_api_transient",
+                     message: "POST https://api.github.com/repos/acme/widgets/pulls: 502 - Server Error", at: at)
+    end
+
+    # An outage repeats identically by nature and is retried on a time-based
+    # backoff (Runs::RepeatedFailure.outage_retry_window_open?): that is not a
+    # storm, even well past max_failures.
+    it "does not report an outage retried on its backoff" do
+      12.times { |index| outage_failure(at: (index * 4).minutes.ago) }
+
+      expect(described_class.call(now: Time.current)).to be_empty
+    end
+
+    it "reports an outage failing more often than the policy can retry it" do
+      31.times { |index| outage_failure(at: index.minutes.ago) }
+
+      expect(described_class.call(now: Time.current).sole.details).to include("classification" => "github_api_transient", "failures" => 31)
+    end
+
+    it "reports outage retries that are still arriving past the outage horizon" do
+      6.times { |index| outage_failure(at: (index * 5).minutes.ago) }
+      outage_failure(at: 2.5.hours.ago)
+
+      expect(described_class.call(now: Time.current).size).to eq(1)
+      expect(described_class.call(now: Time.current, outage_horizon: 3.hours)).to be_empty
+    end
+
+    it "still reports a mix of outage and deterministic labels for one error" do
+      3.times { outage_failure }
+      3.times { failed_attempt(kind: "pr_open", classification: "timeout",
+                               message: "POST https://api.github.com/repos/acme/widgets/pulls: 502 - Server Error") }
+
+      expect(described_class.call(now: Time.current).size).to eq(1)
+    end
   end
 end

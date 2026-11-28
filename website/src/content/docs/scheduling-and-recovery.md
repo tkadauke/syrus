@@ -127,7 +127,10 @@ Once a Job has failed the same step with the same error four times, across
 in-place reruns and fresh attempts together, Syrus stops retrying and holds
 the Job for an operator with the retry budget marked exhausted. Lost workers,
 rate and usage limits, and lost workspaces are not counted this way: their
-retries already change the conditions.
+retries already change the conditions. Neither are outages of GitHub, the
+agent provider, or a package registry: Syrus keeps retrying those on a
+widening backoff for up to 90 minutes, so an outage ends with the work
+carrying on rather than waiting for an operator.
 
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.

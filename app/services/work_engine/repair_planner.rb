@@ -234,7 +234,8 @@ module WorkEngine
 
           attempt_number = attempt_number_for_retryable_failure(run)
           attempt_number.present? && attempt_number <= retry_budget_limit(retry_classification_for(run)) &&
-            !Runs::RepeatedFailure.budget_exhausted?(run)
+            !Runs::RepeatedFailure.budget_exhausted?(run) &&
+            Runs::RepeatedFailure.outage_retry_window_open?(run, now: now)
         end
 
         def retry_budget_exhausted_plan
@@ -335,7 +336,7 @@ module WorkEngine
           if classification&.classification == "rate_limited" && reset_at&.future?
             reset_at
           else
-            now + retry_backoff_for(attempt_number_for_retryable_failure(run))
+            now + retry_backoff_for(attempt_number_for_retryable_failure(run), retry_classification_for(run))
           end
         end
 
@@ -359,8 +360,8 @@ module WorkEngine
           classification&.classification || run.agent_outcome.to_s.presence || "unknown"
         end
 
-        def retry_backoff_for(attempt_number)
-          AutoRetryAttempt::BACKOFFS[attempt_number - 1] || AutoRetryAttempt::BACKOFFS.last
+        def retry_backoff_for(attempt_number, retry_classification = nil)
+          AutoRetryAttempt.backoff_for(retry_classification, attempt_number)
         end
       end
 

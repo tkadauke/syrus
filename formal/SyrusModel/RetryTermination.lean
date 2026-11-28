@@ -62,6 +62,22 @@ Proved here:
   assumption the ladder needs for exempt skips (a skip performs nothing and
   adds no failure). `after_identical_below_storm`: that is below the storm
   threshold.
+* **Counterexample, outages** (`before_outage_held`): the identical-failure
+  budget also counted an external outage (`github_api_transient`,
+  `provider_transient`, `prepare_network_transient`), which repeats
+  identically by nature, so any outage longer than about five minutes ended
+  at an operator hold.
+* After that fix outages are exempt from the identical-failure budget and
+  the repeated-failure circuit. The ladder admits an outage retry only while
+  the outage is younger than `OUTAGE_RETRY_HORIZON` (`outageAdmitted`) and
+  under the `MAX_OUTAGE_ATTEMPTS` backstop; every attempt waits at least the
+  first backoff. `outage_attempts_bound`: at most `maxOutageAttempts`
+  attempts whatever the clock does, and `outage_attempts_time_bound`: at
+  most `horizon / minBackoff + 1` within the horizon. `outage_failures_bound`:
+  with the in-place reruns, at most `outageFailureCap` failures, below the
+  `retry_storms` invariant's `outage_max_failures` -- so the policy never
+  produces what the invariant calls an outage storm, and an outage outlives
+  the old ladder (`outage_outlasts_old_ladder`).
 * After the fix (`LandingFailureHandler#runaway_retry_refused?`: a transient
   failure of a runaway-protected Job fails the landing back to `implemented`):
   `after_step_decreases` gives a ranking function, so `after_terminates`:
@@ -436,6 +452,66 @@ theorem after_identical_below_storm (n : Nat) (h : AdmittedRetries 1 n) :
     1 + n ≤ maxIdentical ∧ 1 + n ≤ stormThreshold := by
   have := identical_retries_bound n 1 (by decide) h
   exact ⟨this, by simp [maxIdentical, stormThreshold] at this ⊢; omega⟩
+
+/-! ## External outages: bounded by time, not by count -/
+
+/-- `AutoRetryAttempt::MAX_OUTAGE_ATTEMPTS`, the backstop. -/
+def maxOutageAttempts : Nat := 8
+/-- `OUTAGE_RETRY_HORIZON` and the shortest `OUTAGE_BACKOFFS` step, in minutes. -/
+def horizon : Nat := 90
+def minBackoff : Nat := 5
+/-- The `retry_storms` invariant's `outage_max_failures` default. -/
+def outageStormThreshold : Nat := 30
+
+/-- Before: the identical-failure budget held an outage once it had failed
+    `maxIdentical` times, however young it was. -/
+def beforeOutageAdmitted (failures : Nat) : Bool := decide (failures < maxIdentical)
+
+theorem before_outage_held : beforeOutageAdmitted maxIdentical = false := by decide
+
+/-- `RepairPlanner#retry_budget_available?` for an outage: the attempt
+    number is under the backstop and `outage_retry_window_open?` (the
+    outage, `elapsed` minutes old, is younger than the horizon). -/
+def outageAdmitted (attempts elapsed : Nat) : Bool :=
+  decide (attempts < maxOutageAttempts) && decide (elapsed < horizon)
+
+/-- A sequence of admitted attempts; each waits at least `minBackoff`. -/
+def OutageLadder : Nat → Nat → Nat → Prop
+  | _, _, 0 => True
+  | a, t, n + 1 => outageAdmitted a t = true ∧ ∀ w, minBackoff ≤ w → OutageLadder (a + 1) (t + w) n
+
+/-- The backstop: never more than `maxOutageAttempts` attempts. -/
+theorem outage_attempts_bound :
+    ∀ (n a t : Nat), a ≤ maxOutageAttempts → OutageLadder a t n → a + n ≤ maxOutageAttempts
+  | 0, _, _, ha, _ => by simpa using ha
+  | n + 1, a, t, _, ⟨hadm, hrest⟩ => by
+    simp only [outageAdmitted, Bool.and_eq_true, decide_eq_true_eq] at hadm
+    have := outage_attempts_bound n (a + 1) (t + minBackoff) (by omega) (hrest minBackoff (Nat.le_refl _))
+    omega
+
+/-- The horizon: with even the shortest waits, the last of `n + 1`
+    admitted attempts starts inside the horizon, so an outage gets at most
+    `horizon / minBackoff + 1` attempts. -/
+theorem outage_attempts_time_bound :
+    ∀ (n a t : Nat), OutageLadder a t (n + 1) → t + minBackoff * n < horizon
+  | 0, _, t, ⟨hadm, _⟩ => by
+    simp only [outageAdmitted, Bool.and_eq_true, decide_eq_true_eq] at hadm
+    simpa using hadm.2
+  | n + 1, a, t, ⟨_, hrest⟩ => by
+    have := outage_attempts_time_bound n (a + 1) (t + minBackoff) (hrest minBackoff (Nat.le_refl _))
+    simp only [minBackoff, horizon] at this ⊢
+    omega
+
+/-- Each attempt's Workflow reruns the step in place at most `inPlaceLimit`
+    times, so an outage fails at most this many times in all. -/
+def outageFailureCap : Nat := (inPlaceLimit + 1) * (maxOutageAttempts + 1)
+
+theorem outage_failures_bound : outageFailureCap = 27 ∧ outageFailureCap < outageStormThreshold := by decide
+
+/-- The old ladder gave an outage `ladderLimit` attempts; the outage ladder
+    admits more while the outage is young. -/
+theorem outage_outlasts_old_ladder : outageAdmitted ladderLimit (ladderLimit * 20) = true ∧ ladderLimit < maxOutageAttempts := by
+  decide
 
 end RetryTermination
 end SyrusModel

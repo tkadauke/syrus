@@ -32,6 +32,11 @@ module WorkEngine
     end
 
     def call
+      # An external outage repeats the same exception by nature; its retries
+      # are bounded by how long it has lasted (Runs::RepeatedFailure
+      # .outage_retry_window_open?), not by this streak.
+      return closed if AutoRetryAttempt.outage_classification?(run.run_failure_classification&.classification)
+
       current = fingerprint_for(run)
       return closed unless current
 

@@ -13,8 +13,18 @@ module Invariants
   # agree on what "the same failure" means. The classification is not part of
   # it (the classifier can label one error differently from run to run); it is
   # reported instead, as a tally.
+  #
+  # An external outage (every failure classified as one of
+  # AutoRetryAttempt::OUTAGE_CLASSIFICATIONS) repeats identically by nature
+  # and is retried on a time-based backoff, so failing more than
+  # `max_failures` times is not a storm by itself. It still is one when it
+  # passes either bound the policy keeps: more than `outage_max_failures` in
+  # the window (above the most the in-place reruns and the capped ladder can
+  # produce), or identical failures still arriving after `outage_horizon`
+  # (past the policy's OUTAGE_RETRY_HORIZON plus a final attempt's reruns) --
+  # a retry loop that never ends.
   class RetryStorms < Base
-    DEFAULTS = { max_failures: 5, window: 1.hour }.freeze
+    DEFAULTS = { max_failures: 5, window: 1.hour, outage_max_failures: 30, outage_horizon: 2.hours }.freeze
     SAMPLE_RUN_IDS = 10
     MESSAGE_PREFIX = Runs::FailureFingerprint::MESSAGE_PREFIX
 
@@ -30,7 +40,12 @@ module Invariants
         [ job_id, step_kind, fingerprint_for(classifications[run_id], diagnostics[run_id]) ]
       end
 
-      storms = groups.select { |_key, group| group.size > options.fetch(:max_failures) }
+      storms = groups.select do |key, group|
+        next false unless group.size > options.fetch(:max_failures)
+        next true unless outage_group?(group, classifications)
+
+        group.size > options.fetch(:outage_max_failures) || outlasted_outage_horizon?(key)
+      end
       return [] if storms.empty?
 
       jobs = Job.where(id: storms.keys.map(&:first)).index_by(&:id)
@@ -81,6 +96,26 @@ module Invariants
       relation = Run.joins(:step)
                     .where(state: "failed", finished_at: (now - options.fetch(:window))..now)
       scope.restrict(relation, :job_id).pluck("runs.id", "runs.job_id", "steps.kind", "runs.finished_at")
+    end
+
+    def outage_group?(group, classifications)
+      group.all? { |run_id, *| AutoRetryAttempt.outage_classification?(classifications[run_id]&.first) }
+    end
+
+    # An identical failure of the same Job and step that finished a whole
+    # `outage_horizon` before one inside the window: the loop outlived the
+    # policy's horizon. Looks back one window past the horizon.
+    def outlasted_outage_horizon?((job_id, step_kind, fingerprint))
+      horizon = options.fetch(:outage_horizon)
+      earlier = Run.joins(:step)
+                   .where(job_id: job_id, state: "failed", steps: { kind: step_kind },
+                          finished_at: (now - horizon - options.fetch(:window))..(now - horizon))
+                   .pluck(:id)
+      return false if earlier.empty?
+
+      classifications = RunFailureClassification.where(run_id: earlier).pluck(:run_id, :classification).to_h
+      diagnostics = RunDiagnostic.where(run_id: earlier).pluck(:run_id, :error_class, :error_message, :problem_code).to_h { |id, *rest| [ id, rest ] }
+      earlier.any? { |run_id| fingerprint_for([ classifications[run_id] ], diagnostics[run_id]) == fingerprint }
     end
 
     def fingerprint_for(classification_row, diagnostic_row)

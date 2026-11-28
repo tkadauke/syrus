@@ -22,6 +22,17 @@ class AutoRetryAttempt < ApplicationRecord
   MAX_ATTEMPTS = 3
   MAX_WORKER_DIED_ATTEMPTS = 20
   BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze
+  # Failures that are an external service being down: GitHub's API, the
+  # agent provider, a package registry. Repeating identically is what an
+  # outage looks like, so they are not counted toward the identical-failure
+  # budget (Runs::RepeatedFailure); they are retried on a time-based
+  # backoff while the outage is younger than OUTAGE_RETRY_HORIZON, the
+  # horizon the old three-step ladder covered (5m + 20m + 1h). The attempt
+  # cap only backstops the horizon: the backoffs reach it first.
+  OUTAGE_CLASSIFICATIONS = %w[github_api_transient provider_transient prepare_network_transient].freeze
+  OUTAGE_RETRY_HORIZON = 90.minutes
+  OUTAGE_BACKOFFS = [ 5.minutes, 10.minutes, 20.minutes ].freeze
+  MAX_OUTAGE_ATTEMPTS = 8
   # Reasons a skipped attempt should NOT consume the retry budget: each names a
   # condition outside the Job's control that is expected to clear, so charging
   # the Job for it would spend its retries on the weather.
@@ -144,7 +155,21 @@ class AutoRetryAttempt < ApplicationRecord
   end
 
   def self.retry_budget_limit_for(classification)
-    classification == WORKER_DIED_CLASSIFICATION ? MAX_WORKER_DIED_ATTEMPTS : MAX_ATTEMPTS
+    return MAX_WORKER_DIED_ATTEMPTS if classification == WORKER_DIED_CLASSIFICATION
+    return MAX_OUTAGE_ATTEMPTS if outage_classification?(classification)
+
+    MAX_ATTEMPTS
+  end
+
+  def self.outage_classification?(classification)
+    classification.to_s.in?(OUTAGE_CLASSIFICATIONS)
+  end
+
+  # The wait before attempt `attempt_number`: an outage is retried on its
+  # own shorter, capped backoff (the horizon, not the count, ends it).
+  def self.backoff_for(classification, attempt_number)
+    backoffs = outage_classification?(classification) ? OUTAGE_BACKOFFS : BACKOFFS
+    backoffs[attempt_number.to_i - 1] || backoffs.last
   end
 
   # Shared with the reconciler's retry planner: a retry from a Run whose

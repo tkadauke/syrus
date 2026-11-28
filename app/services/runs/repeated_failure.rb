@@ -23,7 +23,11 @@ module Runs
   # Classifications whose remedy already changes the conditions are exempt:
   # a lost worker or an unprovisioned one is retried elsewhere, a rate limit or
   # usage limit waits for the provider's reset, a lost workspace is rebuilt.
-  # Each has its own budget.
+  # Each has its own budget. So is an external outage
+  # (AutoRetryAttempt::OUTAGE_CLASSIFICATIONS): an outage repeats identically
+  # by nature, so it is bounded by how long it has lasted instead
+  # (outage_retry_window_open?), never ended at an operator hold for
+  # outlasting five minutes.
   module RepeatedFailure
     # Below the retry_storms invariant's default `max_failures` (5), so a
     # deterministic failure stops before it becomes a storm.
@@ -31,14 +35,36 @@ module Runs
 
     EXEMPT_CLASSIFICATIONS = (
       AutoRetryAttempt::IN_PLACE_STEP_CLASSIFICATIONS +
+      AutoRetryAttempt::OUTAGE_CLASSIFICATIONS +
       [ "rate_limited", ProviderUsageLimit::CLASSIFICATION, "workspace_recovery_failed" ]
     ).freeze
 
     module_function
 
     def exempt?(run)
-      classification = run.run_failure_classification&.classification.presence || run.agent_outcome.to_s
-      classification.in?(EXEMPT_CLASSIFICATIONS)
+      classification_of(run).in?(EXEMPT_CLASSIFICATIONS)
+    end
+
+    def outage?(run)
+      AutoRetryAttempt.outage_classification?(classification_of(run))
+    end
+
+    # The ladder's bound for an outage: retry while the outage -- the first of
+    # this Job's identical failures of the step since its latest reopen -- is
+    # younger than OUTAGE_RETRY_HORIZON. Always open for anything else.
+    def outage_retry_window_open?(run, now: Time.current)
+      return true unless run&.failed? && run.step && outage?(run)
+
+      started_at = outage_started_at(run)
+      started_at.nil? || started_at > now - AutoRetryAttempt::OUTAGE_RETRY_HORIZON
+    end
+
+    def outage_started_at(run)
+      identical_failure_ids(run).then { |ids| Run.where(id: ids).minimum(:finished_at) }
+    end
+
+    def classification_of(run)
+      run.run_failure_classification&.classification.presence || run.agent_outcome.to_s
     end
 
     # The dispatcher's in-place rerun: stop once a rerun repeated the failure
@@ -69,6 +95,10 @@ module Runs
     # Failed Runs of this Job and step kind, since the Job's latest reopen,
     # that failed with this Run's fingerprint (this Run included).
     def identical_failures(run)
+      identical_failure_ids(run).size
+    end
+
+    def identical_failure_ids(run)
       job = run.job
       candidate_ids = Run.joins(:step)
                          .where(job_id: job.id, state: "failed", steps: { kind: run.step.kind })
@@ -77,7 +107,7 @@ module Runs
       candidate_ids |= [ run.id ]
       fingerprints = FailureFingerprint.for_run_ids(candidate_ids)
       target = fingerprints[run.id]
-      fingerprints.count { |_id, fingerprint| fingerprint == target }
+      fingerprints.select { |_id, fingerprint| fingerprint == target }.keys
     end
   end
 end

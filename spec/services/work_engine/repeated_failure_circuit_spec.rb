@@ -51,6 +51,20 @@ RSpec.describe WorkEngine::RepeatedFailureCircuit do
     described_class.new(run: latest_run).log_open_circuit!
   end
 
+  # An external outage repeats one exception by nature; its retries are bounded
+  # by how long it has lasted, so a streak of them must not hold the Job.
+  it "stays closed for an external outage however long its identical streak" do
+    now = Time.current
+    (described_class::THRESHOLD + 2).times do |index|
+      failed_attempt(finished_at: now - (10 - index).minutes, app_revision: "abc1234")
+    end
+    latest = Run.where(job: job).order(:id).last
+    RunFailureClassification.find_or_initialize_by(run_id: latest.id)
+      .update!(classification: "github_api_transient", retryable: true, confidence: 0.9, classified_at: now)
+
+    expect(described_class.call(run: latest.reload)).not_to be_open
+  end
+
   it "opens only after the auto-retry budget has been spent" do
     # These two numbers were equal, which made the circuit open on the same
     # failure that would have scheduled the final retry. The budget's last
