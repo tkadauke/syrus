@@ -18,14 +18,17 @@ module WorkEngine
       end
 
       def call
-        paths = scenario_paths
+        options = parse_options
+        return run_fuzz(options) if options[:fuzz]
+
+        paths = scenario_paths(options[:paths])
         return usage(2) unless paths
 
         failures = []
         paths.each do |path|
           result = run_scenario(path)
           expected_status = expected_status_for(path)
-          matched = status_matches?(result, expected_status)
+          matched = status_matches?(result, expected_status, path)
           print_result(result, expected_status: expected_status, matched: matched)
           failures << result unless matched
         end
@@ -47,15 +50,35 @@ module WorkEngine
       attr_reader :argv, :out, :err
       attr_accessor :max_ticks
 
-      def scenario_paths
+      def parse_options
         args = argv.dup
-        if args.first == "--max-ticks"
-          args.shift
-          self.max_ticks = Integer(args.shift || raise(ArgumentError, "missing value for --max-ticks"))
+        options = { fuzz: false, shrink: true, paths: [] }
+        while (arg = args.shift)
+          case arg
+          when "--max-ticks" then self.max_ticks = integer_option(arg, args)
+          when "--fuzz" then options[:fuzz] = true
+          when "--seed" then options[:seed] = integer_option(arg, args)
+          when "--iterations" then options[:iterations] = integer_option(arg, args)
+          when "--iteration" then options[:iteration] = integer_option(arg, args)
+          when "--no-shrink" then options[:shrink] = false
+          else options[:paths] << arg
+          end
         end
+        options
+      end
+
+      def integer_option(name, args)
+        Integer(args.shift || raise(ArgumentError, "missing value for #{name}"))
+      end
+
+      def scenario_paths(args)
         return nil if args.length > 1
 
-        path = Pathname(args.first.presence || DEFAULT_SCENARIO_PATH).expand_path(Rails.root)
+        expand_scenario_paths(args.first)
+      end
+
+      def expand_scenario_paths(arg)
+        path = Pathname(arg.presence || DEFAULT_SCENARIO_PATH).expand_path(Rails.root)
         if path.directory?
           path.children.select { |child| child.file? && child.extname.in?(%w[.yml .yaml]) }.sort_by(&:to_s)
         elsif path.file?
@@ -63,6 +86,19 @@ module WorkEngine
         else
           raise ArgumentError, "simulation scenario not found: #{path}"
         end
+      end
+
+      def run_fuzz(options)
+        paths = (options[:paths].presence || [ nil ]).flat_map { |arg| expand_scenario_paths(arg) }.uniq
+        _iterations, failures = WorkEngine::Simulation::Fuzz::Fuzzer.call(
+          paths: paths,
+          seed: options.fetch(:seed, WorkEngine::Simulation::Fuzz::DEFAULT_SEED),
+          iterations: options.fetch(:iterations, WorkEngine::Simulation::Fuzz::DEFAULT_ITERATIONS),
+          only_iteration: options[:iteration],
+          shrink: options[:shrink],
+          out: out
+        )
+        failures.empty? ? 0 : 1
       end
 
       def run_scenario(path)
@@ -99,8 +135,20 @@ module WorkEngine
         status ? Array(status).map(&:to_s) : %w[success waiting]
       end
 
-      def status_matches?(result, expected_status)
+      # A fuzzer reproduction (it carries a `fuzz:` block) is judged the way
+      # the fuzzer judged it, so it fails exactly while the bug reproduces.
+      def status_matches?(result, expected_status, path = nil)
+        if path && fuzz_reproduction?(path)
+          return WorkEngine::Simulation::Fuzz::Oracle.failure_signature(result, expected_statuses: expected_status).nil?
+        end
+
         expected_status.include?(result.status)
+      end
+
+      def fuzz_reproduction?(path)
+        YAML.safe_load(path.read, permitted_classes: [ Symbol ], aliases: false).to_h.key?("fuzz")
+      rescue StandardError
+        false
       end
 
       def print_result(result, expected_status:, matched:)
@@ -114,6 +162,9 @@ module WorkEngine
         elsif result.stuck?
           stream.puts "stuck:"
           result.stuck_reasons.each { |reason| stream.puts "  #{reason}" }
+        elsif result.violated?
+          stream.puts "invariant violated:"
+          result.stuck_reasons.each { |reason| stream.puts "  #{reason}" }
         elsif result.error?
           stream.puts "error:"
           result.stuck_reasons.each { |reason| stream.puts "  #{reason}" }
@@ -123,6 +174,7 @@ module WorkEngine
       def usage(status)
         stream = status.zero? ? out : err
         stream.puts "usage: bin/simulator [--max-ticks N] [path/to/scenario.yml|path/to/scenario_dir]"
+        stream.puts "       bin/simulator --fuzz [--seed N] [--iterations K] [--iteration I] [--no-shrink] [scenario_or_dir...]"
         stream.puts "       bin/simulator # runs #{DEFAULT_SCENARIO_PATH.relative_path_from(Rails.root)}"
         status
       end
