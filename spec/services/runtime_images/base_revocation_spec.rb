@@ -26,6 +26,17 @@ RSpec.describe RuntimeImages::BaseRevocation do
     expect(described_class.terminating.map(&:digest)).to eq([ severe.digest ])
   end
 
+  it "honors the administrator response for a severe revocation" do
+    release = active_base
+    base_releases.revoke!(release, reason: "root escape", severity: "severe", actor: "t")
+    AppSetting.current.update!(coworker_environment_policy: CoworkerEnvironmentPolicy.current.deep_merge(
+      "revocation" => { "severe_running_turns" => "allow_to_finish" }
+    ))
+
+    expect(described_class.for_digest(release.digest)).not_to be_terminate
+    expect(described_class.terminating).to be_empty
+  end
+
   it "answers by the pinned digest regardless of which base is active now" do
     old = active_base
     base_releases.revoke!(old, reason: "root escape", severity: "severe", actor: "t")

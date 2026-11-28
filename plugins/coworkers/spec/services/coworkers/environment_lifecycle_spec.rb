@@ -153,7 +153,9 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
       authority_kind: "permission", actor: "operator", activated_at: Time.current)
     environment.update!(state: "active", active_revision: current_revision,
                         active_runtime_image: image, active_activation: current)
-    AppSetting.current.update!(coworker_environment_launch_failure_threshold: 2)
+    AppSetting.current.update!(coworker_environment_policy: CoworkerEnvironmentPolicy.current.deep_merge(
+      "base" => { "automatic_rollback_threshold" => 2 }
+    ))
 
     recovery = Coworkers::EnvironmentRecovery.new(environment)
     recovery.record_launch_failure!(current.id, reason: "container_start_failed")

@@ -81,7 +81,7 @@ module RuntimeImages
 
       audited("revoke", image: image, actor: actor, details: { reason: reason, severity: severity }) do
         terminated = Revocation.revoke_and_request_termination!(image, reason:, severity:)
-        if severity == "severe"
+        if Revocation.terminate_running_turns?(severity)
           Telemetry.revocation_terminations(terminated)
           Audit.record("revoke.termination", outcome: :ok, image:, actor:,
                        details: { reason:, requested_processes: terminated,

@@ -18,7 +18,7 @@ module Coworkers
         activation.increment!(:launch_failure_count)
         activation.update!(last_launch_failed_at: now)
         audit("launch_failed", activation, code: reason)
-        if activation.launch_failure_count >= launch_failure_threshold
+        if launch_failure_threshold.positive? && activation.launch_failure_count >= launch_failure_threshold
           target = rollback_target(activation)
           activate!(target, failed_activation: activation, actor: "automatic_launch_recovery") if target
         end
@@ -69,7 +69,9 @@ module Coworkers
     attr_reader :environment, :now
 
     def launch_failure_threshold
-      AppSetting.current.coworker_environment_launch_failure_threshold || 3
+      configured = Syrus::Host::Settings.coworker_environment_policy.dig("base", "automatic_rollback_threshold")
+      explicit = AppSetting.current.coworker_environment_policy.to_h.dig("base", "automatic_rollback_threshold")
+      explicit.nil? ? (AppSetting.current.coworker_environment_launch_failure_threshold || configured) : configured
     end
 
     def rollback_retention_count

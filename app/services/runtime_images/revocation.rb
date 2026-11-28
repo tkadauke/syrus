@@ -6,7 +6,7 @@ module RuntimeImages
       count = 0
       image.with_lock do
         image.mark_revoked!(reason: reason, now: now)
-        count = request_termination(image.digest, now:) if severity.to_s == "severe"
+        count = request_termination(image.digest, now:) if terminate_running_turns?(severity)
       end
       count
     end
@@ -34,5 +34,10 @@ module RuntimeImages
         .update_all(kill_requested_at: now, updated_at: now)
     end
     private_class_method :request_termination
+
+    def terminate_running_turns?(severity)
+      severity.to_s == "severe" &&
+        CoworkerEnvironmentPolicy.current.dig("revocation", "severe_running_turns") == "terminate"
+    end
   end
 end

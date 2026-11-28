@@ -163,7 +163,7 @@ module RuntimeImages
       elsif !image.pullable?
         problems << Problem.new("image_not_pullable", "base image #{image.digest} is #{image.availability}")
       end
-      problems << Problem.new("abi_unsupported", "base ABI #{release.runtime_abi} is outside the range this Syrus launches (#{RuntimeAbi.compatibility.fetch("min")}..#{RuntimeAbi.compatibility.fetch("max")})") unless RuntimeAbi.supported?(release.runtime_abi)
+      problems << Problem.new("abi_unsupported", "base ABI #{release.runtime_abi} is outside the range this Syrus launches (#{RuntimeAbi.supported_range.join("..")})") unless RuntimeAbi.supported?(release.runtime_abi)
       problems << Problem.new("abi_range_excludes_syrus", "base supports ABI #{release.compat_min}..#{release.compat_max}, this Syrus speaks #{RuntimeAbi.version}") unless release.compatibility_range.cover?(RuntimeAbi.version)
       problems << Problem.new("provenance_unsigned", "base provenance has no valid runtime ABI signature") unless signed_payload(image)
       problems

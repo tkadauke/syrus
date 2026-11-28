@@ -8,7 +8,10 @@ module RuntimeImages
   # depend on which release is currently active.
   module BaseRevocation
     Signal = Data.define(:digest, :severity, :reason, :revoked_at) do
-      def terminate? = severity == "severe"
+      def terminate?
+        severity == "severe" &&
+          CoworkerEnvironmentPolicy.current.dig("revocation", "severe_running_turns") == "terminate"
+      end
     end
 
     module_function
@@ -24,6 +27,8 @@ module RuntimeImages
     # Every severely revoked base, newest first; +since+ narrows to revocations
     # a poller has not yet seen.
     def terminating(since: nil)
+      return [] if CoworkerEnvironmentPolicy.current.dig("revocation", "severe_running_turns") != "terminate"
+
       scope = CoworkerBaseRelease.severely_revoked.includes(:runtime_image).order(revoked_at: :desc)
       scope = scope.where(revoked_at: since..) if since
       scope.map { |release| signal_for(release) }

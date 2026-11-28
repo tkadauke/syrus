@@ -49,7 +49,20 @@ module RuntimeImages
       def compatibility = contract.fetch("compatibility")
       def min_confinement_policy = contract.fetch("min_confinement_policy")
       def providers = contract.fetch("providers")
-      def supported?(abi_version) = abi_version.is_a?(Integer) && abi_version.between?(compatibility.fetch("min"), compatibility.fetch("max"))
+      def supported?(abi_version)
+        return false unless abi_version.is_a?(Integer)
+
+        policy = CoworkerEnvironmentPolicy.current.fetch("base")
+        minimum = [ compatibility.fetch("min"), policy.fetch("supported_abi_min") ].max
+        maximum = [ compatibility.fetch("max"), policy.fetch("supported_abi_max") ].min
+        abi_version.between?(minimum, maximum)
+      end
+
+      def supported_range
+        policy = CoworkerEnvironmentPolicy.current.fetch("base")
+        [ [ compatibility.fetch("min"), policy.fetch("supported_abi_min") ].max,
+          [ compatibility.fetch("max"), policy.fetch("supported_abi_max") ].min ]
+      end
 
       # Canonical JSON (sorted keys) so the digest never depends on YAML order.
       def canonical(value = contract) = JSON.generate(sort_keys(value))
@@ -71,7 +84,7 @@ module RuntimeImages
       def validate_definition
         problems = []
         problems << "abi.version #{version} differs from base.yml runtime_abi #{CoworkerBase.runtime_abi}" unless version == CoworkerBase.runtime_abi
-        problems << "abi.version #{version} is outside its own compatibility range" unless supported?(version)
+        problems << "abi.version #{version} is outside its own compatibility range" unless version.between?(compatibility.fetch("min"), compatibility.fetch("max"))
         problems << "providers differ from base.yml" unless providers.keys.sort == CoworkerBase.provider_keys.sort
         problems << "user differs from base.yml" unless contract.fetch("user").slice("name", "uid", "gid") == CoworkerBase.user.to_h.slice("name", "uid", "gid")
         problems << "provider home differs from base.yml" unless contract.dig("filesystem", "provider_home") == CoworkerBase.user.to_h["home"]
@@ -125,7 +138,7 @@ module RuntimeImages
         else
           range = [ Integer(labels["#{LABEL_PREFIX}.compat-min"], 10, exception: false), Integer(labels["#{LABEL_PREFIX}.compat-max"], 10, exception: false) ]
           add.call("abi_range_invalid", "image compatibility range is missing or malformed") if range.any?(&:nil?)
-          add.call("abi_unsupported", "image ABI #{image_version} is outside the supported range #{compatibility.fetch("min")}..#{compatibility.fetch("max")}") unless supported?(image_version)
+          add.call("abi_unsupported", "image ABI #{image_version} is outside the supported range #{supported_range.join("..")}") unless supported?(image_version)
           if range.none?(&:nil?) && !version.between?(*range)
             add.call("abi_range_excludes_syrus", "image supports ABI #{range.join("..")}, this Syrus speaks #{version}")
           end

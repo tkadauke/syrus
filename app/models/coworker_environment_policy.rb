@@ -13,6 +13,7 @@ class CoworkerEnvironmentPolicy
   SEVERITIES = %w[critical high medium low unknown].freeze
   REVOCATION_RESPONSES = %w[terminate allow_to_finish].freeze
   SCRATCH_PROFILES = %w[standard executable_scratch].freeze
+  SCRATCH_SIZE_FORMAT = /\A[1-9]\d*[kmgKMG]?\z/
 
   def self.current
     DEFAULTS.deep_merge(AppSetting.current.coworker_environment_policy.to_h.deep_stringify_keys)
@@ -22,28 +23,29 @@ class CoworkerEnvironmentPolicy
     policy = DEFAULTS.deep_merge(Hash(value).deep_stringify_keys)
     integers = %w[max_concurrent_builds max_concurrent_per_namespace max_attempts memory_bytes storage_bytes timeout_seconds log_bytes max_output_bytes]
     integers.each do |key|
-      value = Integer(policy.dig("builder", key), exception: false)
-      raise ArgumentError, "builder.#{key} must be positive" unless value&.positive?
-      policy["builder"][key] = value
+      coerced = Integer(policy.dig("builder", key), exception: false)
+      raise ArgumentError, "builder.#{key} must be positive" unless coerced&.positive?
+      policy["builder"][key] = coerced
     end
     cpus = Float(policy.dig("builder", "cpus"), exception: false)
     raise ArgumentError, "builder.cpus must be positive" unless cpus&.positive?
     policy["builder"]["cpus"] = cpus
     %w[supported_abi_min supported_abi_max automatic_rollback_threshold].each do |key|
-      value = Integer(policy.dig("base", key), exception: false)
-      raise ArgumentError, "base.#{key} must be a non-negative integer" unless value && value >= 0
-      policy["base"][key] = value
+      coerced = Integer(policy.dig("base", key), exception: false)
+      raise ArgumentError, "base.#{key} must be a non-negative integer" unless coerced && coerced >= 0
+      policy["base"][key] = coerced
     end
     %w[max_bytes max_concurrent_pulls].each do |key|
-      value = Integer(policy.dig("cache", key), exception: false)
-      raise ArgumentError, "cache.#{key} must be positive" unless value&.positive?
-      policy["cache"][key] = value
+      coerced = Integer(policy.dig("cache", key), exception: false)
+      raise ArgumentError, "cache.#{key} must be positive" unless coerced&.positive?
+      policy["cache"][key] = coerced
     end
     policy["cache"]["prefetch_active"] = ActiveModel::Type::Boolean.new.cast(policy.dig("cache", "prefetch_active"))
     severities = Array(policy.dig("verification", "blocked_severities")).map(&:to_s)
     raise ArgumentError, "blocked severities are invalid" unless severities.present? && (severities - SEVERITIES).empty?
     raise ArgumentError, "revocation response is invalid" unless REVOCATION_RESPONSES.include?(policy.dig("revocation", "severe_running_turns"))
     raise ArgumentError, "scratch profile is invalid" unless SCRATCH_PROFILES.include?(policy.dig("scratch", "profile"))
+    raise ArgumentError, "scratch size is invalid" unless SCRATCH_SIZE_FORMAT.match?(policy.dig("scratch", "size").to_s)
     raise ArgumentError, "ABI window is invalid" if policy.dig("base", "supported_abi_min").to_i > policy.dig("base", "supported_abi_max").to_i
     policy
   end

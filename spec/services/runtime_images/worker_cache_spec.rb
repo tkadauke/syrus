@@ -36,7 +36,7 @@ RSpec.describe RuntimeImages::WorkerCache do
   let(:namespace) { RuntimeImageNamespace.create!(name: "acme/widgets", owner_kind: "k", owner_ref: "1", provider_key: provider.key) }
   let(:service) { RuntimeImages::Service.new(provider: provider) }
   let(:engine) { FakeCacheEngine.new }
-  let(:cache) { described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 0.2) }
+  let(:cache) { described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 0.2, prefetch_active: true) }
 
   def publish(payload)
     service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "r-#{payload}", platform: "linux/amd64", payload: payload,
@@ -412,6 +412,13 @@ RSpec.describe RuntimeImages::WorkerCache do
   end
 
   describe "#prefetch" do
+    it "stands down when administrator prefetch is disabled" do
+      disabled = described_class.new(engine: engine, service: service, hostname: "w1", prefetch_active: false)
+
+      expect(disabled.prefetch([publish("disabled")]).map(&:outcome)).to eq(%w[skipped_disabled])
+      expect(engine.pulls).to be_empty
+    end
+
     it "warms the cache without leasing or counting as a use" do
       image = publish("a")
       results = cache.prefetch([image])
@@ -434,5 +441,16 @@ RSpec.describe RuntimeImages::WorkerCache do
       engine.usage = { total_bytes: 1000, free_bytes: 100 }
       expect(cache.prefetch([a]).map(&:outcome)).to eq(%w[skipped_pressure])
     end
+  end
+
+  it "evicts unleased entries to the administrator cache ceiling" do
+    bounded = described_class.new(engine: engine, service: service, hostname: "w1", max_bytes: 100)
+    first = publish("bounded-a")
+    second = publish("bounded-b")
+
+    bounded.acquire(first).then { |pulled| bounded.release(pulled.entry) }
+    bounded.acquire(second)
+
+    expect(RuntimeImageCacheEntry.for_host("w1").pluck(:runtime_image_id)).to contain_exactly(second.id)
   end
 end

@@ -94,6 +94,19 @@ RSpec.describe RuntimeImages::Service do
     expect(process.reload.kill_requested_at).to be_nil
   end
 
+  it "allows a running turn to finish when severe-revocation policy says so" do
+    AppSetting.current.update!(coworker_environment_policy: CoworkerEnvironmentPolicy.current.deep_merge(
+      "revocation" => { "severe_running_turns" => "allow_to_finish" }
+    ))
+    image = publish(verification_state: "candidate")
+    process = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a", pid: 101,
+      started_at: Time.current, resource_attribution: { "runtime_image_digest" => image.digest })
+
+    service.revoke(image, reason: "critical integrity failure", severity: "severe")
+
+    expect(process.reload.kill_requested_at).to be_nil
+  end
+
   it "re-asserts revocation on the provider when a reactivating provider is republished" do
     image = publish
     service.revoke(image, reason: "vulnerable")
