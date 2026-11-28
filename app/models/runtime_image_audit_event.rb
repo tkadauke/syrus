@@ -15,6 +15,7 @@ class RuntimeImageAuditEvent < ApplicationRecord
   attribute :details, :json, default: -> { {} }
   before_validation { self.details ||= {} }
   before_validation { self.occurred_at ||= Time.current }
+  before_update { raise ActiveRecord::ReadOnlyRecord, "runtime image audit evidence is immutable" }
 
   validates :event_type, presence: true
   validates :outcome, inclusion: { in: OUTCOMES }
