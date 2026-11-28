@@ -232,4 +232,75 @@ RSpec.describe ManualAgenticRun::GithubAccess do
       expect(err).to include("credential expired")
     end
   end
+
+  # Faraday forwards the request target byte for byte, so a dot segment, an
+  # empty segment or a percent-encoded character reaches GitHub, which
+  # resolves it to the path the authority checks never saw.
+  it "refuses non-canonical paths instead of matching authority on the raw target" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+
+      [
+        "/repos/acme/widgets/../../other/repo/contents/x",
+        "/repos/acme/widgets/pulls/9/../9",
+        "/repos/acme/widgets/./pulls/9",
+        "/repos/acme/widgets/%2E%2E/evil",
+        "/repos/acme/widgets//pulls/9",
+        "/acme/widgets.git/../../other/repo.git/info/refs"
+      ].each do |target|
+        expect { proxy.send(:upstream_for, target) }.to raise_error(/not canonical/), target
+      end
+      # Encoded unreserved characters are decoded before the checks, as GitHub decodes them.
+      _upstream, path, = proxy.send(:upstream_for, "/repos/acme/widgets/pulls/%39")
+      expect(path).to eq("/repos/acme/widgets/pulls/9")
+      expect(proxy.send(:destructive_request?, "PATCH", path, '{"state":"closed"}')).to be(true)
+      _upstream, path, = proxy.send(:upstream_for, "/acme/widgets.git/git-receive%2Dpack")
+      expect(proxy.send(:destructive_request?, "POST", path, "")).to be(true)
+      # An encoded slash stays encoded: it is part of a ref name, not a separator.
+      _upstream, path, = proxy.send(:upstream_for, "/repos/acme/widgets/branches/feature%2fx")
+      expect(path).to eq("/repos/acme/widgets/branches/feature%2Fx")
+    ensure
+      proxy&.stop
+    end
+  end
+
+  # Faraday upcases the verb it sends, so a lowercase request line must not
+  # slip past the destructive checks.
+  it "applies destructive authority to request methods case-insensitively" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+
+      expect(proxy.send(:destructive_request?, "delete", "/repos/acme/widgets/git/refs/heads/main", "")).to be(true)
+      expect(proxy.send(:destructive_request?, "put", "/repos/acme/widgets/pulls/9/merge", "")).to be(true)
+      expect(proxy.send(:destructive_request?, "patch", "/repos/acme/widgets/pulls/9", '{"state":"closed"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "post", "/repos/acme/widgets/issues/9/lock", "")).to be(true)
+    ensure
+      proxy&.stop
+    end
+  end
+
+  it "refuses a lowercase destructive verb end to end through the proxy" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+      allow(Faraday).to receive(:delete)
+      env = proxy.gh_environment
+      host, port = env.fetch("GH_HOST").split(":")
+      socket = TCPSocket.new(host, Integer(port))
+      context = OpenSSL::SSL::SSLContext.new
+      context.ca_file = env.fetch("SSL_CERT_FILE")
+      context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      tls = OpenSSL::SSL::SSLSocket.new(socket, context)
+      tls.connect
+      tls.write("delete /api/v3/repos/acme/widgets/git/refs/heads/main HTTP/1.1\r\nHost: #{env.fetch('GH_HOST')}\r\n" \
+                "Authorization: token #{env.fetch('GH_ENTERPRISE_TOKEN')}\r\nContent-Length: 0\r\n\r\n")
+      response = tls.read.to_s
+
+      expect(response).to start_with("HTTP/1.1 502")
+      expect(Faraday).not_to have_received(:delete)
+    ensure
+      tls&.close
+      proxy&.stop
+    end
+  end
+
 end

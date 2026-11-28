@@ -236,6 +236,8 @@ module ManualAgenticRun
     # worker-owned outbound requests. Provider subprocesses receive a harmless
     # placeholder credential and a public CA certificate, never the grant.
     class CredentialProxy
+      PROXY_METHODS = %w[GET HEAD OPTIONS POST PATCH PUT DELETE].freeze
+
       def initialize(dir:, token:, repository:, destructive:, on_request: nil)
         @dir, @token, @repository, @destructive = dir, token, repository, destructive
         @on_request = on_request
@@ -304,6 +306,9 @@ module ManualAgenticRun
         raise "proxy authorization is invalid" unless ActiveSupport::SecurityUtils.secure_compare(supplied_capability, @proxy_capability)
         body = request_body(client, headers)
         upstream, path, authorization = upstream_for(target)
+        # Faraday sends the verb upcased, so the checks see it that way too.
+        method = method.to_s.upcase
+        raise "proxy request method is unsupported" unless PROXY_METHODS.include?(method)
         raise "destructive proxy request requires authority" if destructive_request?(method, path, body) && !@destructive
         response = Faraday.public_send(method.downcase, "#{upstream}#{path}", body) do |request|
           headers.each { |key, value| request.headers[key] = value unless %w[host authorization connection content-length].include?(key) }
@@ -346,8 +351,7 @@ module ManualAgenticRun
 
       def upstream_for(target)
         uri = URI.parse(target)
-        path = uri.path.to_s
-        path = "/#{path}" unless path.start_with?("/")
+        path = canonical_path(uri.path.to_s)
         path = "#{path}?#{uri.query}" if uri.query
         api_path = path.delete_prefix("/api/v3")
         if api_path == "/repos/#{@repository}" || api_path.start_with?("/repos/#{@repository}/")
@@ -360,7 +364,26 @@ module ManualAgenticRun
         end
       end
 
+      # Faraday forwards the request target as is, and GitHub resolves dot
+      # segments and decodes encoded unreserved characters itself, so the
+      # authority checks must see the path GitHub will act on. Encoded
+      # unreserved characters are decoded; any other escape (an encoded slash
+      # in a ref name) stays as it is. A dot or empty segment is refused.
+      def canonical_path(raw)
+        raw = "/#{raw}" unless raw.start_with?("/")
+        segments = raw.split("/", -1).drop(1).map do |segment|
+          segment.gsub(/%(\h\h)/) do
+            char = Regexp.last_match(1).hex.chr
+            char.match?(/[A-Za-z0-9\-._~]/) ? char : "%#{Regexp.last_match(1).upcase}"
+          end
+        end
+        raise "proxy request path is not canonical" if segments.any? { |segment| segment.empty? || segment == "." || segment == ".." }
+
+        "/#{segments.join('/')}"
+      end
+
       def destructive_request?(method, path, body)
+        method = method.to_s.upcase
         path = URI.parse(path).path
         return true if %w[DELETE PUT].include?(method)
         return true if path.include?("/git-receive-pack")
