@@ -1132,7 +1132,17 @@ module WorkEngine
         scenario_workflow_ids = Workflow.where(job_id: job_ids).pluck(:id).to_set
         due = @pending_phase_admissions.select { |workflow_id, _| scenario_workflow_ids.include?(workflow_id.to_i) }
         @pending_phase_admissions -= due
+        # An admission that already ran against this exact world state (only
+        # timestamps differ) would decide the same again: production would
+        # keep polling a gate that waits on something outside the scenario,
+        # such as a main-branch health check. Running it once per state keeps
+        # that wait from looking like progress, so the world can go quiet.
+        state = state_fingerprint
+        @phase_admission_states ||= {}
+        unchanged, due = due.partition { |args| @phase_admission_states[args.compact] == state }
+        @pending_phase_admissions.concat(unchanged)
         due.each do |workflow_id, step_id|
+          @phase_admission_states[[ workflow_id, step_id ].compact] = state
           fast_forward_step_retry_not_before!(step_id)
           WorkflowPhaseAdmissionJob.new.perform(*[ workflow_id, step_id ].compact)
           events << "tick #{tick}: phase admission ran for workflow #{workflow_id}"
@@ -2122,6 +2132,18 @@ module WorkEngine
 
       def jobs
         @jobs ||= Job.where(id: job_ids).includes(:dependencies, :epic, :repository).order(:id).to_a
+      end
+
+      # The fingerprint without update timestamps: what the world is, not
+      # when it was last touched.
+      def state_fingerprint
+        [
+          Job.where(id: job_ids).order(:id).pluck(:id, :state, :pr_number, :branch_name, :manual_paused),
+          Workflow.where(job_id: job_ids).order(:id).pluck(:id, :state),
+          Step.joins(:workflow).where(workflows: { job_id: job_ids }).order(:id).pluck(:id, :state),
+          Run.where(job_id: job_ids).order(:id).pluck(:id, :state),
+          WorkUnit.where(scope_type: "job", scope_id: job_ids).order(:id).pluck(:id, :state, :blocked_reason)
+        ]
       end
 
       def fingerprint
