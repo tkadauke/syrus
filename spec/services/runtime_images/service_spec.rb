@@ -71,6 +71,18 @@ RSpec.describe RuntimeImages::Service do
       .to include("requested_processes" => 1, "recovery_guidance" => include("promote or roll back"))
   end
 
+  it "requests termination for a registered agent before its pid is assigned" do
+    image = publish(verification_state: "candidate")
+    registering = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a",
+      started_at: Time.current, resource_attribution: { "runtime_image_digest" => image.digest })
+    allow(OperationalLogging).to receive(:ingest)
+
+    service.revoke(image, reason: "critical integrity failure", severity: "severe")
+
+    expect(registering.reload.pid).to be_nil
+    expect(registering.kill_requested_at).to be_present
+  end
+
   it "does not terminate an existing turn for a standard revocation" do
     image = publish(verification_state: "candidate")
     process = SpawnedProcess.create!(kind: "agent", command: "agent", hostname: "worker-a", pid: 101,
