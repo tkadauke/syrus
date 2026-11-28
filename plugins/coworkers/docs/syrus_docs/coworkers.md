@@ -366,6 +366,14 @@ the coworker, originating chat, and provider separately in Job history before
 starting the normal feedback workflow. Workflow review verdict tools remain
 limited to their corresponding review steps.
 
+Owners may separately grant five repository-scoped autonomy capabilities:
+filing a Job, approving it, submitting feedback, cancelling it, and retrying
+it. Each capability is off by default and has no effect until a repository is
+selected. Except for filing, it applies only to Jobs filed by that same
+coworker. Ordinary chats cannot use these coworker grants. Autonomous actions
+retain the normal state, review, landing, and retry checks and record the
+coworker, permission rule, Job, repository, and action in the audit trail.
+
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
 approval. The card and the coworker's Approvals inbox identify the coworker,

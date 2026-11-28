@@ -18,7 +18,18 @@ module Coworkers
     TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool, SpawnSyrusChatTool ] + WORKSPACE_TOOLS).freeze
 
     def self.coworker_grants
+      repository_scope = {
+        default_policy: "confirm", maximum_policy: "auto",
+        scope_options_callback: ->(user:) { Syrus::Host::McpTools::CoworkerRepositoryAccess.scope_options(user:) },
+        scope_label_callback: ->(value) { Syrus::Host::McpTools::CoworkerRepositoryAccess.scope_label(value) },
+        valid_scope_callback: ->(value, user:) { Syrus::Host::McpTools::CoworkerRepositoryAccess.valid_scope?(value, user:) }
+      }
       [
+        { name: "coworker.jobs.propose", label: "File own Jobs", description: "File Jobs in the selected repository without operator confirmation.", tools: %w[propose_job], **repository_scope },
+        { name: "coworker.jobs.approve", label: "Approve own Jobs", description: "Approve Jobs filed by this coworker in the selected repository.", tools: %w[approve_job], **repository_scope },
+        { name: "coworker.jobs.feedback", label: "Submit feedback on own Jobs", description: "Submit feedback on Jobs filed by this coworker in the selected repository.", tools: %w[submit_chat_feedback], **repository_scope },
+        { name: "coworker.jobs.cancel", label: "Cancel own Jobs", description: "Cancel Jobs filed by this coworker in the selected repository.", tools: %w[cancel_job], **repository_scope },
+        { name: "coworker.jobs.retry", label: "Retry own Jobs", description: "Retry Jobs filed by this coworker in the selected repository.", tools: %w[retry_job], **repository_scope },
         {
           name: "workspace.files", label: "Update coworker workspace files",
           description: "Create, exactly edit, move, and delete files inside the coworker's isolated workspace.",
