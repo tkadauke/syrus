@@ -446,6 +446,7 @@ func TestJobActionCommandsPostExpectedEndpoints(t *testing.T) {
 		{[]string{"job", "recheck-pr-checks", "456"}, "/api/v1/app/jobs/456/recheck_pr_checks", ""},
 		{[]string{"job", "resume", "456", "--source-run", "9"}, "/api/v1/app/jobs/456/resume", `"source_run_id":"9"`},
 		{[]string{"job", "retry-step", "456", "--workflow", "12"}, "/api/v1/app/jobs/456/workflows/12/retry_step", ""},
+		{[]string{"job", "retry-step", "456", "--workflow", "12", "--guidance", "Fix the fixture first"}, "/api/v1/app/jobs/456/workflows/12/retry_step", `"retry_context":"Fix the fixture first"`},
 		{[]string{"job", "push-commits", "456", "--workflow", "12"}, "/api/v1/app/jobs/456/workflows/12/push_commits", ""},
 		{[]string{"job", "stop-run", "456", "--run", "34"}, "/api/v1/app/jobs/456/runs/34/stop", ""},
 		{[]string{"job", "diagnose", "456", "--run", "34"}, "/api/v1/app/jobs/456/runs/34/diagnose", ""},
