@@ -46,10 +46,20 @@ class Coworkers::EnvironmentReconciler
     image = revision.reload.runtime_image
     return unless image
     if image.revoked? || image.deleted?
-      lifecycle.revoke!(revision, reason: "image_#{image.availability}") unless revision.revoked?
+      lifecycle.revoke!(revision, reason: revocation_reason(image), severity: revocation_severity(image)) unless revision.revoked?
       add(environment, revision, :image_unavailable, image.availability)
     end
   end
+
+  def revocation_reason(image)
+    revocation_details(image).fetch("reason", nil).presence || "image_#{image.availability}"
+  end
+
+  def revocation_severity(image)
+    revocation_details(image).fetch("severity", nil) == "severe" ? :severe : :normal
+  end
+
+  def revocation_details(image) = Syrus::Host::RuntimeImages.revocation_details(image)
 
   def stale?(request)
     request.updated_at < @now - STALE_BUILD_AFTER && !request.queued?

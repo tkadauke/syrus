@@ -124,6 +124,7 @@ class ChatTurnJob < ApplicationJob
 
     @chat.broadcast_controls if provider.provider == "codex"
 
+    result = nil
     result = with_chat_mcp_config(provider) do |mcp_config|
       with_git_askpass_env do |agent_env|
         provider_with_turn_context(provider, attachment_context, agent_env.merge(cli_invocation_env(provider))).invoke(
@@ -171,7 +172,7 @@ class ChatTurnJob < ApplicationJob
       create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     end
   rescue StandardError => e
-    @turn_lifecycle&.after_execution(exception: e) if @turn_lifecycle&.respond_to?(:after_execution)
+    @turn_lifecycle&.after_execution(result: result, exception: e) if @turn_lifecycle&.respond_to?(:after_execution)
     stop_requested?(force: true) || create_terminal_failure_message!(exception: e)
     touch_chat! if @chat
     raise

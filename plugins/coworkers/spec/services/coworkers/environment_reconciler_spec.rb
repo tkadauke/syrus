@@ -35,4 +35,27 @@ RSpec.describe Coworkers::EnvironmentReconciler do
     expect(revision.reload).to be_revoked
     expect(environment.reload.candidate_revision).to be_nil
   end
+
+  it "propagates an authoritative severe image revocation and terminates affected turns" do
+    namespace = RuntimeImageNamespace.create!(name: "coworker-severe-reconcile", owner_kind: "coworker_environment",
+                                              owner_ref: coworker.id.to_s, provider_key: "test")
+    image = RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'d' * 64}",
+                                 platform: "linux/amd64", source_kind: "coworker_environment", source_ref: "revision-2",
+                                 availability: "available", verification_state: "candidate", published_at: Time.current)
+    revision = Coworkers::EnvironmentRevision.create!(environment: environment, number: 2, state: "active",
+                                                       source_digest: "sha256:#{'e' * 64}", runtime_image: image)
+    environment.update!(state: "active", active_revision: revision, active_runtime_image: image)
+    provider = instance_double(RuntimeImages::Provider, revoke: nil)
+    allow(Syrus::Host::AgentRuntime).to receive(:terminate_chat_processes).and_return(1)
+    RuntimeImages::Service.new(provider: provider).revoke(
+      image, reason: "critical_vulnerability", severity: "severe", actor: "security"
+    )
+
+    described_class.new.call
+
+    expect(revision.reload).to be_revoked
+    expect(Syrus::Host::AgentRuntime).to have_received(:terminate_chat_processes)
+      .with(chat_session_ids: [], reason: "severe environment revocation: critical_vulnerability",
+            runtime_image_digest: image.digest)
+  end
 end
