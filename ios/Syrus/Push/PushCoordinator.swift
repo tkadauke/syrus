@@ -10,6 +10,10 @@ final class PushCoordinator: ObservableObject {
     static let tokenDefaultsKey = "syrus.push.deviceToken"
 
     @Published private(set) var authorization: UNAuthorizationStatus = .notDetermined
+    @Published private(set) var events = PushEventLog()
+    @Published private(set) var probe: ServerProbe = .notChecked
+    @Published private(set) var testOutcome: TestPushOutcome?
+    @Published private(set) var isBusy = false
 
     let service: PushRegistrationService
     private let defaults: UserDefaults
@@ -65,9 +69,64 @@ final class PushCoordinator: ObservableObject {
         let token = DeviceToken.hexString(from: data)
         defaults.set(token, forKey: Self.tokenDefaultsKey)
         service.update(token: token)
+        events.registrationSucceeded()
     }
 
     func didFailToRegister(_ error: Error) {
         NSLog("APNs registration failed: %@", error.localizedDescription)
+        events.registrationFailed(error.localizedDescription)
+    }
+
+    // MARK: Diagnostics
+
+    func notificationPresented(userInfo: [AnyHashable: Any]) {
+        events.pushReceived(userInfo: userInfo, foreground: true)
+    }
+
+    /// Records a tap and returns the path to open, if the payload carries a valid one.
+    func notificationTapped(userInfo: [AnyHashable: Any]) -> String? {
+        events.pushReceived(userInfo: userInfo, foreground: false)
+        let outcome = NotificationRoute.outcome(from: userInfo)
+        events.deepLink(outcome)
+        if case .path(let path) = outcome { return path }
+        return nil
+    }
+
+    /// Forgets per-server diagnostics state when the operator leaves a server.
+    func resetServerState() {
+        probe = .notChecked
+        testOutcome = nil
+    }
+
+    func refreshDiagnostics(server: ServerURL?, via performer: WebRequestPerforming) async {
+        await refreshAuthorization()
+        isBusy = true
+        defer { isBusy = false }
+        // Sync first so the authoritative probe reflects any registration this
+        // refresh performs (new device, re-enabled or updated environment).
+        if let server { _ = await service.syncIfNeeded(server: server, via: performer) }
+        probe = await service.probeServer(via: performer)
+    }
+
+    func sendTestNotification(via performer: WebRequestPerforming) async {
+        isBusy = true
+        defer { isBusy = false }
+        testOutcome = await service.sendTestNotification(via: performer)
+    }
+
+    func diagnosticsRows(server: ServerURL?) -> [DiagnosticsRow] {
+        let bundle = Bundle.main
+        return DiagnosticsReport.rows(for: DiagnosticsInput(
+            server: server,
+            authorization: authorization,
+            token: service.token,
+            apnsEnvironment: service.info.apnsEnvironment,
+            bundleID: service.info.bundleID,
+            appVersion: service.info.appVersion,
+            buildNumber: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
+            sync: service.lastSync,
+            probe: probe,
+            events: events
+        ))
     }
 }

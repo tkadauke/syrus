@@ -19,9 +19,23 @@ final class PushRegistrationService {
         var osVersion: String
     }
 
+    /// What the last attempt to register this token with the server did.
+    /// Surfaced by diagnostics so a tester can see *why* sync hasn't happened.
+    enum SyncOutcome: Equatable {
+        case notAttempted
+        case noToken
+        /// The web view isn't on the server's origin yet, so no request was made.
+        case pageNotReady
+        /// 401/403: the web view has no signed-in session.
+        case signedOut(Int)
+        case failed(Int)
+        case synced
+    }
+
     private(set) var token: String?
+    private(set) var lastSync: SyncOutcome = .notAttempted
     private var lastSyncedKey: String?
-    private let info: DeviceInfo
+    let info: DeviceInfo
 
     init(info: DeviceInfo, token: String? = nil) {
         self.info = info
@@ -39,7 +53,7 @@ final class PushRegistrationService {
     /// (server, token) pair and retries silently while the user isn't signed in.
     @discardableResult
     func syncIfNeeded(server: ServerURL, via performer: WebRequestPerforming) async -> Bool {
-        guard let token else { return false }
+        guard let token else { lastSync = .noToken; return false }
         let key = "\(server.description)|\(token)"
         if lastSyncedKey == key { return true }
 
@@ -52,10 +66,16 @@ final class PushRegistrationService {
             "app_version": info.appVersion,
             "os_version": info.osVersion,
         ]
-        guard let status = try? await performer.send(method: "POST", path: Self.registerPath, jsonBody: body),
-              (200..<300).contains(status)
-        else { return false }
+        guard let status = try? await performer.send(method: "POST", path: Self.registerPath, jsonBody: body) else {
+            lastSync = .pageNotReady
+            return false
+        }
+        guard (200..<300).contains(status) else {
+            lastSync = (status == 401 || status == 403) ? .signedOut(status) : .failed(status)
+            return false
+        }
         lastSyncedKey = key
+        lastSync = .synced
         return true
     }
 
@@ -64,7 +84,11 @@ final class PushRegistrationService {
         guard let token else { return }
         _ = try? await performer.send(method: "DELETE", path: Self.unregisterPath, jsonBody: ["platform": "ios", "token": token])
         lastSyncedKey = nil
+        lastSync = .notAttempted
     }
 
-    func resetSyncState() { lastSyncedKey = nil }
+    func resetSyncState() {
+        lastSyncedKey = nil
+        lastSync = .notAttempted
+    }
 }
