@@ -803,6 +803,13 @@ class RunJob < ApplicationJob
   # chain advance among them -- would then never fire.
   def commit_run_and_step_success!
     ActiveRecord::Base.transaction do
+      # The callers check the states before this lock; a cancel can commit in
+      # between. Under the lock the committed states decide: neither row is
+      # written from attributes the cancel has since replaced. Captured before
+      # the lock, because Lineage.lock! refreshes the in-memory records from
+      # the rows it locks.
+      expected_run_state = @run.state
+      expected_step_state = @step.state
       # The Step is written after the Run, so the ancestry is locked first,
       # top down (NY40). Locking queries keep the Run's unsaved outcome.
       Lineage.lock!(@run)
@@ -812,6 +819,8 @@ class RunJob < ApplicationJob
       # created two Runs for the next Step. A locking read sees the first
       # success (see #reload_lineage_for_update!).
       @step = Step.lock.find(@step.id)
+      next unless Run.where(id: @run.id).pick(:state) == expected_run_state && @step.state == expected_step_state
+
       unless @run.succeeded?
         @run.agent_outcome = nil if @run.agent_outcome == "worker_died"
         @run.succeed!

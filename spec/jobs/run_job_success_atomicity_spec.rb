@@ -44,6 +44,30 @@ RSpec.describe RunJob, "recording a successful step" do
     expect(Steps::LifecyclePropagation).to have_received(:succeeded!).once
   end
 
+  # record_successful_step! reloads and checks the states before it takes the
+  # Lineage lock; a cancel can commit in between. The success must then not
+  # overwrite it from the pre-lock attributes.
+  it "keeps a cancel that committed before the success took its lock" do
+    allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+      result = original.call(record)
+      if record.is_a?(Run)
+        Run.where(id: run.id).update_all(state: "cancelled", finished_at: Time.current)
+        Step.where(id: step.id).update_all(state: "cancelled", finished_at: Time.current)
+      end
+      result
+    end
+
+    run_job = described_class.new
+    run_job.instance_variable_set(:@run, run)
+    run_job.instance_variable_set(:@step, step)
+    run_job.instance_variable_set(:@workflow, workflow)
+    run_job.send(:record_successful_step!)
+
+    expect(run.reload).to be_cancelled
+    expect(step.reload).to be_cancelled
+    expect(Steps::LifecyclePropagation).not_to have_received(:succeeded!)
+  end
+
   it "clears a stale worker_died outcome when the Run succeeds" do
     run.update_columns(agent_outcome: "worker_died")
 
