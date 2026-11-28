@@ -8829,7 +8829,21 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   authority is checked on every path; idle connection reaping only takes
   checked-in connections.
 
-Checked through main `fb30ed3e65`. Each loop iteration continues from there:
+- Main through `905d1b175c` (after this branch's push to main, plus the
+  runtime image verification Epic, fixed here as F153 to F156). A Run wedged
+  inside a live worker (no heartbeat, no live process, an hour) is now
+  recovered; a thread that wakes later is fenced by the execution-attempt
+  counter and by the committed-state check in RunJob's success (F152). A Job
+  whose Workflow sat blocked for 72 hours is parked at failed with
+  needs-attention; auto-retry keys on a failed Workflow, not Job, so nothing
+  retries it without a person, and an answer lifts the Job back. The worker
+  gap hold now covers only work that runs the target whose prepare found the
+  gap, which narrows Lead L20 to that target (the misclassification of the
+  change's own missing tool remains). The rest (indexes, payload trimming,
+  i18n, permission matrix batching, simulator scenarios) carries no engine
+  invariant.
+
+Checked through main `905d1b175c`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
