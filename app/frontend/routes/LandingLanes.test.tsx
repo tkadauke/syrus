@@ -246,6 +246,14 @@ describe("landing lanes", () => {
         },
         {
           ...payload.repositories[1],
+          lanes: [{
+            ...payload.repositories[1].lanes[0],
+            anchor_job: { id: 32, slug: "JOB-32", app_path: "/jobs/32" }
+          }]
+        },
+        {
+          ...payload.repositories[1],
+          id: 3,
           slug: "acme/empty",
           busy_lane_count: 0,
           lanes: [{ number: 1, empty: true, draining: false }]
@@ -258,11 +266,13 @@ describe("landing lanes", () => {
     render(<LandingLanesStrip />, { wrapper: wrapper(client) })
 
     expect(screen.getByText("acme/rocket")).toBeInTheDocument()
+    expect(screen.getByText("acme/anvil")).toBeInTheDocument()
     expect(screen.queryByText("acme/empty")).not.toBeInTheDocument()
     expect(screen.queryByText("Empty lane")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-10" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-30" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-31" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-32" })).toBeInTheDocument()
     expect(screen.getByText("Branch release")).toBeInTheDocument()
   })
 
