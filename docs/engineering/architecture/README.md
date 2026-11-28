@@ -14,6 +14,8 @@ system-wide overview and routes here for detail.
   landing, and reconciler launch ownership contract.
 - [Workflow execution](workflow-execution.md) — triggers, step chains,
   dispatch, providers, graders, and landing.
+- [Landing critical path](landing-critical-path.md) — measured merge-train
+  phase timings, recent speedups, and the remaining gap to the latency target.
 - [Workflow-step internals](workflow-steps.md) — placement, failure reporting,
   recovery, audit events, and grader command telemetry.
 - [App-setting internals](app-settings.md) — diagnostic state, prepared-layer
