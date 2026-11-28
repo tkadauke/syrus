@@ -977,6 +977,8 @@ la:
     admin_retention_settings:
       updated: "Res retentionis renovatae sunt."
       retention_value_required: "Fenestra retentionis pro %{table} inscribe."
+    admin_environment_policy:
+      updated: "Praescriptum ambitus renovatum est."
       infinite_flag_required: "Retentionem infinitam pro %{table} aperte elige."
       infinite_value_required: "Retentio infinita pro %{table} ut 0 servanda est."
 

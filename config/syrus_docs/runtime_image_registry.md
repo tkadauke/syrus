@@ -4,7 +4,7 @@ The Runtime Image Service publishes and distributes runtime images (Syrus bases,
 
 ## Settings
 
-All settings are environment variables on web and worker processes.
+Registry connection details and credentials are environment variables on web and worker processes. Runtime image policy is managed at **Admin → Environment Policy**. The page reports non-secret registry status and configures builder concurrency and resource ceilings, vulnerability and prohibited-package gates, supported ABI and automatic rollback thresholds, severe-revocation behavior, worker cache limits, and the optional executable `/scratch` profile. Every change is audited. Deployment environment variables remain an explicit override for builder and container-execution tuning.
 
 | Variable | Purpose |
 |---|---|
@@ -85,6 +85,8 @@ An accepted attempt produces an expiring attestation digest bound to the immutab
 Isolated build candidates also pass a policy replay over the captured source, image layers, untruncated image history, OCI metadata, and the sanitized bounded build log. Any detected secret blocks the candidate. The recorded destinations are checked again against the exact administrator allowlist snapshot used by the build, and the image must remain within configured byte and layer ceilings, use the required non-root identity and startup contract, and request no forbidden capabilities. Normal views contain only finding counts and policy codes. Exact secret locations and scanner output are retained as hash-bound restricted evidence and returned only from the administrator evidence endpoint.
 
 Set `SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` to a JSON object to configure `vulnerabilities.blocked_severities`, `prohibited_packages`, `exemptions`, `evidence_ttl_seconds`, or the `image` byte, layer, identity, startup, and forbidden-capability policy instance-wide. Other keys are ignored so configuration cannot remove required checks. Each exemption has `kind` (`vulnerability` or `package`), exact `id`, non-empty `reason`, and ISO 8601 `expires_at`; expired or malformed entries have no effect.
+
+When that environment override is absent, verification uses the vulnerability severities and prohibited packages saved on **Admin → Environment Policy**.
 
 ## Build recovery and diagnostics
 

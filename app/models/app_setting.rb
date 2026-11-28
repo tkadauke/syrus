@@ -1,4 +1,5 @@
 class AppSetting < ApplicationRecord
+  validate :valid_coworker_environment_policy
   validates :coworker_environment_rollback_retention_count,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :coworker_environment_launch_failure_threshold,
@@ -351,6 +352,12 @@ class AppSetting < ApplicationRecord
   end
 
   private
+
+  def valid_coworker_environment_policy
+    CoworkerEnvironmentPolicy.validate!(coworker_environment_policy || {})
+  rescue ArgumentError => error
+    errors.add(:coworker_environment_policy, error.message)
+  end
 
   def beta_mode_enabled_changed?
     has_attribute?(:beta_mode_enabled) && saved_change_to_beta_mode_enabled?

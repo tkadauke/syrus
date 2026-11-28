@@ -43,6 +43,7 @@
   "nav_invitations": "Invitationes",
   "nav_settings": "Praescripta",
   "nav_retention_settings": "Praescripta Retentionis",
+  "nav_environment_policy": "Praescriptum Ambitus",
   "nav_features": "Facultates",
   "nav_operational_logs": "Acta",
   "nav_plugins": "Plugin",
@@ -779,6 +780,21 @@
     "show_work_unit_debug_label": "Tabulas debug WorkIntent et WorkUnit in tabulis cursus operis ostende",
     "show_work_unit_debug_help": "Cum clausum est, interna WorkIntent et WorkUnit a paginis operum ordinariis celantur. Admin Work Units ad diagnosin manet."
   },
+  "environment_policy": {
+    "heading": "Praescriptum ambitus collegae",
+    "loading": "Praescriptum ambitus oneratur...",
+    "error_load": "Praescriptum ambitus onerari non potuit.",
+    "error_update": "Praescriptum ambitus renovari non potuit.",
+    "updated": "Praescriptum ambitus renovatum est.",
+    "registry_heading": "Praebitor registri OCI",
+    "registry_unconfigured": "Registrum imaginum runtime non configuratum est.",
+    "registry_secret_help": "Credentialia registri secreta deployment manent neque hic redduntur.",
+    "policy_heading": "Praescriptum constructionis et runtime",
+    "policy_help": "Capacitatem, quotas, vulnerabilitates, sarcinas prohibitas, fenestras ABI, regressum, revocationem, cache et scratch exsecutabile configura.",
+    "policy_json_label": "JSON praescripti ambitus",
+    "save": "Praescriptum serva",
+    "saving": "Servatur..."
+  },
   "retention_settings": {
     "heading": "Praescripta retentionis",
     "loading": "Praescripta retentionis onerantur...",
@@ -1305,6 +1321,7 @@
   "aria_stuck": "Res haerentes administratoris",
   "aria_settings": "Optiones administratoris",
   "aria_retention_settings": "Praescripta retentionis administratoris",
+  "aria_environment_policy": "Praescriptum ambitus collegae administratoris",
   "aria_invitations": "Invitationes administratoris",
   "aria_installations": "Institutiones administratoris",
   "aria_features": "Facultates administratoris",

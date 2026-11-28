@@ -118,6 +118,7 @@
   "nav_invitations": "Invitations",
   "nav_settings": "Settings",
   "nav_retention_settings": "Retention Settings",
+  "nav_environment_policy": "Environment Policy",
   "nav_features": "Features",
   "nav_operational_logs": "Logs",
   "nav_plugins": "Plugins",
@@ -936,6 +937,21 @@
     "polling_not_configured": "{{platform}} is not configured yet.",
     "polling_error": "Unable to start {{platform}} polling."
   },
+  "environment_policy": {
+    "heading": "Coworker environment policy",
+    "loading": "Loading environment policy...",
+    "error_load": "Unable to load environment policy.",
+    "error_update": "Unable to update environment policy.",
+    "updated": "Environment policy updated.",
+    "registry_heading": "OCI registry provider",
+    "registry_unconfigured": "No runtime-image registry is configured.",
+    "registry_secret_help": "Registry credentials remain deployment-managed secrets and are never returned here.",
+    "policy_heading": "Build and runtime policy",
+    "policy_help": "Configure builder capacity and quotas, vulnerability and prohibited-package gates, base ABI windows, rollback and revocation behavior, worker cache limits, and the optional executable scratch profile.",
+    "policy_json_label": "Environment policy JSON",
+    "save": "Save policy",
+    "saving": "Saving..."
+  },
   "retention_settings": {
     "heading": "Retention settings",
     "loading": "Loading retention settings...",
@@ -1462,6 +1478,7 @@
   "aria_stuck": "Admin stuck items",
   "aria_settings": "Admin settings",
   "aria_retention_settings": "Admin retention settings",
+  "aria_environment_policy": "Admin coworker environment policy",
   "aria_invitations": "Admin invitations",
   "aria_installations": "Admin installations",
   "aria_features": "Admin features",

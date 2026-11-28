@@ -977,6 +977,8 @@ de:
     admin_retention_settings:
       updated: "Aufbewahrungseinstellungen aktualisiert."
       retention_value_required: "Gib ein Aufbewahrungsfenster für %{table} ein."
+    admin_environment_policy:
+      updated: "Umgebungsrichtlinie aktualisiert."
       infinite_flag_required: "Wähle die unbegrenzte Aufbewahrung für %{table} ausdrücklich aus."
       infinite_value_required: "Unbegrenzte Aufbewahrung für %{table} muss als 0 gespeichert werden."
 

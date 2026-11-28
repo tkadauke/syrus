@@ -18,7 +18,13 @@ module RuntimeImages
 
       def self.current
         configured = ENV[ENV_KEY].presence
-        return Orchestrator::DEFAULT_POLICY.deep_dup unless configured
+        unless configured
+          admin = CoworkerEnvironmentPolicy.current.fetch("verification")
+          return Orchestrator::DEFAULT_POLICY.deep_merge(
+            "vulnerabilities" => { "blocked_severities" => admin.fetch("blocked_severities") },
+            "prohibited_packages" => admin.fetch("prohibited_packages")
+          )
+        end
 
         overrides = JSON.parse(configured)
         raise ProviderError, "#{ENV_KEY} must contain a JSON object" unless overrides.is_a?(Hash)

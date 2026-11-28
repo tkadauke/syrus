@@ -17,6 +17,12 @@ For deployment-specific placement, see [Deployment](/docs/deployment). For a
 practical staged path from root-only repositories to project-aware monorepos,
 see [Monorepo Adoption](/docs/monorepo-adoption).
 
+## Coworker environment policy
+
+Administrators manage runtime-image build quotas, vulnerability and prohibited-package gates, supported ABI windows, automatic rollback and severe-revocation behavior, worker cache limits, and the optional executable `/scratch` profile from **Admin → Environment Policy**. The page shows safe OCI registry status but never returns registry credentials, which remain deployment-managed secrets.
+
+Build-network destinations and required internal mirrors remain default-deny rules. Runtime images, build and scanner evidence (including SBOMs), pull events, and audit history use the shared **Admin → Retention Settings** controls.
+
 ## `.syrus.yml`
 
 `.syrus.yml` is read from the root of the target repository during the

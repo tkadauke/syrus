@@ -973,7 +973,7 @@ module Syrus
         PluginRecords: [ "Finds or creates one plugin's persisted settings record by name; columns beyond those the plugin declares are not promised.", %w[find_by_name ensure!] ],
         ChatSearch: [ "Matches chat messages by text; index storage and ranking are not promised.", %w[matching_chat_session_page top_matches_by_chat_session] ],
         InstanceWorkers: [ "Reports the worker processes the instance has recently heard from; version bookkeeping is not promised.", %w[fresh] ],
-        Settings: [ "Reads instance-wide operator settings; setting storage is not promised.", %w[ui_engagement_telemetry_enabled?] ],
+        Settings: [ "Reads instance-wide operator settings; setting storage is not promised.", %w[ui_engagement_telemetry_enabled? coworker_environment_policy] ],
         RepositoryAccess: [ "Answers whether a user may write to a repository; policy evaluation details are not promised.", %w[write?] ]
       }.freeze
 

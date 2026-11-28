@@ -43,6 +43,7 @@
   "nav_invitations": "Einladungen",
   "nav_settings": "Einstellungen",
   "nav_retention_settings": "Aufbewahrungseinstellungen",
+  "nav_environment_policy": "Umgebungsrichtlinie",
   "nav_features": "Funktionen",
   "nav_operational_logs": "Protokolle",
   "nav_plugins": "Plugins",
@@ -779,6 +780,21 @@
     "show_work_unit_debug_label": "WorkIntent- und WorkUnit-Debugbereiche in Job-Workflow-Tabs anzeigen",
     "show_work_unit_debug_help": "Wenn deaktiviert, bleiben WorkIntent- und WorkUnit-Interna auf normalen Job-Seiten verborgen. Admin Work Units bleibt für Diagnosen verfügbar."
   },
+  "environment_policy": {
+    "heading": "Richtlinie für Coworker-Umgebungen",
+    "loading": "Umgebungsrichtlinie wird geladen...",
+    "error_load": "Umgebungsrichtlinie konnte nicht geladen werden.",
+    "error_update": "Umgebungsrichtlinie konnte nicht aktualisiert werden.",
+    "updated": "Umgebungsrichtlinie aktualisiert.",
+    "registry_heading": "OCI-Registry-Anbieter",
+    "registry_unconfigured": "Keine Runtime-Image-Registry ist konfiguriert.",
+    "registry_secret_help": "Registry-Zugangsdaten bleiben deploymentverwaltete Geheimnisse und werden hier nie zurückgegeben.",
+    "policy_heading": "Build- und Runtime-Richtlinie",
+    "policy_help": "Konfiguriere Builder-Kapazität und Quoten, Schwachstellen- und Paketregeln, ABI-Fenster, Rollback, Widerruf, Worker-Cache und das optionale ausführbare Scratch-Profil.",
+    "policy_json_label": "JSON der Umgebungsrichtlinie",
+    "save": "Richtlinie speichern",
+    "saving": "Wird gespeichert..."
+  },
   "retention_settings": {
     "heading": "Aufbewahrungseinstellungen",
     "loading": "Aufbewahrungseinstellungen werden geladen...",
@@ -1305,6 +1321,7 @@
   "aria_stuck": "Admin-Hängende-Elemente",
   "aria_settings": "Admin-Einstellungen",
   "aria_retention_settings": "Admin-Aufbewahrungseinstellungen",
+  "aria_environment_policy": "Admin-Richtlinie für Coworker-Umgebungen",
   "aria_invitations": "Admin-Einladungen",
   "aria_installations": "Admin-Installationen",
   "aria_features": "Admin-Features",
