@@ -315,7 +315,10 @@ module Steps
         "message" => summary
       }
       record_prepare_failure!(failure)
-      raise StepFailed, prepare_failure_message(failure)
+      # The worker's defect, not the change's: retried in place on a worker
+      # that passes these checks (or held until one does).
+      fail_with!(:worker_environment_missing, prepare_failure_message(failure),
+                 evidence: { command: plan.source, failed_checks: failures, error_line: summary })
     end
 
     def fail_on_plan_error!(plan)

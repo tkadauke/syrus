@@ -1,43 +1,44 @@
-# A worker that lacks something a repository's setup needs: a system library
-# or header a native extension links against, or an executable the prepare
+# What a failed install showed a worker to be missing: a system library or
+# header a native extension links against, or an executable the prepare
 # commands call. The change is fine -- the same prepare passes on a correctly
 # provisioned worker -- so the gap belongs to the worker, not to the Job.
 #
-# Recorded reactively, when a prepare or grader-checkout install fails with
-# `worker_environment_missing` (Runs::LifecyclePropagation), and readable as
-# a placement constraint: RunQueueResolver treats a gapped worker as unable
-# to run that repository's work, so the retry lands on another worker or
-# holds with a named blocker instead of failing again on the same machine.
+# This is the reactive half of one placement model. The proactive half is
+# the worker's environment smoke report (WorkerEnvironmentSmoke), which names
+# failed checks. A gap is expressed the same way: as a failed check name
+# (`check_name`), mapped onto the smoke check that covers the same thing when
+# there is one (mysql2 failing to link zstd is the `mysql_client` check, a
+# missing `gh` is the `gh` check). RunQueueResolver#environment_check_failures
+# reads both through one code path, so a probe-detected and a failure-detected
+# gap keep a worker off work identically and hold under the same reason.
 #
-# The table is shared with proactive detection on purpose. A worker probe
-# that finds a missing tool records the same row with `source: "probe"` (and
-# usually no repository, meaning "every repository"), so a gap found by a
-# probe and a gap found by a failure end in the same placement state. See
-# `record!`.
-#
-# A gap stops counting when it is cleared, when it expires, or when the worker
-# restarted after it was detected (a reprovisioned worker deserves a fresh
-# look), and a successful install of the same repository on that worker
-# clears it.
+# A gap applies to the repository whose install found it. It stops counting
+# when it expires, when the worker restarted after it was detected (a
+# reprovisioned worker deserves a fresh look), when that repository's prepare
+# later succeeds on the worker, or when the worker's own smoke report passes
+# the same check after the gap was found.
 class WorkerEnvironmentGap < ApplicationRecord
-  SOURCES = %w[failure probe].freeze
   MISSING_KINDS = %w[library header executable].freeze
   TTL = 6.hours
-  BLOCKED_REASON = "worker_environment_missing".freeze
 
-  validates :hostname, :missing_kind, :source, :detected_at, :expires_at, presence: true
-  validates :source, inclusion: { in: SOURCES }
+  # Failures that a WorkerEnvironmentSmoke check already covers, so the two
+  # name the same thing.
+  MYSQL_CLIENT_NAMES = /\A(?:lib)?(?:mysqlclient|mariadb|zstd|ssl|crypto)\b|\Amysql\.h\z|\A(?:mysql|mariadb)_config\z/
+  SMOKE_EXECUTABLES = {
+    "git" => "git", "ruby" => "ruby", "bundle" => "bundler", "bundler" => "bundler",
+    "node" => "node", "npm" => "npm", "npx" => "npm", "gh" => "gh",
+    "cc" => "c_compiler", "gcc" => "c_compiler", "clang" => "c_compiler", "make" => "c_compiler"
+  }.freeze
+
+  validates :hostname, :missing_kind, :detected_at, :expires_at, presence: true
   validates :missing_kind, inclusion: { in: MISSING_KINDS }
 
   scope :uncleared, -> { where(cleared_at: nil) }
   scope :unexpired, ->(now = Time.current) { where("expires_at > ?", now) }
-  # `repository_id` nil is a worker-wide gap (typically probe-detected).
-  scope :for_repository, ->(repository_id) { where(repository_id: [ nil, repository_id ].uniq) }
 
   class << self
-    # The one writer, for reactive and proactive detection alike.
-    def record!(hostname:, missing_kind:, source:, missing_name: nil, repository_id: nil,
-                worker_storage_key: nil, run_id: nil, evidence: {}, now: Time.current)
+    def record!(hostname:, missing_kind:, repository_id:, missing_name: nil, worker_storage_key: nil,
+                run_id: nil, evidence: {}, now: Time.current)
       return nil if hostname.blank?
 
       existing = uncleared.unexpired(now).find_by(hostname: hostname, repository_id: repository_id,
@@ -49,31 +50,26 @@ class WorkerEnvironmentGap < ApplicationRecord
 
       create!(
         hostname: hostname, worker_storage_key: worker_storage_key, repository_id: repository_id,
-        missing_kind: missing_kind.to_s, missing_name: missing_name, source: source.to_s, run_id: run_id,
+        missing_kind: missing_kind.to_s, missing_name: missing_name, run_id: run_id,
         evidence: evidence.presence, detected_at: now, expires_at: now + TTL
       )
     end
 
-    # Gaps that currently keep `hostname` from running `repository_id`'s work.
-    def active_for(hostname:, repository_id:, now: Time.current)
-      return none if hostname.blank?
+    # check name => reason for every gap that keeps `hostname` off this
+    # repository's work, in the vocabulary of WorkerEnvironmentSmoke checks.
+    def failed_checks(hostname:, repository_id:, smoke_report: nil, now: Time.current)
+      return {} if hostname.blank? || repository_id.blank?
 
-      gaps = uncleared.unexpired(now).where(hostname: hostname).for_repository(repository_id).to_a
-      restarted_at = worker_started_at(hostname)
-      gaps = gaps.reject { |gap| restarted_at && restarted_at > gap.detected_at } if restarted_at
-      gaps
-    end
+      gaps = uncleared.unexpired(now).where(hostname: hostname, repository_id: repository_id).to_a
+      return {} if gaps.empty?
 
-    def blocks?(hostname:, repository_id:, now: Time.current)
-      active_for(hostname: hostname, repository_id: repository_id, now: now).any?
-    end
+      restarted_at = InstanceVersion.where(role: "worker", hostname: hostname).maximum(:started_at)
+      gaps.each_with_object({}) do |gap, failed|
+        next if restarted_at && restarted_at > gap.detected_at
+        next if gap.passed_since?(smoke_report)
 
-    # Every active gap for the repository, keyed by hostname. RunQueueResolver
-    # reads this once per decision.
-    def active_by_hostname(repository_id:, now: Time.current)
-      uncleared.unexpired(now).for_repository(repository_id).to_a
-        .group_by(&:hostname)
-        .select { |hostname, _gaps| blocks?(hostname: hostname, repository_id: repository_id, now: now) }
+        failed[gap.check_name] ||= gap.reason
+      end
     end
 
     def clear!(hostname:, repository_id:, now: Time.current)
@@ -84,20 +80,33 @@ class WorkerEnvironmentGap < ApplicationRecord
 
     # The failure path: a Run whose step declared `worker_environment_missing`
     # names the host it failed on through its processes.
+    #
+    # Prepare can also stop before running anything because the worker's own
+    # smoke report already failed checks the plan needs (`failed_checks`);
+    # those are recorded under the smoke check's own name.
     def record_from_run!(run, problem_evidence:)
       evidence = problem_evidence.to_h.stringify_keys
       hostname = failure_hostname(run)
-      return nil if hostname.blank?
+      return nil if hostname.blank? || run.job&.repository_id.blank?
 
-      record!(
+      common = {
         hostname: hostname,
         worker_storage_key: run.distributed_parallel_run? ? nil : run.workflow&.worker_storage_key,
-        repository_id: run.job&.repository_id,
+        repository_id: run.job.repository_id,
+        run_id: run.id
+      }
+      kept = evidence.slice("command", "exit_status", "error_line", "failed_package")
+      if (checks = Array(evidence["failed_checks"]).map(&:to_s).compact_blank).any?
+        return checks.map do |check|
+          record!(**common, missing_kind: "executable", missing_name: check, evidence: kept.merge("check_name" => check))
+        end.last
+      end
+
+      record!(
+        **common,
         missing_kind: evidence["missing_kind"].presence_in(MISSING_KINDS) || "library",
         missing_name: evidence["missing_name"],
-        source: "failure",
-        run_id: run.id,
-        evidence: evidence.slice("command", "exit_status", "error_line", "failed_package")
+        evidence: kept
       )
     end
 
@@ -105,15 +114,34 @@ class WorkerEnvironmentGap < ApplicationRecord
       run.spawned_processes.where.not(hostname: [ nil, "" ]).order(:id).last&.hostname.presence ||
         (run.workflow&.worker_hostname.presence unless run.distributed_parallel_run?)
     end
-
-    private
-
-    def worker_started_at(hostname)
-      InstanceVersion.where(role: "worker", hostname: hostname).maximum(:started_at)
-    end
   end
 
-  def describe
-    [ missing_kind, missing_name ].compact.join(" ")
+  def check_name
+    declared = evidence.to_h["check_name"].presence
+    return declared if declared
+
+    name = missing_name.to_s
+    package = evidence.to_h["failed_package"].to_s
+    return "mysql_client" if package.start_with?("mysql2") || name.match?(MYSQL_CLIENT_NAMES) && missing_kind != "executable"
+    return "mysql_client" if missing_kind == "executable" && name.match?(/\A(?:mysql|mariadb)_config\z/)
+    return SMOKE_EXECUTABLES.fetch(File.basename(name)) if missing_kind == "executable" && SMOKE_EXECUTABLES.key?(File.basename(name))
+
+    "missing_#{missing_kind}:#{name.presence || 'unknown'}"
+  end
+
+  def reason
+    detail = evidence.to_h["error_line"].presence || [ missing_kind, missing_name ].compact.join(" ")
+    "install failed on this worker (Run #{run_id || '?'}): #{detail}".truncate(300)
+  end
+
+  # The worker's smoke report checked this same thing, after the gap was
+  # found, and it passed: whatever was missing has been provisioned.
+  def passed_since?(report)
+    return false unless report.is_a?(Hash)
+
+    observed = Time.zone.parse(report["observed_at"].to_s) rescue nil
+    return false unless observed && observed > detected_at
+
+    report.dig("checks", check_name, "status") == WorkerEnvironmentSmoke::PASSED
   end
 end

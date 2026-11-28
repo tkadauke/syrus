@@ -224,7 +224,11 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       local_smoke([ "mysql_client" ])
       expect(handler).not_to receive(:run_shell)
 
-      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /cannot run this repository's prepare plan; failed environment checks: mysql_client: no mysql_config found/)
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /cannot run this repository's prepare plan; failed environment checks: mysql_client: no mysql_config found/) { |error|
+        # The worker's defect, routed like any other missing dependency.
+        expect(error.problem.code).to eq("worker_environment_missing")
+        expect(error.problem.evidence).to include(failed_checks: [ "mysql_client" ])
+      }
       expect(workflow.reload.artifact("prepare_failure")).to include(
         "environment_check_failures" => { "mysql_client" => "no mysql_config found" }
       )

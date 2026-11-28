@@ -619,19 +619,29 @@ module WorkEngine
 
       # The operator fixing a worker's toolchain: its next smoke report passes.
       # Takes a hostname or `{ hostname: }`.
+      # The repaired report passes every check the worker was known to fail --
+      # its own earlier smoke failures and what failed installs found missing
+      # there (WorkerEnvironmentGap) -- which is how a real smoke report clears
+      # both.
       def repair_worker_environment!(value)
         hostname = (value.is_a?(Hash) ? value.fetch("hostname") : value).to_s
-        record_worker_environment!(hostname, [])
+        previously_failed = InstanceVersion.where(hostname: hostname, role: "worker").flat_map do |instance|
+          WorkerEnvironmentSmoke.failed_checks(instance.capability_diagnostics.to_h[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY])
+        end
+        gap_checks = WorkerEnvironmentGap.uncleared.where(hostname: hostname).map(&:check_name)
+        record_worker_environment!(hostname, [], passed: previously_failed | gap_checks)
         events << "repaired worker environment on #{hostname}"
       end
 
-      def record_worker_environment!(hostname, failed)
+      def record_worker_environment!(hostname, failed, passed: [])
+        checks = passed.to_h { |name| [ name, { "status" => WorkerEnvironmentSmoke::PASSED, "essential" => false } ] }
+          .merge(failed.to_h { |name| [ name, { "status" => WorkerEnvironmentSmoke::FAILED, "reason" => "simulated #{name} failure", "essential" => false } ] })
         report = {
           "version" => WorkerEnvironmentSmoke::REPORT_VERSION,
           "status" => failed.empty? ? WorkerEnvironmentSmoke::PASSED : WorkerEnvironmentSmoke::DEGRADED,
-          "observed_at" => Time.current.utc.iso8601,
+          "observed_at" => Time.current.utc.iso8601(6),
           "failed" => failed.sort,
-          "checks" => failed.to_h { |name| [ name, { "status" => WorkerEnvironmentSmoke::FAILED, "reason" => "simulated #{name} failure", "essential" => false } ] }
+          "checks" => checks
         }
         InstanceVersion.where(hostname: hostname, role: "worker").find_each do |instance|
           diagnostics = instance.capability_diagnostics.is_a?(Hash) ? instance.capability_diagnostics : {}
@@ -1642,7 +1652,7 @@ module WorkEngine
       def queued_run_held_for_worker_environment?(run)
         return false unless run.queued?
 
-        RunQueueResolver.resolve(run: run).blocked_reason == WorkerEnvironmentGap::BLOCKED_REASON
+        RunQueueResolver.resolve(run: run).blocked_reason == RunQueueResolver::ENVIRONMENT_CHECK_BLOCKED_REASON
       end
 
       def queued_run_blocked_by_explicit_solid_queue_state?(run)

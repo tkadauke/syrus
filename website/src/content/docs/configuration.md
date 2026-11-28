@@ -220,7 +220,7 @@ native extension links against, or a tool the command calls — the change is
 not at fault. Syrus marks that worker as unable to run the repository's
 setup and reruns the step on another worker; the Job does not fail and no
 repair agent is asked to "fix" code that is fine. If no live worker has what
-is needed, the step waits with a `worker_environment_missing` blocker naming
+is needed, the step waits with the `worker_environment_check_failed` reason naming
 the missing library or tool.
 
 A native extension whose own source will not compile, a lockfile that does

@@ -109,6 +109,44 @@ RSpec.describe RunQueueResolver, :ci_only do
     end
   end
 
+  # The reactive half of the same model: what a failed install found missing
+  # on a worker (WorkerEnvironmentGap) is read as that worker's failed check,
+  # through the same path, under the same hold reason.
+  describe "a gap a failed install found" do
+    let(:linux) { { "os" => [ "linux" ], "arch" => [ "x86_64" ] } }
+
+    def zstd_gap(hostname)
+      WorkerEnvironmentGap.record!(hostname: hostname, repository_id: repository.id, missing_kind: "library",
+                                   missing_name: "zstd", evidence: { "failed_package" => "mysql2 (0.5.7)" })
+    end
+
+    it "keeps work off that worker exactly as the matching smoke failure does" do
+      live_worker("compute-gapped", queues: "runs", capabilities: linux, failed: [])
+      live_worker("compute-probed", queues: "runs", capabilities: linux, failed: [ "mysql_client" ])
+      live_worker("compute-healthy", queues: "runs", capabilities: linux, failed: [])
+      repository.update!(worker_environment_requirements: %w[mysql_client])
+      zstd_gap("compute-gapped")
+
+      decision = described_class.resolve(run: prepare_run)
+
+      expect(decision).not_to be_blocked
+      expect(worker_detail(decision, "compute-gapped")).to include("eligible" => false)
+      expect(worker_detail(decision, "compute-gapped")["environment_check_failures"].keys).to eq([ "mysql_client" ])
+      expect(worker_detail(decision, "compute-probed")["environment_check_failures"].keys).to eq([ "mysql_client" ])
+      expect(worker_detail(decision, "compute-healthy")).to include("eligible" => true)
+    end
+
+    it "holds under worker_environment_check_failed when it leaves no worker, without any recorded requirement" do
+      live_worker("compute-a", queues: "runs", capabilities: linux, failed: [])
+      zstd_gap("compute-a")
+
+      decision = described_class.resolve(run: prepare_run)
+
+      expect(decision.blocked_reason).to eq("worker_environment_check_failed")
+      expect(decision.environment_check_summary).to include("compute-a: mysql_client (install failed on this worker")
+    end
+  end
+
   describe ".locally_satisfied?" do
     let(:run) { prepare_run }
 

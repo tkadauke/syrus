@@ -73,9 +73,17 @@ class RunQueueResolver
     snapshot = WorkerCapabilities.current
     return false unless satisfies?(WorkerCapabilities.normalize(snapshot.fetch(:capabilities)), required_capabilities)
 
-    WorkerEnvironmentSmoke.blocking_failures(
-      snapshot.fetch(:diagnostics, {})[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY], required_environment_checks
-    ).empty?
+    report = snapshot.fetch(:diagnostics, {})[WorkerEnvironmentSmoke::DIAGNOSTIC_KEY]
+    environment_failures_for(SyrusVersion.hostname, report).empty?
+  end
+
+  # Whether `hostname` is kept off `run` by its environment -- a failed smoke
+  # check the step needs or a dependency an earlier failure there showed
+  # missing. The work-engine simulator asks it for simulated hosts.
+  def self.worker_environment_blocks?(run:, hostname:)
+    resolver = new(run: run)
+    payload = resolver.send(:live_worker_payloads).find { |candidate| candidate[:hostname] == hostname }
+    resolver.send(:environment_failures_for, hostname, payload && resolver.send(:smoke_report_for, payload)).any?
   end
 
   def self.resolve_candidate(workflow:, step:)
@@ -169,8 +177,37 @@ class RunQueueResolver
     @required_environment_checks = []
   end
 
+  # The one view of a worker's environment for this step: the checks its
+  # smoke report (WorkerEnvironmentSmoke) failed that the step needs, plus
+  # what a failed install on that worker showed missing for this repository
+  # (WorkerEnvironmentGap). A probe and a failure that find the same thing
+  # name the same check, so they keep a worker off work identically, and one
+  # hold reason (ENVIRONMENT_CHECK_BLOCKED_REASON) covers both.
   def environment_check_failures(payload)
-    WorkerEnvironmentSmoke.blocking_failures(smoke_report_for(payload), required_environment_checks)
+    environment_failures_for(payload[:hostname], smoke_report_for(payload))
+  end
+
+  def environment_failures_for(hostname, report)
+    (WorkerEnvironmentSmoke.blocking_failures(report, required_environment_checks) |
+      observed_environment_gaps(hostname, report).keys)
+  end
+
+  # check name => reason for the gaps a failed install recorded on `hostname`
+  # for this repository. A gap stops counting once the worker's own smoke
+  # report passes that same check after the gap was found.
+  def observed_environment_gaps(hostname, report)
+    return {} if hostname.blank?
+
+    @observed_environment_gaps ||= {}
+    @observed_environment_gaps[[ hostname, report.is_a?(Hash) ? report["observed_at"] : nil ]] ||=
+      WorkerEnvironmentGap.failed_checks(hostname: hostname, repository_id: repository_id, smoke_report: report)
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn("[RunQueueResolver] could not read worker environment gaps: #{e.class}: #{e.message}")
+    {}
+  end
+
+  def repository_id
+    workflow&.job&.repository_id
   end
 
   def smoke_report_for(payload)
@@ -400,7 +437,9 @@ class RunQueueResolver
     failures = environment_check_failures(payload)
     return nil if failures.empty?
 
-    WorkerEnvironmentSmoke.failure_reasons(smoke_report_for(payload), failures)
+    report = smoke_report_for(payload)
+    WorkerEnvironmentSmoke.failure_reasons(report, failures)
+      .merge(observed_environment_gaps(payload[:hostname], report)) { |_name, probe, gap| probe.presence || gap }
   end
 
   def worker_eligible?(payload, queue, requirements, allow_unknown_default: false, ignore_environment_checks: false)

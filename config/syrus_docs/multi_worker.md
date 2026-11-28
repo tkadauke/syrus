@@ -168,6 +168,18 @@ rather than failed. An explicit `.syrus.yml` prepare plan that reaches a
 worker that already failed one of its checks stops immediately with the failed
 check named, instead of failing later in `bundle install`.
 
+A failed install teaches the same thing reactively. When a repository's
+prepare (or a grader's own dependency install) fails because the worker lacks
+a system library, header or executable — mysql2 cannot link zstd, `gh: command
+not found` — the worker is recorded as failing the matching check (for
+example `mysql_client` or `gh`) for that repository. From then on it is kept
+off that repository's work exactly as if its own report had failed the check,
+the failed step is retried on another worker without failing the Workflow,
+and with no other worker left it waits under the same
+`worker_environment_check_failed` reason. The mark lapses after a few hours,
+when the worker restarts, when its next report passes the same check, or when
+the repository's prepare succeeds there.
+
 Worker health shows each failed check with its reason: a warning when it only
 keeps the worker off the work that needs it, critical when every Run needs it.
 `gh` is advisory: the Linux worker image leaves it out on purpose, so its

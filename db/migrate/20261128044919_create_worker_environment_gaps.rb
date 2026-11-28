@@ -6,7 +6,6 @@ class CreateWorkerEnvironmentGaps < ActiveRecord::Migration[8.1]
       t.integer :repository_id
       t.string :missing_kind, null: false
       t.string :missing_name
-      t.string :source, null: false
       t.integer :run_id
       t.json :evidence
       t.datetime :detected_at, null: false

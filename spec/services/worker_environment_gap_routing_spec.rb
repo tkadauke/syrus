@@ -2,10 +2,11 @@ require "rails_helper"
 
 # A worker that lacks a system library, header or executable the repository's
 # setup needs is a worker defect, not a failure of the change. These specs pin
-# the reactive half: the failure records a WorkerEnvironmentGap, placement
-# avoids that worker for the repository's dependency-install work, the step is
-# retried in place (the Workflow never fails), and with no provisioned worker
-# left the retry holds with a named reason instead of running again.
+# the reactive half of the one placement model: the failure records a
+# WorkerEnvironmentGap, which RunQueueResolver reads as a failed environment
+# check -- the same view, and the same hold reason, as a failed smoke check
+# (WorkerEnvironmentSmoke) -- the step is retried in place, and a passing
+# smoke report for the same check clears it.
 RSpec.describe "worker environment gaps" do
   include ActiveJob::TestHelper
 
@@ -15,49 +16,64 @@ RSpec.describe "worker environment gaps" do
   let(:run) { prepare_step.runs.first || prepare_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind) }
   let(:repository_id) { job.repository_id }
 
-  def gap!(hostname:, repository_id: job.repository_id, **attrs)
+  def gap!(hostname:, repository_id: job.repository_id, missing_name: "zstd", **attrs)
     WorkerEnvironmentGap.record!(hostname: hostname, repository_id: repository_id, missing_kind: "library",
-                                 missing_name: "zstd", source: "failure", **attrs)
+                                 missing_name: missing_name, **attrs)
   end
 
-  def live_worker!(hostname, started_at: 1.hour.ago)
+  def live_worker!(hostname, started_at: 1.hour.ago, smoke: nil)
+    diagnostics = smoke ? { WorkerEnvironmentSmoke::DIAGNOSTIC_KEY => smoke } : {}
     InstanceVersion.create!(hostname: hostname, role: "worker", version: "test", started_at: started_at,
-                            last_heartbeat_at: Time.current)
+                            last_heartbeat_at: Time.current, capability_diagnostics: diagnostics)
+  end
+
+  def passing_report(check, observed_at: Time.current)
+    { "version" => 1, "status" => "passed", "observed_at" => observed_at.utc.iso8601(6), "failed" => [],
+      "checks" => { check => { "status" => "passed" } } }
   end
 
   describe WorkerEnvironmentGap do
-    it "blocks only the repository it was found for" do
+    it "names the smoke check that covers the same thing, so a probe and a failure agree" do
+      expect(gap!(hostname: "w", missing_name: "zstd").check_name).to eq("mysql_client")
+      expect(described_class.record!(hostname: "w", repository_id: repository_id, missing_kind: "executable",
+                                     missing_name: "gh").check_name).to eq("gh")
+      expect(described_class.record!(hostname: "w", repository_id: repository_id, missing_kind: "executable",
+                                     missing_name: "playwright-mcp").check_name).to eq("missing_executable:playwright-mcp")
+    end
+
+    it "keeps a worker off only the repository whose install found the gap" do
       gap!(hostname: "worker-a")
 
-      expect(described_class.blocks?(hostname: "worker-a", repository_id: repository_id)).to be(true)
-      expect(described_class.blocks?(hostname: "worker-a", repository_id: repository_id + 1)).to be(false)
-      expect(described_class.blocks?(hostname: "worker-b", repository_id: repository_id)).to be(false)
+      expect(described_class.failed_checks(hostname: "worker-a", repository_id: repository_id)).to have_key("mysql_client")
+      expect(described_class.failed_checks(hostname: "worker-a", repository_id: repository_id + 1)).to eq({})
+      expect(described_class.failed_checks(hostname: "worker-b", repository_id: repository_id)).to eq({})
     end
 
-    it "treats a repository-less (probe) gap as blocking every repository" do
-      described_class.record!(hostname: "worker-a", missing_kind: "executable", missing_name: "gh", source: "probe")
-
-      expect(described_class.blocks?(hostname: "worker-a", repository_id: repository_id)).to be(true)
-    end
-
-    it "stops blocking once it expires, is cleared, or the worker restarted after it" do
-      expired = gap!(hostname: "worker-expired")
-      expired.update!(expires_at: 1.minute.ago)
+    it "stops counting once it expires, is cleared, or the worker restarted after it" do
+      gap!(hostname: "worker-expired").update!(expires_at: 1.minute.ago)
       gap!(hostname: "worker-cleared")
       described_class.clear!(hostname: "worker-cleared", repository_id: repository_id)
       gap!(hostname: "worker-restarted", now: 2.hours.ago)
       live_worker!("worker-restarted", started_at: 10.minutes.ago)
 
       %w[worker-expired worker-cleared worker-restarted].each do |hostname|
-        expect(described_class.blocks?(hostname: hostname, repository_id: repository_id)).to be(false), hostname
+        expect(described_class.failed_checks(hostname: hostname, repository_id: repository_id)).to eq({}), hostname
       end
+    end
+
+    it "stops counting once the worker's own smoke report passes the same check after the gap" do
+      gap = gap!(hostname: "worker-a")
+
+      expect(described_class.failed_checks(hostname: "worker-a", repository_id: repository_id,
+                                           smoke_report: passing_report("mysql_client", observed_at: gap.detected_at - 1.minute))).not_to be_empty
+      expect(described_class.failed_checks(hostname: "worker-a", repository_id: repository_id,
+                                           smoke_report: passing_report("mysql_client", observed_at: 1.minute.from_now))).to eq({})
     end
 
     it "refreshes one row instead of piling up duplicates" do
       first = gap!(hostname: "worker-a")
-      second = gap!(hostname: "worker-a")
 
-      expect(second.id).to eq(first.id)
+      expect(gap!(hostname: "worker-a").id).to eq(first.id)
       expect(described_class.count).to eq(1)
     end
   end
@@ -68,35 +84,17 @@ RSpec.describe "worker environment gaps" do
       live_worker!("worker-provisioned")
     end
 
-    it "does not pin the repository's prepare back onto the gapped worker it last ran on" do
-      workflow.update_columns(worker_hostname: "worker-unprovisioned", worker_storage_key: nil)
-      expect(described_class.resolve(run: run)).to have_attributes(sticky_resume: true)
-
+    it "reports a failure-found gap as the worker's failed environment check" do
       gap!(hostname: "worker-unprovisioned")
+
       decision = described_class.resolve(run: run)
+      failures = decision.details["live_workers"].to_h { |worker| [ worker["hostname"], worker["environment_check_failures"] ] }
 
       expect(decision).not_to be_blocked
-      expect(decision.sticky_resume).to be(false)
-      expect(decision.queue_name).not_to eq(Workflow.resume_queue_name("worker-unprovisioned"))
-      expect(decision.details["worker_environment_gaps"]).to include(include("hostname" => "worker-unprovisioned", "missing_name" => "zstd"))
+      expect(failures["worker-unprovisioned"]).to include("mysql_client" => include("install failed on this worker"))
+      expect(failures["worker-provisioned"]).to be_nil
       expect(described_class.worker_environment_blocks?(run: run, hostname: "worker-unprovisioned")).to be(true)
-    end
-
-    it "blocks with a named reason when every live worker lacks the dependency" do
-      gap!(hostname: "worker-unprovisioned")
-      gap!(hostname: "worker-provisioned")
-
-      decision = described_class.resolve(run: run)
-
-      expect(decision.blocked_reason).to eq("worker_environment_missing")
-    end
-
-    it "does not hold work that installs nothing" do
-      gap!(hostname: "worker-unprovisioned")
-      gap!(hostname: "worker-provisioned")
-      prepare_step.update!(kind: "pr_open")
-
-      expect(described_class.resolve(run: run)).not_to be_blocked
+      expect(described_class.worker_environment_blocks?(run: run, hostname: "worker-provisioned")).to be(false)
     end
 
     it "hands a Run back from the local worker when it is the gapped one" do
@@ -124,9 +122,8 @@ RSpec.describe "worker environment gaps" do
     it "records the gap against the worker it failed on and retries the step in place" do
       fail_with_missing_zstd!
 
-      gap = WorkerEnvironmentGap.sole
-      expect(gap).to have_attributes(hostname: "worker-unprovisioned", repository_id: repository_id,
-                                     missing_kind: "library", missing_name: "zstd", source: "failure", run_id: run.id)
+      expect(WorkerEnvironmentGap.sole).to have_attributes(hostname: "worker-unprovisioned", repository_id: repository_id,
+                                                           missing_kind: "library", missing_name: "zstd", run_id: run.id)
       expect(prepare_step.reload).not_to be_failed
       expect(workflow.reload).not_to be_failed
       expect(AutoRetryAttempt.pending.sole).to have_attributes(
@@ -134,11 +131,17 @@ RSpec.describe "worker environment gaps" do
       )
     end
 
+    it "records prepare's own smoke-check refusal under the smoke check's name" do
+      workflow.update_columns(state: "running", worker_hostname: "worker-unprovisioned")
+      WorkerEnvironmentGap.record_from_run!(run, problem_evidence: { "failed_checks" => [ "mysql_client" ] })
+
+      expect(WorkerEnvironmentGap.sole.check_name).to eq("mysql_client")
+    end
+
     it "moves the retry off the unprovisioned worker" do
       fail_with_missing_zstd!
-      attempt = AutoRetryAttempt.pending.sole
 
-      AutoRetryJob.perform_now(attempt.id)
+      AutoRetryJob.perform_now(AutoRetryAttempt.pending.sole.id)
 
       expect(workflow.reload).to have_attributes(worker_hostname: nil, worker_storage_key: nil,
                                                  last_workspace_hostname: "worker-unprovisioned")
@@ -157,7 +160,7 @@ RSpec.describe "worker environment gaps" do
       run.reload.succeed!
       run.save!
 
-      expect(WorkerEnvironmentGap.blocks?(hostname: "worker-unprovisioned", repository_id: repository_id)).to be(false)
+      expect(WorkerEnvironmentGap.failed_checks(hostname: "worker-unprovisioned", repository_id: repository_id)).to eq({})
     end
   end
 

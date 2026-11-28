@@ -5162,7 +5162,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.integer "repository_id"
     t.string "missing_kind", null: false
     t.string "missing_name"
-    t.string "source", null: false
     t.integer "run_id"
     t.json "evidence"
     t.datetime "detected_at", null: false
